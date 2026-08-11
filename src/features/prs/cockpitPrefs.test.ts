@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  loadFavorites,
   loadRepoFilter,
   loadSortMode,
+  saveFavorites,
   saveRepoFilter,
   saveSortMode,
 } from "./cockpitPrefs";
@@ -65,6 +67,30 @@ describe("loadRepoFilter", () => {
   });
 });
 
+describe("loadFavorites", () => {
+  it("geeft de opgeslagen favorieten terug", () => {
+    localStorage.setItem(
+      "pr-cockpit.favorites",
+      JSON.stringify(["acme/api", "acme/website"]),
+    );
+    expect(loadFavorites()).toEqual(["acme/api", "acme/website"]);
+  });
+
+  it("geeft een lege lijst bij lege storage", () => {
+    expect(loadFavorites()).toEqual([]);
+  });
+
+  it("geeft een lege lijst bij corrupte JSON", () => {
+    localStorage.setItem("pr-cockpit.favorites", "{niet json");
+    expect(loadFavorites()).toEqual([]);
+  });
+
+  it("geeft een lege lijst als de opgeslagen waarde geen string-array is", () => {
+    localStorage.setItem("pr-cockpit.favorites", JSON.stringify({ a: 1 }));
+    expect(loadFavorites()).toEqual([]);
+  });
+});
+
 describe("saveSortMode/saveRepoFilter", () => {
   it("schrijft de sortmode weg zodat loadSortMode 'm teruggeeft", () => {
     saveSortMode("project");
@@ -74,5 +100,10 @@ describe("saveSortMode/saveRepoFilter", () => {
   it("schrijft de repo-filter weg zodat loadRepoFilter 'm teruggeeft", () => {
     saveRepoFilter("acme/api");
     expect(loadRepoFilter()).toBe("acme/api");
+  });
+
+  it("schrijft favorieten weg zodat loadFavorites ze teruggeeft", () => {
+    saveFavorites(["acme/api"]);
+    expect(loadFavorites()).toEqual(["acme/api"]);
   });
 });

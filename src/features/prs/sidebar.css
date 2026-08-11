@@ -39,6 +39,35 @@
   padding: 16px 8px 6px;
 }
 
+.sidebar-row {
+  position: relative;
+}
+
+.sidebar-star {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  height: 27px;
+  width: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-3);
+  opacity: 0;
+}
+
+.sidebar-star.on,
+.sidebar-star:focus-visible,
+.sidebar-row:hover .sidebar-star {
+  opacity: 1;
+}
+
+.sidebar-star.on {
+  color: var(--accent);
+}
+
 .sidebar-item {
   position: relative;
   display: flex;
@@ -63,6 +92,11 @@
 
 .sidebar-item.selected:hover {
   background: var(--accent-soft);
+}
+
+/* Ruimte voor de sterknop, zodat die de count niet overlapt. */
+.sidebar-row .sidebar-item {
+  padding-right: 26px;
 }
 
 .sidebar-dot {

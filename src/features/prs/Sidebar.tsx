@@ -1,5 +1,7 @@
+import { useState } from "react";
 import type { RepoId } from "../../lib/github/domain";
 import type { RepoGroup } from "../../lib/github/organize";
+import { loadFavorites, saveFavorites } from "./cockpitPrefs";
 import { GithubIcon } from "./icons";
 import "./sidebar.css";
 
@@ -26,6 +28,57 @@ export function Sidebar({
   login,
   clis,
 }: SidebarProps) {
+  const [favorites, setFavorites] = useState<string[]>(loadFavorites);
+
+  function toggleFavorite(repoId: RepoId) {
+    const next = favorites.includes(repoId)
+      ? favorites.filter((id) => id !== repoId)
+      : [...favorites, repoId];
+    setFavorites(next);
+    saveFavorites(next);
+  }
+
+  /** Volgorde binnen elke sectie blijft die van groupByRepo. */
+  const favoriteGroups = groups.filter((group) =>
+    favorites.includes(group.repoId),
+  );
+  const otherGroups = groups.filter(
+    (group) => !favorites.includes(group.repoId),
+  );
+
+  const renderGroup = (group: RepoGroup) => {
+    const isFavorite = favorites.includes(group.repoId);
+    return (
+      <div className="sidebar-row" key={group.repoId}>
+        <button
+          type="button"
+          className={
+            selectedRepoId === group.repoId
+              ? "sidebar-item selected"
+              : "sidebar-item"
+          }
+          title={group.repoId}
+          onClick={() => onSelect(group.repoId)}
+        >
+          <span className="sidebar-dot" />
+          <span className="sidebar-name">{repoNameOnly(group.repoId)}</span>
+          <span className="sidebar-count mono">{group.prs.length}</span>
+        </button>
+        <button
+          type="button"
+          className={isFavorite ? "sidebar-star on" : "sidebar-star"}
+          aria-label={
+            isFavorite ? "Verwijder uit favorieten" : "Markeer als favoriet"
+          }
+          aria-pressed={isFavorite}
+          onClick={() => toggleFavorite(group.repoId)}
+        >
+          {isFavorite ? "★" : "☆"}
+        </button>
+      </div>
+    );
+  };
+
   return (
     <nav className="sidebar">
       {/* Loopt door tot de vensterrand: deze strook houdt de macOS-stoplichten
@@ -43,24 +96,14 @@ export function Sidebar({
           <span className="sidebar-name sidebar-name-all">Alles</span>
           <span className="sidebar-count mono">{totalCount}</span>
         </button>
+        {favoriteGroups.length > 0 && (
+          <>
+            <div className="sidebar-heading mono">Favorieten</div>
+            {favoriteGroups.map(renderGroup)}
+          </>
+        )}
         <div className="sidebar-heading mono">Projecten</div>
-        {groups.map((group) => (
-          <button
-            type="button"
-            key={group.repoId}
-            className={
-              selectedRepoId === group.repoId
-                ? "sidebar-item selected"
-                : "sidebar-item"
-            }
-            title={group.repoId}
-            onClick={() => onSelect(group.repoId)}
-          >
-            <span className="sidebar-dot" />
-            <span className="sidebar-name">{repoNameOnly(group.repoId)}</span>
-            <span className="sidebar-count mono">{group.prs.length}</span>
-          </button>
-        ))}
+        {otherGroups.map(renderGroup)}
       </div>
       <div className="sidebar-footer">
         <div className="sidebar-login">
