@@ -53,10 +53,46 @@ The interface is in Dutch; there is no localisation layer yet.
 
 ## Install
 
-Accord signs in through the GitHub **device flow**, which needs a GitHub OAuth
-app client ID that is baked in at build time. The published bundles are built
-without one, so the usable path today is to build it yourself with your own
-OAuth app:
+Grab a bundle from the
+[latest release](https://github.com/dennispassway/accord/releases/latest). The
+GitHub OAuth client ID is baked into those builds, so there is nothing to
+configure: download, open, sign in.
+
+### macOS (Apple Silicon)
+
+The `.dmg` is built for `aarch64`; there is no Intel build. Open it and drag
+**Accord** to Applications. macOS then refuses to launch it with *"Accord cannot
+be opened because the developer cannot be verified"*, because the app is only
+ad-hoc signed and not notarised with an Apple Developer certificate. Clear the
+quarantine flag that the download put on it:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Accord.app
+```
+
+After that it launches normally. Skipping this step and getting the app to run
+some other way is not enough: macOS then relocates it to a randomised read-only
+path (App Translocation), which breaks the built-in updater.
+
+### Linux (x86_64)
+
+Take the `.deb`, `.rpm` or `.AppImage`. You need a running keyring
+(gnome-keyring or kwallet): the GitHub token is stored through the Secret
+Service, and without one, signing in cannot persist.
+
+### Signing in
+
+On first launch you sign in with a device code shown by the app, which you enter
+on github.com. The token goes into the macOS Keychain (or the Secret Service on
+Linux), never into a file. Accord asks for the `repo` and `read:org` scopes
+deliberately: it writes labels and merges. If your pull requests live in an
+organisation that restricts third-party OAuth apps, someone with owner rights has
+to approve **Accord** there before the token gets access.
+
+### Building it yourself
+
+Contributors and anyone who would rather use their own OAuth app can build from
+source:
 
 ```bash
 git clone https://github.com/dennispassway/accord.git
@@ -73,15 +109,6 @@ client ID in a dotenv file in the repository root:
 ```
 VITE_GITHUB_CLIENT_ID=Ov23li...
 ```
-
-On first launch you sign in with a device code shown by the app. The token goes
-into the macOS Keychain (or the Secret Service on Linux), never into a file in
-the repo. The `repo` scope is requested deliberately: Accord writes labels and
-merges.
-
-Prebuilt macOS `.dmg` and Linux `.deb`/`.rpm`/`.AppImage` bundles are attached to
-every [release](https://github.com/dennispassway/accord/releases). They are only
-ad-hoc signed, so macOS Gatekeeper needs a right-click → Open the first time.
 
 ### Requirements
 
@@ -214,7 +241,13 @@ at it (`"version": "../package.json"`) and release-please bumps
 
 Tauri cannot cross-compile, so `.github/workflows/release.yml` builds on both
 macOS and Ubuntu runners. A manual `workflow_dispatch` run builds without
-releasing and attaches the bundles as run artifacts.
+releasing and attaches the bundles plus the updater artifacts (`.sig`) as run
+artifacts, so a build can be verified before it is published.
+
+The client ID is not a secret in the device flow, so it comes from the
+`VITE_GITHUB_CLIENT_ID` repository variable rather than a secret. It has to be
+present in the environment of the `tauri-action` step, because that step runs
+`beforeBuildCommand` (`vite build`), which inlines it.
 
 ## Updates
 
@@ -231,9 +264,11 @@ and existing installs can never update again.
 
 **macOS caveat:** the app is ad-hoc signed (`signingIdentity: "-"`), and such a
 signature has no stable designated requirement. macOS therefore does not recognise
-the updated app as the same app and may refuse it as "damaged" (right-click → Open
-gets you past it). A dependable update flow on macOS needs an Apple Developer ID
-certificate ($99/year) plus notarisation. Linux is unaffected.
+the updated app as the same app and may refuse it as "damaged". Clearing the
+quarantine flag again (`xattr -dr com.apple.quarantine /Applications/Accord.app`)
+is the route that reliably works; right-click → Open no longer does on current
+macOS. A dependable update flow on macOS needs an Apple Developer ID certificate
+($99/year) plus notarisation. Linux is unaffected.
 
 ## Platform differences
 
