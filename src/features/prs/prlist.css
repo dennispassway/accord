@@ -1,0 +1,340 @@
+/* Lijstrij v2, volgens docs/design-v2/pr-cockpit-v2.dc.html. */
+
+/* De lijst is de enige scroll-container in de schil: sidebar en detailpaneel
+   houden vensterhoogte en scrollen alleen intern als hun inhoud niet past. */
+.pl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.pl-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 6px 5px;
+  background: var(--list);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font: 590 10px / 1 var(--mono);
+  letter-spacing: 0.085em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.pl-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 47px;
+  padding: 7px 10px 8px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.pl-row:hover {
+  background: var(--fill-1);
+}
+
+.pl-row-selected,
+.pl-row-selected:hover {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+/* Overige rijen in een multi-selectie: dezelfde vorm, duidelijk lichter. */
+.pl-row-multi,
+.pl-row-multi:hover {
+  background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--accent-line) 45%, transparent);
+}
+
+.pl-gutter {
+  flex: 0 0 14px;
+  display: flex;
+  justify-content: center;
+  padding-top: 3px;
+}
+
+.pl-number {
+  flex: 0 0 36px;
+  text-align: right;
+  font: 400 11.5px / 17px var(--mono);
+  color: var(--text-3);
+  padding-top: 1px;
+}
+
+.pl-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.pl-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pl-title {
+  flex: 1;
+  min-width: 0;
+  font: 500 13px / 17px var(--font);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.priority-chip {
+  flex: 0 0 auto;
+  font: 590 9.5px / 1 var(--mono);
+  letter-spacing: 0.03em;
+  padding: 3px 4px;
+  border-radius: 4px;
+}
+
+.priority-p1 {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+.priority-p2 {
+  color: var(--accent);
+  padding: 2px 3px;
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.pl-draft-chip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font: 500 10px / 1 var(--font);
+  color: var(--text-3);
+  padding: 2px 5px 2px 4px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.pl-stack-chip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font: 400 10px / 1 var(--mono);
+  color: var(--text-3);
+}
+
+.pl-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  min-width: 0;
+  overflow: hidden;
+  font: 400 11.5px / 15px var(--font);
+  color: var(--text-3);
+}
+
+.pl-meta-author {
+  flex: 0 0 auto;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.pl-meta-sep {
+  flex: 0 0 auto;
+}
+
+.pl-meta-repo {
+  flex: 0 1 auto;
+  min-width: 0;
+  font: 400 10.5px / 15px var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pl-meta-time {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.pl-running {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 2px;
+  color: var(--agent);
+  font-weight: 500;
+}
+
+.pl-running-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--agent);
+  animation: pl-pulse 1.1s ease-in-out infinite;
+}
+
+.pl-changes {
+  flex: 0 0 auto;
+  margin-left: 2px;
+  color: var(--err);
+  font-weight: 500;
+}
+
+/* StatusGlyph */
+
+.status-glyph {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.status-glyph-icon {
+  display: flex;
+}
+
+.status-glyph-dot {
+  margin-top: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.status-glyph-pulse {
+  animation: pl-pulse 1.1s ease-in-out infinite;
+}
+
+.status-glyph-ring {
+  margin-top: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+@keyframes pl-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* RowMetrics */
+
+.row-metrics {
+  position: relative;
+  flex: 0 0 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.row-metrics-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 17px;
+}
+
+.row-metrics-bar {
+  width: 3px;
+  height: 8px;
+  border-radius: 1px;
+}
+
+.row-metrics-bar.on {
+  background: var(--text-2);
+}
+
+.row-metrics-bar.off {
+  background: var(--line-2);
+}
+
+.row-metrics-comments {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 15px;
+  color: var(--text-3);
+}
+
+.row-metrics-comments .mono {
+  font: 400 10px / 15px var(--mono);
+}
+
+/* Avatar */
+
+.pr-avatar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font: 600 8.5px / 1 var(--font);
+}
+
+.pr-avatar-human {
+  border-radius: 50%;
+}
+
+.pr-avatar-agent {
+  border-radius: 5px;
+}
+
+/* Agent-review badge in de avatar-cluster */
+
+.pl-agent-cluster {
+  flex: 0 0 auto;
+  display: flex;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.pl-agent-badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin-left: -4px;
+  border-radius: 5px;
+  color: #fff;
+  box-shadow: 0 0 0 1.5px var(--list);
+}
+
+.pl-agent-badge-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--agent);
+  box-shadow: 0 0 0 1.5px var(--list);
+}
+
+.pl-agent-badge-dot-fixes {
+  background: var(--ok);
+}

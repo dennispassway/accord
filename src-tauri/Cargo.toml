@@ -1,0 +1,33 @@
+[package]
+name = "accord"
+version = "0.1.0"
+description = "Review, prioritise and merge your GitHub pull requests from one native window"
+authors = ["Dennis Passway"]
+license = "MIT"
+repository = "https://github.com/dennispassway/accord"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "accord_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.13.4", default-features = false, features = ["form", "json", "rustls"] }
+# De default `v1`-feature kiest per platform de juiste store (macOS keychain,
+# Linux secret-service via zbus, Windows credential manager).
+keyring = "4.1.5"
+tauri-plugin-updater = "2.10.1"
+tauri-plugin-process = "2.3.1"
+

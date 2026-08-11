@@ -1,0 +1,85 @@
+/* Update-kaart rechtsonder. Volgt de thematokens uit App.css, in tegenstelling
+   tot de toast (die bewust altijd donker is): deze kaart blijft staan tot er
+   een keuze gemaakt is en moet dus in beide thema's rustig ogen. */
+
+.update-card {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 60;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  border-radius: var(--r-4);
+  background: var(--menu);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font: 500 12px / 1.4 var(--font);
+}
+
+.update-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.update-dot {
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.update-title {
+  font-weight: 600;
+}
+
+.update-notes {
+  margin-top: 8px;
+  max-height: 128px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  color: var(--text-2);
+  font-weight: 400;
+}
+
+.update-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.update-button {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line);
+  background: var(--fill-1);
+  color: var(--text-1);
+  font: 600 12px / 1.2 var(--font);
+  cursor: pointer;
+}
+
+.update-button:hover {
+  background: var(--fill-2);
+}
+
+.update-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.update-button-primary {
+  background: var(--accent);
+  border-color: var(--accent-line);
+  color: var(--accent-ink);
+}
+
+.update-button-primary:hover {
+  background: var(--accent);
+  filter: brightness(1.08);
+}

@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+:root{
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
+  --r-1:5px; --r-2:7px; --r-3:10px; --r-4:12px;
+}
+[data-theme="dark"]{
+  --text-1:#F3F3F5; --text-2:rgba(240,240,246,.66); --text-3:rgba(240,240,246,.42);
+  --accent:#E9A93C; --accent-ink:#231703; --accent-soft:rgba(233,169,60,.16); --accent-line:rgba(233,169,60,.38);
+  --ok:#4FBE7C; --err:#FF6F63; --warn:#F2A65A; --agent:#A78BFA;
+  --line:rgba(255,255,255,.09); --line-2:rgba(255,255,255,.17);
+  --fill-1:rgba(255,255,255,.06); --fill-2:rgba(255,255,255,.11);
+  --side:rgba(42,42,48,.42); --list:rgba(20,20,24,.56); --detail:rgba(30,30,35,.48); --bar:rgba(44,44,50,.26);
+  --card:rgba(255,255,255,.05); --code:rgba(0,0,0,.32); --menu:rgba(48,48,54,.97);
+  --win-line:rgba(255,255,255,.14); --shadow:0 20px 55px rgba(0,0,0,.55);
+  --focus:#E9A93C;
+}
+[data-theme="light"]{
+  --text-1:#1B1B1E; --text-2:rgba(28,28,32,.62); --text-3:rgba(28,28,32,.44);
+  --accent:#B4740C; --accent-ink:#FFFFFF; --accent-soft:rgba(180,116,12,.11); --accent-line:rgba(180,116,12,.34);
+  --ok:#1D8A4C; --err:#C1352A; --warn:#8F5B07; --agent:#6446C8;
+  --line:rgba(0,0,0,.08); --line-2:rgba(0,0,0,.15);
+  --fill-1:rgba(0,0,0,.04); --fill-2:rgba(0,0,0,.08);
+  --side:rgba(250,250,252,.46); --list:rgba(255,255,255,.60); --detail:rgba(247,247,250,.52); --bar:rgba(255,255,255,.34);
+  --card:rgba(0,0,0,.03); --code:rgba(0,0,0,.05); --menu:rgba(252,252,254,.98);
+  --win-line:rgba(0,0,0,.13); --shadow:0 20px 55px rgba(0,0,0,.22);
+  --focus:#8F5B07;
+}
+html,body{margin:0;background:#0B0B0D;-webkit-font-smoothing:antialiased}
+a{color:#E9A93C;text-decoration:none}
+a:hover{color:#F5C878}
+button{font:inherit;color:inherit}
+input{font:inherit}
+*:focus-visible{outline:2px solid var(--focus,#E9A93C);outline-offset:1px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:rgba(150,150,160,.34);border-radius:9px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-zoek" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.4 15.4L20 20"></path></symbol>
+<symbol id="i-vernieuw" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.6-5.9"></path><path d="M20.5 4.5v5h-5"></path></symbol>
+<symbol id="i-extern" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"></path><path d="M20 4l-8.6 8.6"></path><path d="M18 14.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.5"></path></symbol>
+<symbol id="i-stapel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8.5 4.5L12 12 3.5 7.5 12 3z"></path><path d="M3.5 12.5L12 17l8.5-4.5"></path></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l4.8 4.8L19.5 7"></path></symbol>
+<symbol id="i-kruis" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></symbol>
+<symbol id="i-let-op" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.2l8.8 15.6H3.2L12 4.2z"></path><path d="M12 9.8v4.1"></path><path d="M12 17.2h.01"></path></symbol>
+<symbol id="i-merge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="5.5" r="2.5"></circle><circle cx="6.5" cy="18.5" r="2.5"></circle><circle cx="17.5" cy="12" r="2.5"></circle><path d="M6.5 8v8"></path><path d="M9 6.4c1.4 3.3 3.2 5.1 6 5.5"></path></symbol>
+<symbol id="i-concept" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="3.5" stroke-dasharray="3.2 3.4"></rect></symbol>
+<symbol id="i-map" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.2a2 2 0 0 1 2-2h3.2l2 2.2h7.8a2 2 0 0 1 2 2v7.4a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7.2z"></path></symbol>
+<symbol id="i-agent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="4.5" width="17.6" height="15" rx="3.2"></rect><path d="M7.6 10.2l2.6 2.3-2.6 2.3"></path><path d="M13 14.8h3.6"></path></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="2"></rect></symbol>
+<symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5l6.5 6.5-6.5 6.5"></path></symbol>
+<symbol id="i-instellingen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7.5h8"></path><path d="M17.5 7.5H20"></path><circle cx="14.7" cy="7.5" r="2.2"></circle><path d="M4 16.5h3"></path><path d="M12.5 16.5H20"></path><circle cx="9.7" cy="16.5" r="2.2"></circle></symbol>
+<symbol id="i-reactie" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6.6L6.5 19v-3.5a2 2 0 0 1-2-2v-7z"></path></symbol>
+<symbol id="i-sorteer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16"></path><path d="M6.5 12h11"></path><path d="M9.5 17h5"></path></symbol>
+<symbol id="i-klok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.2"></circle><path d="M12 7.6V12l3 1.8"></path></symbol>
+<symbol id="i-slot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="9.5" rx="2.6"></rect><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"></path></symbol>
+<symbol id="i-github" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.2a9.8 9.8 0 0 0-3.1 19.1c.5.1.7-.2.7-.5v-1.9c-2.7.6-3.3-1.2-3.3-1.2-.4-1.1-1.1-1.4-1.1-1.4-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.3-1.1.6-1.4-2.2-.2-4.4-1.1-4.4-4.8 0-1.1.4-1.9 1-2.6-.1-.3-.4-1.3.1-2.6 0 0 .8-.3 2.7 1a9.3 9.3 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.3.2 2.3.1 2.6.6.7 1 1.5 1 2.6 0 3.7-2.2 4.5-4.4 4.8.4.4.7 1 .7 2v3c0 .3.2.6.7.5A9.8 9.8 0 0 0 12 2.2z"></path></symbol>
+</defs></svg>
+
+<div style="min-height:100vh;padding:40px 32px 96px;font-family:var(--font);color:#EDEDF0;display:flex;flex-direction:column;align-items:center;gap:26px">
+
+  <div style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:10px">
+    <div style="font:590 11px/1 var(--mono);letter-spacing:.10em;text-transform:uppercase;color:#E9A93C">Klikbaar prototype · v2</div>
+    <div style="font:600 30px/1.15 var(--font);letter-spacing:-.015em;color:#FAFAFC">PR Cockpit</div>
+    <div style="font:400 13.5px/1.6 var(--font);color:rgba(240,240,246,.58);max-width:780px;text-wrap:pretty">Het venster hieronder werkt echt: de lijst is nu een triage-inbox (jouw review eerst, dan klaar om te mergen), merge direct, start een agent-run met live log. Toetsenbord: pijltjes door de lijst, <b style="font-weight:590;color:rgba(240,240,246,.8)">R</b> agent-review, <b style="font-weight:590;color:rgba(240,240,246,.8)">M</b> merge, <b style="font-weight:590;color:rgba(240,240,246,.8)">1/2/0</b> prioriteit, <b style="font-weight:590;color:rgba(240,240,246,.8)">O</b> of Enter opent op GitHub, <b style="font-weight:590;color:rgba(240,240,246,.8)">cmd+F</b> zoeken, <b style="font-weight:590;color:rgba(240,240,246,.8)">cmd+R</b> verversen. De schakelaars zetten de app in een toestand die je in de praktijk tegenkomt.</div>
+  </div>
+
+  <div style="width:1180px;max-width:100%;display:flex;flex-wrap:wrap;gap:8px 22px;padding:14px 16px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)">
+    <sc-for list="{{ switchGroups }}" as="g" hint-placeholder-count="5">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font:590 9.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:rgba(240,240,246,.36)">{{ g.label }}</span>
+        <div style="display:flex;gap:4px">
+          <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="3">
+            <button type="button" onClick="{{ it.go }}" title="{{ it.title }}" style="position:relative;padding:5px 9px;border-radius:6px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);color:rgba(240,240,246,.72);font:500 11.5px/1 var(--font);cursor:pointer" style-hover="background:rgba(255,255,255,.09);color:#FAFAFC">
+              <sc-if value="{{ it.on }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0;border-radius:6px;background:rgba(233,169,60,.20);box-shadow:inset 0 0 0 1px rgba(233,169,60,.5)"></span></sc-if>
+              <span style="position:relative">{{ it.label }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="width:100%;display:flex;justify-content:center;padding:38px 20px;border-radius:18px;overflow:auto;background:{{ wallBg }}">
+
+    <sc-if value="{{ isApp }}" hint-placeholder-val="{{ true }}">
+    <div data-theme="{{ theme }}" style="position:relative;flex:0 0 auto;display:flex;flex-direction:column;width:{{ winW }}px;height:{{ winH }}px;border-radius:var(--r-4);overflow:hidden;border:1px solid var(--win-line);box-shadow:var(--shadow);backdrop-filter:blur(34px) saturate(155%);-webkit-backdrop-filter:blur(34px) saturate(155%);color:var(--text-1)">
+
+      <div style="display:flex;align-items:center;gap:10px;height:52px;flex:0 0 52px;padding:0 12px 0 14px;background:var(--bar);border-bottom:1px solid var(--line)">
+        <div style="display:flex;gap:8px;margin-right:8px">
+          <span style="width:12px;height:12px;border-radius:50%;background:#FF5F57;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)"></span>
+          <span style="width:12px;height:12px;border-radius:50%;background:#FEBC2E;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)"></span>
+          <span style="width:12px;height:12px;border-radius:50%;background:#28C840;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)"></span>
+        </div>
+        <div style="position:relative;display:flex;align-items:center;gap:7px;width:330px;height:28px;padding:0 8px 0 9px;border-radius:var(--r-2);background:var(--fill-1);box-shadow:inset 0 0 0 1px var(--line)">
+          <sc-if value="{{ searchActive }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0;border-radius:var(--r-2);box-shadow:inset 0 0 0 1px var(--accent-line);pointer-events:none"></span></sc-if>
+          <svg width="13" height="13" style="flex:0 0 13px;color:var(--text-3)"><use href="#i-zoek"></use></svg>
+          <input value="{{ query }}" onChange="{{ onQuery }}" ref="{{ searchRef }}" placeholder="Zoek op titel, repo of nummer" aria-label="Zoeken" style="flex:1;min-width:0;border:0;background:transparent;color:var(--text-1);font:400 12.5px/1 var(--font);outline:none;padding:0" />
+          <sc-if value="{{ searchActive }}" hint-placeholder-val="{{ false }}">
+            <span style="flex:0 0 auto;font:400 10.5px/1 var(--mono);color:var(--text-3);white-space:nowrap">{{ resultLabel }}</span>
+            <button type="button" onClick="{{ clearQuery }}" title="Leegmaken (esc)" style="flex:0 0 16px;display:grid;place-items:center;width:16px;height:16px;border:0;border-radius:50%;background:var(--fill-2);color:var(--text-2);cursor:pointer" style-hover="background:var(--line-2);color:var(--text-1)"><svg width="9" height="9"><use href="#i-kruis"></use></svg></button>
+          </sc-if>
+          <sc-if value="{{ searchEmpty }}" hint-placeholder-val="{{ true }}"><span style="flex:0 0 auto;font:500 10px/1 var(--mono);color:var(--text-3);padding:2px 4px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--line)">⌘F</span></sc-if>
+        </div>
+        <div style="flex:1"></div>
+        <button type="button" onClick="{{ openSettings }}" title="Instellingen (⌘,)" style="display:grid;place-items:center;width:26px;height:26px;border:0;border-radius:var(--r-2);background:transparent;color:var(--text-2);cursor:pointer" style-hover="background:var(--fill-1);color:var(--text-1)"><svg width="15" height="15"><use href="#i-instellingen"></use></svg></button>
+        <div style="position:relative;flex:0 0 auto">
+          <button type="button" onClick="{{ toggleSort }}" title="Sorteren" style="display:flex;align-items:center;gap:6px;height:26px;padding:0 7px 0 8px;border:0;border-radius:var(--r-2);background:var(--fill-1);box-shadow:inset 0 0 0 1px var(--line);color:var(--text-1);font:500 11.5px/1 var(--font);cursor:pointer" style-hover="background:var(--fill-2)">
+            <svg width="12" height="12" style="color:var(--text-3)"><use href="#i-sorteer"></use></svg>{{ sortLabel }}<svg width="9" height="9" style="color:var(--text-3);transform:rotate(90deg)"><use href="#i-chevron"></use></svg>
+          </button>
+          <sc-if value="{{ sortOpen }}" hint-placeholder-val="{{ false }}">
+            <span onClick="{{ closeSort }}" style="position:fixed;inset:0;z-index:18"></span>
+            <div style="position:absolute;top:31px;right:0;z-index:20;min-width:224px;padding:5px;border-radius:9px;background:var(--menu);box-shadow:0 14px 34px rgba(0,0,0,.34),inset 0 0 0 1px var(--line-2);display:flex;flex-direction:column;gap:1px">
+              <sc-for list="{{ sortOptions }}" as="o" hint-placeholder-count="4">
+                <button type="button" onClick="{{ o.go }}" style="display:flex;align-items:center;gap:8px;height:27px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--text-1);font:400 12px/1 var(--font);cursor:pointer;text-align:left" style-hover="background:var(--fill-2)">
+                  <span style="flex:0 0 12px;display:grid;place-items:center;color:var(--accent)">
+                    <sc-if value="{{ o.on }}" hint-placeholder-val="{{ false }}"><svg width="11" height="11"><use href="#i-check"></use></svg></sc-if>
+                  </span>
+                  <span style="flex:1;white-space:nowrap">{{ o.label }}</span>
+                  <span style="flex:0 0 auto;font:500 10px/1 var(--mono);color:var(--text-3)">{{ o.kbd }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+        <button type="button" onClick="{{ refresh }}" title="{{ refreshTitle }}" style="display:grid;place-items:center;width:26px;height:26px;border:0;border-radius:var(--r-2);background:transparent;color:var(--text-2);cursor:pointer" style-hover="background:var(--fill-1);color:var(--text-1)">
+          <sc-if value="{{ loading }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" style="animation:sp .9s linear infinite;color:var(--accent)"><use href="#i-vernieuw"></use></svg></sc-if>
+          <sc-if value="{{ notLoading }}" hint-placeholder-val="{{ true }}"><svg width="14" height="14"><use href="#i-vernieuw"></use></svg></sc-if>
+        </button>
+      </div>
+
+      <div style="flex:1;display:flex;min-height:0">
+
+        <div style="width:216px;flex:0 0 216px;display:flex;flex-direction:column;min-height:0;background:var(--side);border-right:1px solid var(--line)">
+          <div style="flex:1;overflow-y:auto;padding:8px 8px 4px">
+            <button type="button" onClick="{{ selectAll }}" style="position:relative;display:flex;align-items:center;gap:8px;width:100%;height:27px;padding:0 8px;border:0;border-radius:6px;background:transparent;cursor:pointer;text-align:left" style-hover="background:var(--fill-1)">
+              <sc-if value="{{ allActive }}" hint-placeholder-val="{{ true }}"><span style="position:absolute;inset:0;border-radius:6px;background:var(--accent-soft)"></span></sc-if>
+              <span style="position:relative;width:5px;height:5px;border-radius:50%;background:var(--accent)"></span>
+              <span style="position:relative;flex:1;font:590 12.5px/1 var(--font);color:var(--text-1)">Alles</span>
+              <span style="position:relative;font:400 11px/1 var(--mono);color:var(--text-3)">{{ totalCount }}</span>
+            </button>
+            <div style="font:590 9.5px/1 var(--mono);letter-spacing:.10em;text-transform:uppercase;color:var(--text-3);padding:16px 8px 6px">Projecten</div>
+            <div style="display:flex;flex-direction:column;gap:1px">
+              <sc-for list="{{ projects }}" as="p" hint-placeholder-count="8">
+                <button type="button" onClick="{{ p.go }}" title="{{ p.full }}" style="position:relative;display:flex;align-items:center;gap:8px;width:100%;height:27px;padding:0 8px;border:0;border-radius:6px;background:transparent;cursor:pointer;text-align:left" style-hover="background:var(--fill-1)">
+                  <sc-if value="{{ p.on }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0;border-radius:6px;background:var(--accent-soft)"></span></sc-if>
+                  <span style="position:relative;width:5px;height:5px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--text-3)"></span>
+                  <span style="position:relative;flex:1;min-width:0;font:400 12.5px/1.2 var(--font);color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.short }}</span>
+                  <span style="position:relative;font:400 11px/1 var(--mono);color:var(--text-3)">{{ p.count }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="flex:0 0 auto;padding:8px 10px 10px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:5px">
+            <div style="display:flex;align-items:center;gap:6px;font:400 11px/1 var(--font);color:var(--text-2)">
+              <svg width="12" height="12" style="color:var(--text-3)"><use href="#i-github"></use></svg><span>@octocat</span>
+            </div>
+            <div style="display:flex;gap:10px;font:400 10.5px/1 var(--mono);color:var(--text-3)">
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:4px;height:4px;border-radius:50%;background:var(--ok)"></span>claude</span>
+              <sc-if value="{{ codexOn }}" hint-placeholder-val="{{ true }}"><span style="display:flex;align-items:center;gap:4px"><span style="width:4px;height:4px;border-radius:50%;background:var(--ok)"></span>codex</span></sc-if>
+              <sc-if value="{{ codexOff }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:4px;color:var(--err)"><span style="width:4px;height:4px;border-radius:50%;background:var(--err)"></span>codex niet gevonden</span></sc-if>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--list)">
+          <sc-if value="{{ showWriteError }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:flex-start;gap:8px;margin:8px 10px 0;padding:8px 10px;border-radius:var(--r-2);background:var(--card);box-shadow:inset 0 0 0 1px var(--line)">
+              <svg width="13" height="13" style="flex:0 0 13px;margin-top:1px;color:var(--err)"><use href="#i-let-op"></use></svg>
+              <div style="flex:1;min-width:0;font:400 11.5px/1.45 var(--font);color:var(--text-2)">{{ writeErrorText }}</div>
+              <button type="button" onClick="{{ dismissError }}" style="flex:0 0 auto;border:0;background:transparent;color:var(--text-3);cursor:pointer;padding:2px" style-hover="color:var(--text-1)"><svg width="10" height="10"><use href="#i-kruis"></use></svg></button>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ listOk }}" hint-placeholder-val="{{ true }}">
+          <div ref="{{ listRef }}" style="flex:1;min-height:0;overflow-y:auto;padding:4px 8px 14px">
+            <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+              <div>
+                <sc-if value="{{ g.showHeader }}" hint-placeholder-val="{{ true }}">
+                  <div style="position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:12px 6px 5px;background:var(--list);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)">
+                    <span style="font:590 10px/1 var(--mono);letter-spacing:.085em;text-transform:uppercase;color:var(--text-3)">{{ g.name }}</span>
+                    <span style="flex:1;height:1px;background:var(--line)"></span>
+                    <span style="font:400 10px/1 var(--mono);color:var(--text-3)">{{ g.count }}</span>
+                  </div>
+                </sc-if>
+                <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="4">
+                  <div onClick="{{ r.go }}" onDoubleClick="{{ r.open }}" style="position:relative;display:flex;align-items:flex-start;gap:8px;padding:7px 10px 8px;border-radius:var(--r-2);cursor:default" style-hover="background:var(--fill-1)">
+                    <sc-if value="{{ r.on }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0;border-radius:var(--r-2);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line);pointer-events:none"></span></sc-if>
+                    <div title="{{ r.stLabel }}" style="position:relative;flex:0 0 14px;display:flex;justify-content:center;padding-top:3px">
+                      <sc-if value="{{ r.stCheck }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" style="color:{{ r.stColor }}"><use href="#i-check"></use></svg></sc-if>
+                      <sc-if value="{{ r.stAlert }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" style="color:{{ r.stColor }}"><use href="#i-let-op"></use></svg></sc-if>
+                      <sc-if value="{{ r.stDot }}" hint-placeholder-val="{{ true }}"><span style="margin-top:3px;width:7px;height:7px;border-radius:50%;background:{{ r.stColor }}"></span></sc-if>
+                      <sc-if value="{{ r.stPulse }}" hint-placeholder-val="{{ false }}"><span style="margin-top:3px;width:7px;height:7px;border-radius:50%;background:{{ r.stColor }};animation:pulse 1.1s ease-in-out infinite"></span></sc-if>
+                      <sc-if value="{{ r.stRing }}" hint-placeholder-val="{{ false }}"><span style="margin-top:3px;width:7px;height:7px;border-radius:50%;box-shadow:inset 0 0 0 1.5px {{ r.stColor }}"></span></sc-if>
+                    </div>
+                    <div style="position:relative;flex:0 0 36px;text-align:right;font:400 11.5px/17px var(--mono);color:var(--text-3);padding-top:1px">{{ r.nr }}</div>
+                    <div style="position:relative;flex:1;min-width:0">
+                      <div style="display:flex;align-items:center;gap:6px;min-width:0">
+                        <sc-if value="{{ r.p1 }}" hint-placeholder-val="{{ false }}"><span style="flex:0 0 auto;font:590 9.5px/1 var(--mono);letter-spacing:.03em;color:var(--accent-ink);background:var(--accent);padding:3px 4px;border-radius:4px">P1</span></sc-if>
+                        <sc-if value="{{ r.p2 }}" hint-placeholder-val="{{ false }}"><span style="flex:0 0 auto;font:590 9.5px/1 var(--mono);letter-spacing:.03em;color:var(--accent);padding:2px 3px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--accent-line)">P2</span></sc-if>
+                        <sc-if value="{{ r.draft }}" hint-placeholder-val="{{ false }}"><span style="flex:0 0 auto;display:flex;align-items:center;gap:3px;font:500 10px/1 var(--font);color:var(--text-3);padding:2px 5px 2px 4px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--line)"><svg width="9" height="9"><use href="#i-concept"></use></svg>concept</span></sc-if>
+                        <div style="flex:1;min-width:0;font:500 13px/17px var(--font);color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.title }}</div>
+                        <sc-if value="{{ r.hasStack }}" hint-placeholder-val="{{ false }}"><span title="Positie in de stack" style="flex:0 0 auto;display:flex;align-items:center;gap:3px;font:400 10px/1 var(--mono);color:var(--text-3)"><svg width="10" height="10"><use href="#i-stapel"></use></svg>{{ r.stack }}</span></sc-if>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:5px;margin-top:2px;min-width:0;overflow:hidden;font:400 11.5px/15px var(--font);color:var(--text-3)">
+                        <sc-if value="{{ r.avHuman }}" hint-placeholder-val="{{ true }}"><span title="{{ r.author }}" style="flex:0 0 15px;width:15px;height:15px;border-radius:50%;background:{{ r.av.bg }};color:#fff;font:600 8.5px/15px var(--font);text-align:center">{{ r.av.ch }}</span></sc-if>
+                        <sc-if value="{{ r.avAgent }}" hint-placeholder-val="{{ false }}"><span title="{{ r.author }} (agent)" style="flex:0 0 15px;display:grid;place-items:center;width:15px;height:15px;border-radius:5px;background:{{ r.av.bg }};color:#fff"><svg width="9" height="9"><use href="#i-agent"></use></svg></span></sc-if>
+                        <span style="flex:0 0 auto;color:var(--text-2);white-space:nowrap">{{ r.author }}</span>
+                        <sc-if value="{{ r.showRepo }}" hint-placeholder-val="{{ false }}"><span style="flex:0 0 auto">·</span><span style="flex:0 1 auto;min-width:0;font:400 10.5px/15px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.repoShort }}</span></sc-if>
+                        <span style="flex:0 0 auto">·</span>
+                        <span style="flex:0 0 auto;white-space:nowrap">{{ r.time }}</span>
+                        <sc-if value="{{ r.running }}" hint-placeholder-val="{{ false }}">
+                          <span style="flex:0 0 auto;display:flex;align-items:center;gap:4px;margin-left:2px;color:var(--agent);font-weight:500"><span style="width:5px;height:5px;border-radius:50%;background:var(--agent);animation:pulse 1.1s ease-in-out infinite"></span>{{ r.runLabel }}</span>
+                        </sc-if>
+                        <sc-if value="{{ r.changes }}" hint-placeholder-val="{{ false }}"><span style="flex:0 0 auto;margin-left:2px;color:var(--err);font-weight:500">changes requested</span></sc-if>
+                        <sc-if value="{{ r.hasCluster }}" hint-placeholder-val="{{ true }}">
+                          <span style="flex:0 0 auto;display:flex;margin-left:auto;padding-left:8px">
+                            <sc-for list="{{ r.agentDone }}" as="ag" hint-placeholder-count="0">
+                              <span title="{{ ag.title }}" style="position:relative;display:grid;place-items:center;width:15px;height:15px;margin-left:-4px;border-radius:5px;background:{{ ag.bg }};color:#fff;box-shadow:0 0 0 1.5px var(--list)">
+                                <svg width="9" height="9"><use href="#i-agent"></use></svg>
+                                <span style="position:absolute;right:-2px;bottom:-1px;width:6px;height:6px;border-radius:50%;background:{{ ag.badge }};box-shadow:0 0 0 1.5px var(--list)"></span>
+                              </span>
+                            </sc-for>
+                          </span>
+                        </sc-if>
+                      </div>
+                    </div>
+                    <div style="position:relative;flex:0 0 52px;display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+                      <div style="display:flex;align-items:center;gap:5px;height:17px">
+                        <span style="display:flex;align-items:flex-end;gap:2px" title="{{ r.sizeTitle }}">
+                          <sc-for list="{{ r.bars }}" as="b" hint-placeholder-count="4">
+                            <sc-if value="{{ b.on }}" hint-placeholder-val="{{ true }}"><span style="width:3px;height:8px;border-radius:1px;background:var(--text-2)"></span></sc-if>
+                            <sc-if value="{{ b.off }}" hint-placeholder-val="{{ false }}"><span style="width:3px;height:8px;border-radius:1px;background:var(--line-2)"></span></sc-if>
+                          </sc-for>
+                        </span>
+                      </div>
+                      <sc-if value="{{ r.hasComments }}" hint-placeholder-val="{{ true }}">
+                        <div title="{{ r.commentTitle }}" style="display:flex;align-items:center;gap:3px;height:15px;color:var(--text-3)">
+                          <svg width="11" height="11"><use href="#i-reactie"></use></svg>
+                          <span style="font:400 10px/15px var(--mono)">{{ r.comments }}</span>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ listLoading }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;display:flex;flex-direction:column;gap:2px;padding:14px 18px">
+              <div style="font:400 11.5px/1 var(--mono);color:var(--text-3);padding-bottom:12px">PR's ophalen…</div>
+              <sc-for list="{{ skeletons }}" as="s" hint-placeholder-count="6">
+                <div style="position:relative;overflow:hidden;display:flex;flex-direction:column;gap:6px;padding:9px 0 11px;border-bottom:1px solid var(--line)">
+                  <span style="width:{{ s.w1 }};height:9px;border-radius:4px;background:var(--fill-1)"></span>
+                  <span style="width:{{ s.w2 }};height:8px;border-radius:4px;background:var(--fill-1)"></span>
+                  <span style="position:absolute;top:0;bottom:0;width:90px;background:linear-gradient(90deg,transparent,var(--fill-1),transparent);animation:shimmer 1.5s ease-in-out infinite"></span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ listEmptyish }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;display:grid;place-items:center;padding:32px">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:10px;max-width:340px;text-align:center">
+                <div style="display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);color:{{ emptyColor }}">
+                  <sc-if value="{{ emptyIsCheck }}" hint-placeholder-val="{{ false }}"><svg width="17" height="17"><use href="#i-check"></use></svg></sc-if>
+                  <sc-if value="{{ emptyIsZoek }}" hint-placeholder-val="{{ false }}"><svg width="17" height="17"><use href="#i-zoek"></use></svg></sc-if>
+                  <sc-if value="{{ emptyIsFout }}" hint-placeholder-val="{{ false }}"><svg width="17" height="17"><use href="#i-let-op"></use></svg></sc-if>
+                </div>
+                <div style="font:590 13px/1.35 var(--font);color:var(--text-1)">{{ emptyTitle }}</div>
+                <div style="font:400 12px/1.55 var(--font);color:var(--text-2);text-wrap:pretty">{{ emptyBody }}</div>
+                <sc-if value="{{ hasEmptyAction }}" hint-placeholder-val="{{ false }}">
+                  <button type="button" onClick="{{ emptyAction }}" style="display:flex;align-items:center;gap:6px;margin-top:4px;padding:6px 11px;border:0;border-radius:var(--r-2);background:var(--fill-2);color:var(--text-1);font:500 12px/1 var(--font);cursor:pointer" style-hover="background:var(--line-2)">{{ emptyActionLabel }}<span style="font:500 10px/1 var(--mono);color:var(--text-3)">{{ emptyActionKbd }}</span></button>
+                </sc-if>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="width:340px;flex:0 0 340px;display:flex;flex-direction:column;min-height:0;background:var(--detail);border-left:1px solid var(--line)">
+          <sc-if value="{{ hasDetail }}" hint-placeholder-val="{{ true }}">
+            <div style="flex:0 0 auto;padding:13px 14px 12px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">
+                <span style="font:590 10px/1 var(--font);color:{{ d.stColor }};background:{{ d.stSoft }};padding:3px 6px;border-radius:4px">{{ d.stLabel }}</span>
+                <sc-if value="{{ d.p1 }}" hint-placeholder-val="{{ false }}"><span style="font:590 9.5px/1 var(--mono);color:var(--accent-ink);background:var(--accent);padding:3px 5px;border-radius:4px">P1</span></sc-if>
+                <sc-if value="{{ d.p2 }}" hint-placeholder-val="{{ false }}"><span style="font:590 9.5px/1 var(--mono);color:var(--accent);padding:2px 4px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--accent-line)">P2</span></sc-if>
+                <sc-if value="{{ d.draft }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:3px;font:500 10px/1 var(--font);color:var(--text-3);padding:2px 6px 2px 5px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--line)"><svg width="9" height="9"><use href="#i-concept"></use></svg>concept</span></sc-if>
+                <sc-if value="{{ d.hasStack }}" hint-placeholder-val="{{ true }}"><span style="display:flex;align-items:center;gap:4px;font:500 10px/1 var(--mono);color:var(--text-2);padding:2px 6px 2px 5px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--line)"><svg width="10" height="10"><use href="#i-stapel"></use></svg>{{ d.stack }}</span></sc-if>
+                <span style="font:500 10px/1 var(--font);color:var(--text-2);padding:3px 6px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--line)">{{ d.reviewLabel }}</span>
+              </div>
+              <div style="font:600 15.5px/1.32 var(--font);letter-spacing:-.008em;color:var(--text-1);text-wrap:pretty">{{ d.title }}</div>
+              <div style="margin-top:5px;font:400 11.5px/1.4 var(--mono);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.slug }}</div>
+            </div>
+
+            <div style="flex:1;min-height:0;overflow-y:auto;padding:12px 14px 16px;display:flex;flex-direction:column;gap:13px">
+
+              <div style="display:flex;flex-direction:column;gap:7px;padding:9px 10px;border-radius:var(--r-3);background:var(--card);box-shadow:inset 0 0 0 1px var(--line)">
+                <div style="display:flex;align-items:center;gap:7px">
+                  <sc-if value="{{ d.ciOk }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" style="color:var(--ok)"><use href="#i-check"></use></svg></sc-if>
+                  <sc-if value="{{ d.ciBad }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" style="color:var(--err)"><use href="#i-let-op"></use></svg></sc-if>
+                  <sc-if value="{{ d.ciBusy }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" style="color:var(--warn);animation:sp 1.4s linear infinite"><use href="#i-vernieuw"></use></svg></sc-if>
+                  <sc-if value="{{ d.ciNone }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" style="color:var(--text-3)"><use href="#i-klok"></use></svg></sc-if>
+                  <span style="flex:1;font:500 12px/1.3 var(--font);color:var(--text-1)">{{ d.ciLabel }}</span>
+                </div>
+                <sc-if value="{{ d.hasFailed }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-direction:column;gap:4px;padding-top:2px">
+                    <sc-for list="{{ d.failed }}" as="f" hint-placeholder-count="2">
+                      <div style="display:flex;align-items:center;gap:6px;font:400 10.5px/1.4 var(--mono);color:var(--text-2)"><span style="flex:0 0 4px;width:4px;height:4px;border-radius:50%;background:var(--err)"></span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.name }}</span></div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+
+              <sc-if value="{{ d.hasStack }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;align-items:baseline;gap:7px">
+                    <span style="font:590 9.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--text-3)">Stapel</span>
+                    <span style="font:400 10px/1 var(--mono);color:var(--text-3)">{{ d.stackTitle }}</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:3px;padding-right:2px">
+                    <sc-for list="{{ d.stackItems }}" as="s" hint-placeholder-count="3">
+                      <div onClick="{{ s.go }}" style="position:relative;margin-left:{{ s.ml }}px;display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),0 1px 3px rgba(0,0,0,.10);cursor:default" style-hover="background:var(--fill-1)">
+                        <sc-if value="{{ s.elbow }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;left:-9px;top:-8px;width:9px;height:22px;border-left:1px solid var(--line-2);border-bottom:1px solid var(--line-2);border-bottom-left-radius:7px"></span></sc-if>
+                        <sc-if value="{{ s.on }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0;border-radius:8px;background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line);pointer-events:none"></span></sc-if>
+                        <span style="position:relative;flex:0 0 16px;display:grid;place-items:center;width:16px;height:16px;border-radius:5px;background:var(--fill-2);font:590 9.5px/1 var(--mono);color:var(--text-2)">{{ s.order }}</span>
+                        <span style="position:relative;flex:1;min-width:0">
+                          <span style="display:flex;align-items:center;gap:6px;min-width:0">
+                            <span style="flex:0 0 auto;font:400 10.5px/16px var(--mono);color:var(--text-3)">{{ s.nr }}</span>
+                            <span style="flex:1;min-width:0;font:500 11.5px/16px var(--font);color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.title }}</span>
+                          </span>
+                          <span style="display:flex;align-items:center;gap:5px;min-width:0;font:400 10px/14px var(--mono);color:var(--text-3)">
+                            <span style="flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.base }}</span>
+                            <span style="flex:0 0 auto">·</span>
+                            <sc-if value="{{ s.ready }}" hint-placeholder-val="{{ true }}"><span style="flex:0 0 auto;color:var(--ok)">{{ s.note }}</span></sc-if>
+                            <sc-if value="{{ s.wait }}" hint-placeholder-val="{{ false }}"><span style="flex:0 0 auto">{{ s.note }}</span></sc-if>
+                          </span>
+                        </span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+
+              <div style="display:grid;grid-template-columns:74px 1fr;gap:6px 10px;align-items:baseline">
+                <sc-for list="{{ d.meta }}" as="m" hint-placeholder-count="5">
+                  <span style="font:590 9.5px/15px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)">{{ m.k }}</span>
+                  <span style="min-width:0;font:400 11.5px/15px var(--mono);color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ m.v }}">{{ m.v }}</span>
+                </sc-for>
+              </div>
+
+              <div style="display:grid;grid-template-columns:74px 1fr;gap:8px 10px;align-items:start;padding-top:2px;border-top:1px solid var(--line)">
+                <sc-for list="{{ d.people }}" as="pp" hint-placeholder-count="3">
+                  <span style="font:590 9.5px/18px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)">{{ pp.k }}</span>
+                  <span style="display:flex;flex-direction:column;gap:4px;min-width:0">
+                    <sc-if value="{{ pp.empty }}" hint-placeholder-val="{{ false }}"><span style="font:400 11.5px/18px var(--font);color:var(--text-3)">{{ pp.none }}</span></sc-if>
+                    <sc-for list="{{ pp.persons }}" as="pe" hint-placeholder-count="1">
+                      <span style="display:flex;align-items:center;gap:6px;min-width:0">
+                        <sc-if value="{{ pe.human }}" hint-placeholder-val="{{ true }}"><span style="flex:0 0 18px;width:18px;height:18px;border-radius:50%;background:{{ pe.bg }};box-shadow:0 0 0 1.5px {{ pe.ring }};color:#fff;font:600 9.5px/18px var(--font);text-align:center">{{ pe.ch }}</span></sc-if>
+                        <sc-if value="{{ pe.agent }}" hint-placeholder-val="{{ false }}"><span style="flex:0 0 18px;display:grid;place-items:center;width:18px;height:18px;border-radius:6px;background:{{ pe.bg }};color:#fff"><svg width="11" height="11"><use href="#i-agent"></use></svg></span></sc-if>
+                        <span style="flex:0 1 auto;min-width:0;font:500 11.5px/18px var(--font);color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ pe.label }}</span>
+                        <span style="flex:0 0 auto;font:400 10px/18px var(--mono);color:var(--text-3)">{{ pe.note }}</span>
+                      </span>
+                    </sc-for>
+                  </span>
+                </sc-for>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="font:590 9.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--text-3)">Prioriteit</div>
+                <div style="display:flex;gap:2px;padding:2px;border-radius:var(--r-2);background:var(--fill-1);box-shadow:inset 0 0 0 1px var(--line)">
+                  <sc-for list="{{ d.prios }}" as="p" hint-placeholder-count="3">
+                    <button type="button" onClick="{{ p.go }}" style="position:relative;flex:1;height:24px;border:0;border-radius:5px;background:transparent;color:var(--text-2);font:500 11.5px/1 var(--font);cursor:pointer" style-hover="color:var(--text-1)">
+                      <sc-if value="{{ p.on }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0;border-radius:5px;background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)"></span></sc-if>
+                      <span style="position:relative">{{ p.label }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ d.prioError }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;gap:6px;font:400 11px/1.45 var(--font);color:var(--err)"><svg width="12" height="12" style="flex:0 0 12px;margin-top:1px"><use href="#i-let-op"></use></svg><span>{{ d.prioErrorText }}</span></div>
+                </sc-if>
+              </div>
+
+              <sc-if value="{{ d.showAgents }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;align-items:center;gap:6px"><span style="font:590 9.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--text-3)">Laten reviewen</span><span style="flex:1;height:1px;background:var(--line)"></span><button type="button" onClick="{{ openSettings }}" title="Model en effort instellen" style="display:grid;place-items:center;width:18px;height:18px;border:0;border-radius:5px;background:transparent;color:var(--text-3);cursor:pointer" style-hover="background:var(--fill-1);color:var(--text-1)"><svg width="12" height="12"><use href="#i-instellingen"></use></svg></button></div>
+                  <sc-if value="{{ d.hasAgentDone }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;flex-direction:column;gap:4px;padding-bottom:2px">
+                      <sc-for list="{{ d.agentDone }}" as="ag" hint-placeholder-count="1">
+                        <div style="display:flex;align-items:center;gap:7px;min-width:0">
+                          <span style="flex:0 0 16px;display:grid;place-items:center;width:16px;height:16px;border-radius:5px;background:{{ ag.bg }};color:#fff"><svg width="10" height="10"><use href="#i-agent"></use></svg></span>
+                          <span style="flex:0 0 auto;font:500 11.5px/16px var(--font);color:var(--text-1)">{{ ag.name }}</span>
+                          <span style="flex:1;min-width:0;font:400 10.5px/16px var(--mono);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ag.detail }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-for list="{{ d.agents }}" as="a" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <span style="flex:0 0 60px;display:flex;flex-direction:column;min-width:0">
+                        <span style="font:500 11px/13px var(--mono);color:var(--text-2)">{{ a.name }}</span>
+                        <span title="{{ a.cfgLabel }}" style="font:400 9px/11px var(--mono);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.cfgLabel }}</span>
+                      </span>
+                      <sc-if value="{{ a.enabled }}" hint-placeholder-val="{{ true }}">
+                        <button type="button" onClick="{{ a.goPrimary }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:26px;border:0;border-radius:var(--r-2);background:var(--fill-1);box-shadow:inset 0 0 0 1px var(--line);color:var(--text-1);font:500 11.5px/1 var(--font);cursor:pointer" style-hover="background:var(--fill-2)">{{ a.primaryLabel }}<sc-if value="{{ a.hasKbd }}" hint-placeholder-val="{{ false }}"><span style="font:500 10px/1 var(--mono);color:var(--text-3)">R</span></sc-if></button>
+                        <div style="position:relative;flex:0 0 auto">
+                          <button type="button" onClick="{{ a.toggleMenu }}" title="Andere modus" style="display:grid;place-items:center;width:24px;height:26px;border:0;border-radius:var(--r-2);background:var(--fill-1);box-shadow:inset 0 0 0 1px var(--line);color:var(--text-3);cursor:pointer" style-hover="background:var(--fill-2);color:var(--text-1)"><svg width="9" height="9" style="transform:rotate(90deg)"><use href="#i-chevron"></use></svg></button>
+                          <sc-if value="{{ a.menuOpen }}" hint-placeholder-val="{{ false }}">
+                            <span onClick="{{ a.toggleMenu }}" style="position:fixed;inset:0;z-index:18"></span>
+                            <div style="position:absolute;top:29px;right:0;z-index:20;min-width:170px;padding:5px;border-radius:9px;background:var(--menu);box-shadow:0 14px 34px rgba(0,0,0,.34),inset 0 0 0 1px var(--line-2)">
+                              <button type="button" onClick="{{ a.goAlt }}" style="display:block;width:100%;height:27px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--text-1);font:400 12px/27px var(--font);cursor:pointer;text-align:left" style-hover="background:var(--fill-2)">{{ a.altLabel }}</button>
+                            </div>
+                          </sc-if>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{ a.disabled }}" hint-placeholder-val="{{ false }}">
+                        <span title="{{ a.reason }}" style="flex:1;display:flex;align-items:center;justify-content:center;height:26px;border-radius:var(--r-2);box-shadow:inset 0 0 0 1px var(--line);color:var(--text-3);font:400 11px/1 var(--font)">{{ a.reason }}</span>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ d.hasBulk }}" hint-placeholder-val="{{ false }}">
+                    <button type="button" onClick="{{ d.bulkRun }}" style="display:flex;align-items:center;justify-content:center;gap:6px;height:26px;margin-top:2px;border:0;border-radius:var(--r-2);background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--text-2);font:500 11.5px/1 var(--font);cursor:pointer" style-hover="background:var(--fill-1);color:var(--text-1)">{{ d.bulkLabel }}</button>
+                  </sc-if>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ d.showRun }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;border-radius:var(--r-3);background:var(--code);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden">
+                  <div style="display:flex;align-items:center;gap:7px;padding:8px 8px 8px 10px;border-bottom:1px solid var(--line)">
+                    <sc-if value="{{ d.runBusy }}" hint-placeholder-val="{{ true }}"><span style="width:6px;height:6px;border-radius:50%;background:var(--agent);animation:pulse 1.1s ease-in-out infinite"></span></sc-if>
+                    <sc-if value="{{ d.runDone }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" style="color:var(--ok)"><use href="#i-check"></use></svg></sc-if>
+                    <span style="flex:1;font:500 11.5px/1 var(--font);color:var(--text-1)">{{ d.runLabel }}</span>
+                    <span style="font:400 10.5px/1 var(--mono);color:var(--text-3)">{{ d.runTime }}</span>
+                    <sc-if value="{{ d.runBusy }}" hint-placeholder-val="{{ true }}">
+                      <button type="button" onClick="{{ d.stopRun }}" style="display:flex;align-items:center;gap:4px;padding:4px 7px;border:0;border-radius:5px;background:var(--fill-2);color:var(--text-1);font:500 10.5px/1 var(--font);cursor:pointer" style-hover="background:var(--line-2)"><svg width="9" height="9"><use href="#i-stop"></use></svg>Stop</button>
+                    </sc-if>
+                    <sc-if value="{{ d.runDone }}" hint-placeholder-val="{{ false }}">
+                      <button type="button" onClick="{{ d.clearRun }}" style="padding:4px 7px;border:0;border-radius:5px;background:transparent;color:var(--text-3);font:500 10.5px/1 var(--font);cursor:pointer" style-hover="color:var(--text-1)">Sluiten</button>
+                    </sc-if>
+                  </div>
+                  <div ref="{{ logRef }}" style="max-height:132px;overflow:auto;padding:7px 10px 9px;display:flex;flex-direction:column;gap:3px">
+                    <sc-for list="{{ d.runLines }}" as="l" hint-placeholder-count="4">
+                      <div style="font:400 10.5px/1.5 var(--mono);color:var(--text-2);white-space:pre;overflow-x:auto">{{ l.text }}</div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ d.needsPath }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:9px;padding:11px;border-radius:var(--r-3);background:var(--card);box-shadow:inset 0 0 0 1px var(--line)">
+                  <div style="display:flex;align-items:center;gap:7px"><svg width="14" height="14" style="color:var(--warn)"><use href="#i-map"></use></svg><span style="font:590 12px/1 var(--font);color:var(--text-1)">Lokale map niet gekoppeld</span></div>
+                  <div style="font:400 11.5px/1.5 var(--font);color:var(--text-2);text-wrap:pretty">{{ d.pathText }}</div>
+                  <button type="button" onClick="{{ d.findPath }}" style="height:27px;border:0;border-radius:var(--r-2);background:var(--accent);color:var(--accent-ink);font:590 12px/1 var(--font);cursor:pointer">Map zoeken…</button>
+                  <div style="font:400 10.5px/1 var(--mono);color:var(--text-3)">of geef het pad handmatig</div>
+                  <div style="display:flex;gap:6px">
+                    <input value="{{ d.pathValue }}" onChange="{{ d.onPath }}" placeholder="~/Code/portal-projects" style="flex:1;min-width:0;height:26px;padding:0 8px;border:0;border-radius:var(--r-2);background:var(--fill-1);box-shadow:inset 0 0 0 1px var(--line);color:var(--text-1);font:400 11px/1 var(--mono);outline:none" />
+                    <button type="button" onClick="{{ d.savePath }}" style="flex:0 0 auto;height:26px;padding:0 10px;border:0;border-radius:var(--r-2);background:var(--fill-2);color:var(--text-1);font:500 11.5px/1 var(--font);cursor:pointer" style-hover="background:var(--line-2)">Koppelen</button>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+
+            <div style="flex:0 0 auto;padding:10px 14px 12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:7px">
+              <sc-if value="{{ d.canMerge }}" hint-placeholder-val="{{ true }}">
+                <div style="position:relative;display:flex;gap:5px">
+                  <button type="button" onClick="{{ d.doMerge }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:31px;border:0;border-radius:var(--r-2);background:var(--accent);color:var(--accent-ink);font:590 12.5px/1 var(--font);cursor:pointer"><svg width="14" height="14"><use href="#i-merge"></use></svg>{{ d.mergeLabel }}<span style="font:500 10.5px/1 var(--mono);opacity:.6">M</span></button>
+                  <button type="button" onClick="{{ d.toggleMergeMenu }}" title="Merge-methode kiezen" style="flex:0 0 30px;display:grid;place-items:center;height:31px;border:0;border-radius:var(--r-2);background:var(--accent);color:var(--accent-ink);cursor:pointer"><svg width="10" height="10" style="transform:rotate(90deg)"><use href="#i-chevron"></use></svg></button>
+                  <sc-if value="{{ d.mergeMenuOpen }}" hint-placeholder-val="{{ false }}">
+                    <span onClick="{{ d.toggleMergeMenu }}" style="position:fixed;inset:0;z-index:18"></span>
+                    <div style="position:absolute;bottom:36px;right:0;z-index:20;min-width:250px;padding:5px;border-radius:9px;background:var(--menu);box-shadow:0 14px 34px rgba(0,0,0,.34),inset 0 0 0 1px var(--line-2);display:flex;flex-direction:column;gap:1px">
+                      <sc-for list="{{ d.methods }}" as="m" hint-placeholder-count="2">
+                        <button type="button" onClick="{{ m.go }}" style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:0;border-radius:6px;background:transparent;cursor:pointer;text-align:left" style-hover="background:var(--fill-2)">
+                          <span style="flex:0 0 12px;display:grid;place-items:center;margin-top:2px;color:var(--accent)"><sc-if value="{{ m.on }}" hint-placeholder-val="{{ true }}"><svg width="11" height="11"><use href="#i-check"></use></svg></sc-if></span>
+                          <span style="flex:1;min-width:0">
+                            <span style="display:block;font:500 12px/1.3 var(--font);color:var(--text-1)">{{ m.label }}</span>
+                            <span style="display:block;margin-top:1px;font:400 10px/1.4 var(--mono);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.note }}</span>
+                          </span>
+                        </button>
+                      </sc-for>
+                      <div style="padding:5px 8px 3px;font:400 10px/1.4 var(--font);color:var(--text-3)">Wordt onthouden voor volgende merges</div>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+              <sc-if value="{{ d.blocked }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:center;justify-content:center;gap:7px;height:31px;border-radius:var(--r-2);box-shadow:inset 0 0 0 1px var(--line);color:var(--text-3);font:590 12.5px/1 var(--font);cursor:not-allowed" title="{{ d.blockTitle }}"><svg width="14" height="14"><use href="#i-merge"></use></svg>Merge</div>
+                  <div style="display:flex;flex-direction:column;gap:3px;padding:0 2px">
+                    <sc-for list="{{ d.reasons }}" as="rr" hint-placeholder-count="2">
+                      <div style="display:flex;gap:6px;font:400 11px/1.45 var(--font);color:var(--text-2)"><span style="flex:0 0 4px;width:4px;height:4px;margin-top:5px;border-radius:50%;background:var(--err)"></span><span>{{ rr.text }}</span></div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+
+              <button type="button" onClick="{{ d.openGithub }}" style="display:flex;align-items:center;justify-content:center;gap:7px;height:28px;border:0;border-radius:var(--r-2);background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--text-1);font:500 12px/1 var(--font);cursor:pointer" style-hover="background:var(--fill-1)"><svg width="13" height="13"><use href="#i-extern"></use></svg>Open op GitHub<span style="font:500 10.5px/1 var(--mono);color:var(--text-3)">⏎</span></button>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ noDetail }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;display:grid;place-items:center;padding:24px">
+              <div style="max-width:200px;text-align:center;font:400 11.5px/1.55 var(--font);color:var(--text-3);text-wrap:pretty">Selecteer een PR in de lijst. Pijltjes navigeren, R start een agent-review, M merget, Enter opent op GitHub.</div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ closeSettings }}" style="position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.30)"></div>
+        <div style="position:absolute;z-index:31;top:44px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;width:520px;max-height:calc(100% - 96px);border-radius:var(--r-4);background:var(--menu);box-shadow:0 26px 60px rgba(0,0,0,.42),inset 0 0 0 1px var(--line-2);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:8px;padding:13px 14px;border-bottom:1px solid var(--line)">
+            <svg width="15" height="15" style="color:var(--text-3)"><use href="#i-instellingen"></use></svg>
+            <span style="flex:1;font:600 13.5px/1 var(--font);color:var(--text-1)">Instellingen</span>
+            <button type="button" onClick="{{ closeSettings }}" title="Sluiten (esc)" style="display:grid;place-items:center;width:22px;height:22px;border:0;border-radius:6px;background:var(--fill-1);color:var(--text-2);cursor:pointer" style-hover="background:var(--fill-2);color:var(--text-1)"><svg width="10" height="10"><use href="#i-kruis"></use></svg></button>
+          </div>
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:4px 14px 14px">
+            <sc-for list="{{ settings }}" as="sec" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column;gap:9px;padding:13px 0;border-bottom:1px solid var(--line)">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font:590 9.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--text-3)">{{ sec.title }}</span>
+                  <span style="font:400 10px/1 var(--mono);color:var(--text-3)">{{ sec.note }}</span>
+                </div>
+                <sc-for list="{{ sec.rows }}" as="row" hint-placeholder-count="2">
+                  <div style="display:grid;grid-template-columns:132px 1fr;gap:10px;align-items:center">
+                    <span style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                      <span style="font:500 12px/1.2 var(--font);color:var(--text-1)">{{ row.k }}</span>
+                      <span style="font:400 10.5px/1.3 var(--font);color:var(--text-3)">{{ row.hint }}</span>
+                    </span>
+                    <span style="display:flex;gap:2px;padding:2px;border-radius:var(--r-2);background:var(--fill-1);box-shadow:inset 0 0 0 1px var(--line)">
+                      <sc-for list="{{ row.options }}" as="o" hint-placeholder-count="3">
+                        <button type="button" onClick="{{ o.go }}" style="position:relative;flex:1;height:24px;padding:0 6px;border:0;border-radius:5px;background:transparent;color:var(--text-2);font:500 11px/1 var(--mono);cursor:pointer;white-space:nowrap" style-hover="color:var(--text-1)">
+                          <sc-if value="{{ o.on }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;inset:0;border-radius:5px;background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line)"></span></sc-if>
+                          <span style="position:relative">{{ o.label }}</span>
+                        </button>
+                      </sc-for>
+                    </span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+
+            <div style="display:flex;flex-direction:column;gap:7px;padding:13px 0;border-bottom:1px solid var(--line)">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font:590 9.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--text-3)">Lokale mappen</span>
+                <span style="font:400 10px/1 var(--mono);color:var(--text-3)">nodig voor de git-worktree van een agent</span>
+              </div>
+              <sc-for list="{{ repoRows }}" as="rr" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:9px;min-width:0">
+                  <span style="flex:0 0 150px;font:500 11.5px/16px var(--font);color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ rr.short }}</span>
+                  <sc-if value="{{ rr.linked }}" hint-placeholder-val="{{ true }}"><span style="flex:1;min-width:0;font:400 10.5px/16px var(--mono);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ rr.path }}</span></sc-if>
+                  <sc-if value="{{ rr.missing }}" hint-placeholder-val="{{ false }}"><span style="flex:1;min-width:0;font:400 10.5px/16px var(--mono);color:var(--warn)">niet gekoppeld</span></sc-if>
+                  <button type="button" onClick="{{ rr.go }}" style="flex:0 0 auto;height:22px;padding:0 9px;border:0;border-radius:6px;background:var(--fill-1);box-shadow:inset 0 0 0 1px var(--line);color:var(--text-1);font:500 11px/1 var(--font);cursor:pointer" style-hover="background:var(--fill-2)">{{ rr.action }}</button>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:10px;padding:13px 0 2px">
+              <span style="display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:oklch(.60 .10 252);color:#fff;font:600 12px/1 var(--font)">D</span>
+              <span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
+                <span style="font:500 12px/1.2 var(--font);color:var(--text-1)">@octocat</span>
+                <span style="font:400 10.5px/1.3 var(--mono);color:var(--text-3)">client-ID Ov23li…4f2c · scopes repo, read:org</span>
+              </span>
+              <button type="button" onClick="{{ logout }}" style="flex:0 0 auto;height:26px;padding:0 11px;border:0;border-radius:var(--r-2);background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--text-1);font:500 11.5px/1 var(--font);cursor:pointer" style-hover="background:var(--fill-1)">Uitloggen</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;max-width:70%;padding:8px 12px;border-radius:9px;background:rgba(20,20,24,.86);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 8px 24px rgba(0,0,0,.4),inset 0 0 0 1px rgba(255,255,255,.12);color:#F3F3F5;font:500 12px/1.35 var(--font)">
+          <span style="flex:0 0 6px;width:6px;height:6px;border-radius:50%;background:{{ toastColor }}"></span><span>{{ toastText }}</span>
+        </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+    <div data-theme="{{ theme }}" style="position:relative;flex:0 0 auto;display:flex;flex-direction:column;width:620px;height:440px;border-radius:var(--r-4);overflow:hidden;border:1px solid var(--win-line);box-shadow:var(--shadow);backdrop-filter:blur(34px) saturate(155%);-webkit-backdrop-filter:blur(34px) saturate(155%);color:var(--text-1)">
+      <div style="display:flex;align-items:center;height:44px;flex:0 0 44px;padding:0 14px;background:var(--bar)">
+        <div style="display:flex;gap:8px">
+          <span style="width:12px;height:12px;border-radius:50%;background:#FF5F57"></span>
+          <span style="width:12px;height:12px;border-radius:50%;background:#FEBC2E"></span>
+          <span style="width:12px;height:12px;border-radius:50%;background:#28C840"></span>
+        </div>
+      </div>
+      <div style="flex:1;display:grid;place-items:center;padding:0 56px 40px;background:var(--list)">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;max-width:400px">
+          <div style="display:grid;place-items:center;width:40px;height:40px;border-radius:11px;background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line);color:var(--accent)">
+            <sc-if value="{{ login.isSlot }}" hint-placeholder-val="{{ false }}"><svg width="20" height="20"><use href="#i-slot"></use></svg></sc-if>
+            <sc-if value="{{ login.isGithub }}" hint-placeholder-val="{{ true }}"><svg width="20" height="20"><use href="#i-github"></use></svg></sc-if>
+          </div>
+          <div style="font:600 17px/1.3 var(--font);letter-spacing:-.01em;color:var(--text-1)">{{ login.title }}</div>
+          <div style="font:400 12.5px/1.6 var(--font);color:var(--text-2);text-wrap:pretty">{{ login.body }}</div>
+
+          <sc-if value="{{ login.hasCode }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:2px">
+              <div style="display:flex;gap:8px;padding:10px 16px;border-radius:var(--r-3);background:var(--code);box-shadow:inset 0 0 0 1px var(--line);font:590 25px/1 var(--mono);letter-spacing:.16em;color:var(--text-1)">{{ login.code }}</div>
+              <button type="button" onClick="{{ login.copy }}" style="padding:5px 10px;border:0;border-radius:var(--r-2);background:var(--fill-1);box-shadow:inset 0 0 0 1px var(--line);color:var(--text-1);font:500 11.5px/1 var(--font);cursor:pointer" style-hover="background:var(--fill-2)">{{ login.copyLabel }}</button>
+              <div style="display:flex;align-items:center;gap:6px;font:400 11px/1.4 var(--mono);color:var(--text-3)"><span style="width:5px;height:5px;border-radius:50%;background:var(--warn);animation:pulse 1.4s ease-in-out infinite"></span>{{ login.wait }}</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ login.hasField }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:7px;width:100%;margin-top:2px">
+              <input value="{{ login.field }}" onChange="{{ login.onField }}" placeholder="Ov23li… (GitHub OAuth client-ID)" style="flex:1;min-width:0;height:30px;padding:0 9px;border:0;border-radius:var(--r-2);background:var(--fill-1);box-shadow:inset 0 0 0 1px var(--line);color:var(--text-1);font:400 11.5px/1 var(--mono);outline:none" />
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ login.hasButton }}" hint-placeholder-val="{{ true }}">
+            <button type="button" onClick="{{ login.go }}" style="display:flex;align-items:center;justify-content:center;gap:8px;min-width:220px;height:32px;margin-top:4px;border:0;border-radius:var(--r-2);background:var(--accent);color:var(--accent-ink);font:590 12.5px/1 var(--font);cursor:pointer">{{ login.button }}</button>
+          </sc-if>
+          <div style="font:400 10.5px/1.5 var(--mono);color:var(--text-3)">{{ login.foot }}</div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+
+  <div data-theme="dark" style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:14px;padding-top:22px">
+    <div style="font:590 11px/1 var(--mono);letter-spacing:.10em;text-transform:uppercase;color:#E9A93C">Statustaal</div>
+    <div style="font:400 13px/1.6 var(--font);color:rgba(240,240,246,.58);max-width:820px;text-wrap:pretty">Een rij mag nooit een kerstboom worden. Daarom vier vaste posities in de rij, alles wat meer uitleg nodig heeft zit in het detailpaneel.</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+      <sc-for list="{{ legend }}" as="l" hint-placeholder-count="6">
+        <div style="display:flex;gap:12px;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)">
+          <div style="flex:0 0 96px;font:590 10px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:#E9A93C">{{ l.k }}</div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+            <div style="font:500 12.5px/1.45 var(--font);color:#EDEDF0">{{ l.row }}</div>
+            <div style="font:400 11.5px/1.5 var(--font);color:rgba(240,240,246,.5)">{{ l.detail }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div data-theme="dark" style="width:1180px;max-width:100%;display:flex;flex-direction:column;gap:14px;padding-top:10px">
+    <div style="font:590 11px/1 var(--mono);letter-spacing:.10em;text-transform:uppercase;color:#E9A93C">Implementatienotities</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <sc-for list="{{ notes }}" as="n" hint-placeholder-count="8">
+        <div style="display:flex;flex-direction:column;gap:5px;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)">
+          <div style="font:500 11.5px/1 var(--mono);color:#F5C878">{{ n.comp }}</div>
+          <div style="font:400 12px/1.55 var(--font);color:rgba(240,240,246,.62);text-wrap:pretty">{{ n.text }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:1000}}">
+const PRS = [
+  {id:'hoc49', repo:'acme/storefront', nr:49, title:'feat(b2b-partner): volledig partnerportaal met module, portal, facturatie en webhook-API', head:'feat/b2b-partner', base:'main', author:'octocat', agent:null, ci:'rood', failed:['build (node 20)','e2e / chromium','lint / eslint'], review:'gevraagd', draft:false, mergeable:'conflict', prio:'P1', add:4212, del:388, created:'21-07, 09:14', updated:'18 min', rel:'review'},
+  {id:'ama36', repo:'acme/charity-site', nr:36, title:'Added donation widget module', head:'feature/add_donation_widget_module', base:'main', author:'hubot', agent:null, ci:'geen', failed:[], review:'gevraagd', draft:false, mergeable:'kan', prio:null, add:112, del:0, created:'23-07, 16:32', updated:'2 u', rel:'review'},
+  {id:'job298', repo:'acme/jobs-api', nr:298, title:'WEB-125: fix ForeignKeyConstraintViolationException bij verwijderen search', head:'fix/web-125-fk-constraint', base:'develop', author:'octocat', agent:null, ci:'geen', failed:[], review:'geen', draft:true, mergeable:'onbekend', prio:null, add:64, del:12, created:'vandaag, 19:41', updated:'35 min', rel:'auteur'},
+  {id:'ken167', repo:'acme/knowledge-base', nr:167, title:'Atomische deploys: releases-mappen en current-symlink in plaats van rsync', head:'feat/atomische-deploys', base:'main', author:'octocat', agent:null, ci:'groen', failed:[], review:'gevraagd', draft:false, mergeable:'kan', prio:null, add:204, del:140, created:'22-07, 11:05', updated:'1 u', rel:'review'},
+  {id:'ken186', repo:'acme/knowledge-base', nr:186, title:'fix(qa): combineer B1-B7 fixes en reviewhardening', head:'fix/qa-b1b7', base:'main', author:'octocat', agent:null, ci:'groen', failed:[], review:'gevraagd', draft:false, mergeable:'kan', prio:null, add:318, del:96, created:'29-07, 14:22', updated:'1 u', rel:'review', stack:'ken', pos:1, blockers:[]},
+  {id:'ken188', repo:'acme/knowledge-base', nr:188, title:'fix(retrieval): herleidbare citaties en antwoordtaal zonder systeemjargon', head:'fix/retrieval-citaties', base:'fix/qa-b1b7', author:'octocat', agent:null, ci:'groen', failed:[], review:'gevraagd', draft:false, mergeable:'kan', prio:null, add:142, del:18, created:'30-07, 10:48', updated:'52 min', rel:'review', stack:'ken', pos:2, blockers:[186]},
+  {id:'ken191', repo:'acme/knowledge-base', nr:191, title:'fix(admin): duidelijker instellingen en helpteksten', head:'fix/admin-instellingen', base:'fix/retrieval-citaties', author:'octocat', agent:null, ci:'bezig', failed:[], review:'geen', draft:false, mergeable:'kan', prio:null, add:88, del:24, created:'vandaag, 18:02', updated:'12 min', rel:'auteur', stack:'ken', pos:3, blockers:[186,188]},
+  {id:'ken192', repo:'acme/knowledge-base', nr:192, title:'feat(extension): maak de extensie downloadbaar in productie', head:'feat/extension-download', base:'main', author:'monalisa', agent:null, ci:'groen', failed:[], review:'goedgekeurd', draft:false, mergeable:'kan', prio:'P2', add:56, del:8, created:'28-07, 09:30', updated:'3 u', rel:'review'},
+  {id:'klf594', repo:'acme/portal-frontend', nr:594, title:'[fix] WEB-105: filter Cloudinary-fetch ruis in Sentry', head:'codex/web-105-sentry-ruis', base:'main', author:'Codex', agent:'codex', ci:'rood', failed:['unit (vitest)'], review:'changes', draft:false, mergeable:'kan', prio:null, add:22, del:6, created:'30-07, 21:16', updated:'4 u', rel:'review'},
+  {id:'klf596', repo:'acme/portal-frontend', nr:596, title:'WEB-109: [Sentry] filter telefoon-hasOwnProperty TypeError', head:'claude/web-109-hasownproperty', base:'main', author:'Claude', agent:'claude', ci:'groen', failed:[], review:'gevraagd', draft:false, mergeable:'kan', prio:null, add:18, del:4, created:'vandaag, 19:55', updated:'25 min', rel:'review'},
+  {id:'klp427', repo:'acme/portal-projects', nr:427, title:'fix: WEB-20 vang Sanity-timeout af op de 404-pagina', head:'fix/web-20-sanity-timeout', base:'main', author:'octocat', agent:null, ci:'rood', failed:['build / next'], review:'gevraagd', draft:false, mergeable:'kan', prio:null, add:31, del:9, created:'vandaag, 20:03', updated:'9 min', rel:'review'},
+  {id:'klp428', repo:'acme/portal-projects', nr:428, title:'fix(sanity): retry transiënte fetch-fouten in sanityFetch (WEB-14)', head:'fix/web-14-sanity-retry', base:'main', author:'octocat', agent:null, ci:'rood', failed:['build / next','types / tsc'], review:'gevraagd', draft:false, mergeable:'kan', prio:null, add:74, del:21, created:'30-07, 16:40', updated:'5 u', rel:'review'},
+  {id:'mee58', repo:'acme/waste-portal', nr:58, title:'fix(formulier): valideer postcode server-side', head:'fix/postcode-validatie', base:'main', author:'octocat', agent:null, ci:'groen', failed:[], review:'gevraagd', draft:false, mergeable:'kan', prio:null, add:41, del:11, created:'29-07, 13:12', updated:'6 u', rel:'review'},
+  {id:'nts112', repo:'acme/careers-site', nr:112, title:'chore: verhoog de cache-tijd van de vacatures-feed', head:'chore/cache-vacatures', base:'main', author:'octocat', agent:null, ci:'groen', failed:[], review:'goedgekeurd', draft:false, mergeable:'kan', prio:null, add:6, del:2, created:'30-07, 08:20', updated:'6 u', rel:'assignee'}
+];
+
+const ORDER = ['acme/storefront','acme/charity-site','acme/jobs-api','acme/knowledge-base','acme/portal-frontend','acme/portal-projects','acme/waste-portal','acme/careers-site'];
+
+const SCRIPTS = {
+  claude: ['worktree: ~/Code/knowledge-base/.worktrees/pr-167','git fetch origin pull/167/head → 4a91c2e','diff gelezen: 9 bestanden, +204 −140','deploy/release.sh: symlink-swap niet atomisch bij bestaande current','deploy/release.sh:82 rm -rf zonder guard op leeg pad','workflows/deploy.yml: oude releases worden niet opgeruimd','3 opmerkingen geplaatst','klaar in 47s'],
+  codex: ['worktree: ~/Code/knowledge-base/.worktrees/pr-167','git fetch origin pull/167/head → 4a91c2e','statische analyse: 9 bestanden','release.sh: ontbrekende set -euo pipefail','current-symlink: race bij gelijktijdige deploy','2 opmerkingen geplaatst','klaar in 31s']
+};
+const FIXLINE = 'commit gepusht: fix(deploy): guard op leeg pad (a3f9b21)';
+
+const PEOPLE = {
+  hoc49:{author:'hubot', agent:null, rel:'review', assignees:['hubot'], reviewers:[['octocat','gevraagd']]},
+  ama36:{author:'hubot', agent:null, rel:'review', assignees:[], reviewers:[['octocat','gevraagd']]},
+  job298:{author:'octocat', agent:null, rel:'auteur', assignees:['octocat'], reviewers:[]},
+  ken167:{author:'monalisa', agent:null, rel:'review', assignees:['monalisa'], reviewers:[['octocat','gevraagd']]},
+  ken186:{author:'Claude', agent:'claude', rel:'review', assignees:['octocat'], reviewers:[['octocat','gevraagd']]},
+  ken188:{author:'Claude', agent:'claude', rel:'review', assignees:['octocat'], reviewers:[['octocat','gevraagd']]},
+  ken191:{author:'Claude', agent:'claude', rel:'assignee', assignees:['octocat'], reviewers:[]},
+  ken192:{author:'monalisa', agent:null, rel:'review', assignees:[], reviewers:[['octocat','goedgekeurd']]},
+  klf594:{author:'Codex', agent:'codex', rel:'review', assignees:['octocat'], reviewers:[['octocat','changes']]},
+  klf596:{author:'Claude', agent:'claude', rel:'review', assignees:[], reviewers:[['octocat','gevraagd'],['monalisa','gevraagd']]},
+  klp427:{author:'octocat', agent:null, rel:'auteur', assignees:['octocat'], reviewers:[['monalisa','gevraagd']]},
+  klp428:{author:'hubot', agent:null, rel:'review', assignees:[], reviewers:[['octocat','gevraagd']]},
+  mee58:{author:'monalisa', agent:null, rel:'review', assignees:[], reviewers:[['octocat','gevraagd']]},
+  nts112:{author:'hubot', agent:null, rel:'assignee', assignees:['octocat'], reviewers:[['monalisa','goedgekeurd']]}
+};
+PRS.forEach(function(p){
+  const m = PEOPLE[p.id];
+  if(!m) return;
+  p.author = m.author; p.agent = m.agent; p.rel = m.rel; p.assignees = m.assignees;
+  p.reviewers = m.reviewers.map(function(r){ return {login:r[0], state:r[1]}; });
+  if(p.stack) p.stackSize = 3;
+});
+
+const ME = 'octocat';
+const AVBG = {octocat:'oklch(.60 .10 252)', hubot:'oklch(.60 .11 22)', monalisa:'oklch(.56 .10 162)', Claude:'oklch(.60 .12 300)', Codex:'oklch(.56 .10 208)'};
+function av(login, agent){
+  return {ch:String(login).charAt(0).toUpperCase(), bg:AVBG[login] || 'oklch(.58 .05 260)', agent:!!agent, me:login === ME};
+}
+function chipOf(login, agent, note){
+  const a = av(login, agent);
+  return {ch:a.ch, bg:a.bg, agent:a.agent, human:!a.agent, label:login, note:note, ring:a.me ? 'var(--accent)' : 'transparent'};
+}
+const COMMENTS = {hoc49:24, ama36:3, job298:2, ken167:6, ken186:9, ken188:6, ken191:0, ken192:3, klf594:11, klf596:1, klp427:3, klp428:5, mee58:2, nts112:1};
+function sizeBars(total){
+  const lvl = total < 30 ? 1 : (total < 150 ? 2 : (total < 600 ? 3 : 4));
+  const out = [];
+  for(let i = 0; i < 4; i++) out.push({on:i < lvl, off:i >= lvl});
+  return out;
+}
+function sizeWord(total){
+  return total < 30 ? 'klein' : (total < 150 ? 'middel' : (total < 600 ? 'groot' : 'zeer groot'));
+}
+
+const MOM = {
+  hoc49:[18,2607210914], ama36:[120,2607231632], job298:[35,2607311941], ken167:[60,2607221105],
+  ken186:[65,2607291422], ken188:[52,2607301048], ken191:[12,2607311802], ken192:[180,2607280930],
+  klf594:[240,2607302116], klf596:[25,2607311955], klp427:[9,2607312003], klp428:[300,2607301640],
+  mee58:[360,2607291312], nts112:[370,2607300820]
+};
+const ARUNS = {
+  ama36:[['claude','comments',2,0,'1 u']],
+  ken186:[['claude','fixes',5,1,'3 u']],
+  ken188:[['claude','comments',4,0,'40 min']],
+  ken192:[['codex','comments',1,0,'2 u']],
+  klf594:[['codex','fixes',3,2,'4 u'],['claude','comments',2,0,'3 u']],
+  klp427:[['claude','comments',3,0,'20 min']],
+  mee58:[['codex','fixes',2,1,'5 u']]
+};
+PRS.forEach(function(p){
+  const m = MOM[p.id];
+  if(m){ p.up = m[0]; p.cr = m[1]; }
+  p.aRuns = (ARUNS[p.id] || []).map(function(a){ return {agent:a[0], mode:a[1], comments:a[2], commits:a[3], when:a[4]}; });
+  p.comments = COMMENTS[p.id] || 0;
+  p.tot = p.add + p.del;
+});
+
+const SORTS = [
+  {key:'status', short:'Triage', label:'Triage (wat nu te doen)', kbd:'⌘1'},
+  {key:'prio', short:'Prioriteit', label:'Prioriteit (P1 eerst)', kbd:'⌘2'},
+  {key:'bijgewerkt', short:'Bijgewerkt', label:'Laatst bijgewerkt', kbd:'⌘3'},
+  {key:'aangemaakt', short:'Aangemaakt', label:'Aanmaakdatum (oudste eerst)', kbd:'⌘4'},
+  {key:'omvang', short:'Omvang', label:'Snelste eerst (kleinste diff)', kbd:'⌘5'},
+  {key:'project', short:'Project', label:'Per project gegroepeerd', kbd:'⌘6'}
+];
+
+function agentInfo(a){
+  const name = a.agent === 'claude' ? 'Claude' : 'Codex';
+  const mode = a.mode === 'fixes' ? 'comments + fixes' : 'alleen comments';
+  const cnt = a.comments + (a.comments === 1 ? ' opmerking' : ' opmerkingen') + (a.commits ? ', ' + a.commits + (a.commits === 1 ? ' commit' : ' commits') + ' gepusht' : '');
+  return {
+    name:name, bg:AVBG[name], badge:a.mode === 'fixes' ? 'var(--ok)' : 'var(--agent)',
+    detail:mode + ' · ' + cnt + ' · ' + a.when,
+    title:name + ' heeft gereviewd: ' + mode + ', ' + cnt + ', ' + a.when + ' geleden'
+  };
+}
+
+function stateColor(st){ return st === 'goedgekeurd' ? 'var(--ok)' : (st === 'changes' ? 'var(--err)' : 'transparent'); }
+
+class Component extends DCLogic {
+  state = {
+    theme:'dark', wall:'donker', wide:true, screen:'app',
+    scope:'alles', query:'', listState:'ok', sel:'ken188', sort:'status', sortOpen:false, agentMenu:null, mergeMenu:false,
+    prs:PRS, merge:null, method:'squash',
+    run:{id:'ken167', agent:'claude', mode:'comments', step:3, status:'draait', secs:12},
+    toast:null, err:null, codex:true,
+    settingsOpen:false,
+    cfg:{claudeModel:'sonnet', claudeEffort:'hoog', codexModel:'gpt-5-codex', codexEffort:'midden', mode:'comments', auto:'uit', timeout:'5', refresh:'5'},
+    linked:{'acme/knowledge-base':true,'acme/storefront':true,'acme/charity-site':true,'acme/jobs-api':true,'acme/portal-frontend':true,'acme/portal-projects':false,'acme/waste-portal':true,'acme/careers-site':true},
+    pathValue:'', clientId:'', copied:false, forcePath:false
+  };
+  searchRef = React.createRef();
+  logRef = React.createRef();
+
+  componentDidMount(){
+    this.timer = setInterval(() => this.tick(), 620);
+    this.onKey = (e) => this.key(e);
+    window.addEventListener('keydown', this.onKey);
+  }
+  componentWillUnmount(){
+    clearInterval(this.timer);
+    clearTimeout(this.toastT);
+    clearTimeout(this.loadT);
+    window.removeEventListener('keydown', this.onKey);
+  }
+
+  tick(){
+    const r = this.state.run;
+    if(!r || r.status !== 'draait') return;
+    const lines = this.lines(r);
+    if(r.step >= lines.length){
+      this.setState({
+        run:Object.assign({}, r, {status:'klaar'}),
+        prs:this.state.prs.map(p => p.id === r.id ? Object.assign({}, p, {comments:p.comments + (r.mode === 'fixes' ? 4 : 3), aRuns:[{agent:r.agent, mode:r.mode, comments:r.mode === 'fixes' ? 4 : 3, commits:r.mode === 'fixes' ? 1 : 0, when:'net'}].concat(p.aRuns || [])}) : p)
+      });
+      return;
+    }
+    this.setState({run:Object.assign({}, r, {step:r.step + 1, secs:r.secs + 6})}, () => {
+      const el = this.logRef.current;
+      if(el) el.scrollTop = el.scrollHeight;
+    });
+  }
+  lines(r){
+    const c = this.state.cfg;
+    const model = r.agent === 'claude' ? c.claudeModel : c.codexModel;
+    const effort = r.agent === 'claude' ? c.claudeEffort : c.codexEffort;
+    const base = SCRIPTS[r.agent].slice();
+    base.unshift('model: ' + model + ' · effort ' + effort);
+    if(r.mode === 'fixes') base.splice(base.length - 1, 0, FIXLINE);
+    return base;
+  }
+
+  toast(text, kind){
+    clearTimeout(this.toastT);
+    this.setState({toast:{text:text, kind:kind || 'ok'}});
+    this.toastT = setTimeout(() => this.setState({toast:null}), 3200);
+  }
+
+  prioW(p){ return p.prio === 'P1' ? 0 : (p.prio === 'P2' ? 1 : 2); }
+
+  status(p){
+    const run = this.state.run;
+    if(run && run.id === p.id && run.status === 'draait') return {key:'agent', label:'agent reviewt', color:'var(--agent)', kind:'pulse', rank:4};
+    if(p.draft) return {key:'concept', label:'concept', color:'var(--text-3)', kind:'ring', rank:6};
+    if(p.mergeable === 'conflict') return {key:'conflict', label:'conflicten oplossen', color:'var(--err)', kind:'alert', rank:3};
+    if(p.ci === 'rood') return {key:'ci', label:'checks repareren', color:'var(--err)', kind:'alert', rank:3};
+    if(p.review === 'changes') return {key:'changes', label:'changes requested', color:'var(--err)', kind:'alert', rank:3};
+    const mij = (p.reviewers || []).filter(x => x.login === ME && x.state === 'gevraagd').length > 0;
+    if(mij) return {key:'review', label:'jouw review nodig', color:'var(--accent)', kind:'dot', rank:2};
+    if(this.reasons(p).length) return {key:'wacht', label:p.ci === 'bezig' ? 'checks draaien' : 'wacht op de stapel', color:'var(--text-3)', kind:'ring', rank:5};
+    return {key:'klaar', label:'klaar om te mergen', color:'var(--ok)', kind:'check', rank:1};
+  }
+
+  sortRows(arr){
+    const m = this.state.sort;
+    const rank = (p) => this.status(p).rank;
+    const out = arr.slice();
+    if(m === 'prio') out.sort((a,b) => this.prioW(a) - this.prioW(b) || rank(a) - rank(b) || a.up - b.up);
+    else if(m === 'omvang') out.sort((a,b) => a.tot - b.tot || rank(a) - rank(b));
+    else if(m === 'bijgewerkt') out.sort((a,b) => a.up - b.up);
+    else if(m === 'aangemaakt') out.sort((a,b) => a.cr - b.cr);
+    else out.sort((a,b) => rank(a) - rank(b) || this.prioW(a) - this.prioW(b) || a.up - b.up);
+    return out;
+  }
+
+  groupKey(rows){
+    const m = this.state.sort;
+    const vals = rows.map(p => {
+      if(m === 'aangemaakt') return p.cr;
+      if(m === 'omvang') return p.tot;
+      if(m === 'bijgewerkt') return p.up;
+      if(m === 'prio') return this.prioW(p) * 10 + this.status(p).rank;
+      return this.status(p).rank;
+    });
+    return Math.min.apply(null, vals);
+  }
+
+  visible(){
+    const q = this.state.query.trim().toLowerCase();
+    return this.sortRows(this.state.prs.filter(p => {
+      if(this.state.scope !== 'alles' && p.repo !== this.state.scope) return false;
+      if(!q) return true;
+      return (p.title + ' ' + p.repo + ' ' + p.nr + ' ' + p.author).toLowerCase().indexOf(q) >= 0;
+    }));
+  }
+
+  key(e){
+    const typing = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
+    if(e.key === 'Escape'){
+      if(this.state.settingsOpen){ this.setState({settingsOpen:false}); return; }
+      if(this.state.mergeMenu || this.state.agentMenu){ this.setState({mergeMenu:false, agentMenu:null}); return; }
+      if(this.state.query){ this.setState({query:''}); e.preventDefault(); }
+      if(typing && this.searchRef.current) this.searchRef.current.blur();
+      return;
+    }
+    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f'){
+      e.preventDefault();
+      if(this.searchRef.current) this.searchRef.current.focus();
+      return;
+    }
+    if((e.metaKey || e.ctrlKey) && e.key === ','){ e.preventDefault(); this.setState({settingsOpen:!this.state.settingsOpen}); return; }
+    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'r'){ e.preventDefault(); this.refresh(); return; }
+    if((e.metaKey || e.ctrlKey) && ['1','2','3','4','5','6'].indexOf(e.key) >= 0){
+      e.preventDefault();
+      this.setState({sort:SORTS[Number(e.key) - 1].key, sortOpen:false});
+      return;
+    }
+    if((e.metaKey || e.ctrlKey) && e.key === 'Enter'){ e.preventDefault(); this.doMerge(); return; }
+    if(typing || e.metaKey || e.ctrlKey) return;
+    const k = e.key.toLowerCase();
+    if(k === 'r'){ e.preventDefault(); this.startRun('claude', this.state.cfg.mode); return; }
+    if(k === 'm'){ e.preventDefault(); this.doMerge(); return; }
+    if(k === 'o'){ e.preventDefault(); this.openGithub(); return; }
+    if(k === '1' || k === '2' || k === '0'){ const cp = this.current(); if(cp) this.setPrio(cp.id, k === '1' ? 'P1' : (k === '2' ? 'P2' : null)); return; }
+    const list = this.visible();
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      e.preventDefault();
+      const i = list.findIndex(p => p.id === this.state.sel);
+      const n = e.key === 'ArrowDown' ? Math.min(list.length - 1, i + 1) : Math.max(0, i - 1);
+      if(list[n]) this.setState({sel:list[n].id, merge:null, err:null});
+      return;
+    }
+    if(e.key === 'Enter'){ e.preventDefault(); this.openGithub(); }
+  }
+
+  refresh(){
+    clearTimeout(this.loadT);
+    this.setState({listState:'laden'});
+    this.loadT = setTimeout(() => this.setState({listState:'ok'}), 900);
+  }
+  openGithub(){
+    const p = this.current();
+    if(p) this.toast('Geopend in browser: github.com/' + p.repo + '/pull/' + p.nr, 'ok');
+  }
+  current(){
+    const list = this.state.prs;
+    for(let i = 0; i < list.length; i++) if(list[i].id === this.state.sel) return list[i];
+    return null;
+  }
+  setPrio(id, val){
+    const p = this.current();
+    if(p && p.id === 'ken167' && val === 'P1'){
+      this.setState({err:{id:id, text:'Prioriteit niet opgeslagen: GitHub gaf 403 bij het zetten van label P1 op knowledge-base #167. De lijst is ongewijzigd.'}});
+      this.toast('Label P1 zetten mislukt (403)', 'fout');
+      return;
+    }
+    this.setState({err:null, prs:this.state.prs.map(x => x.id === id ? Object.assign({}, x, {prio:val}) : x)});
+    this.toast(val ? 'Prioriteit ' + val + ' gezet op #' + (p ? p.nr : '') : 'Prioriteit verwijderd', 'ok');
+  }
+  doMerge(){
+    const p = this.current();
+    if(!p) return;
+    if(this.reasons(p).length){ this.toast('Deze PR kan nog niet gemerged worden', 'fout'); return; }
+    if(p.id === 'nts112'){
+      this.setState({merge:null, err:{id:p.id, text:'Merge mislukt: base-branch main is intussen bijgewerkt (409). De lijst is ongewijzigd, probeer het opnieuw.'}});
+      this.toast('Merge van careers-site #112 mislukt (409)', 'fout');
+      return;
+    }
+    const rest = this.state.prs.filter(x => x.id !== p.id);
+    const next = rest.length ? rest[0].id : null;
+    this.setState({prs:rest, merge:null, sel:next, err:null});
+    this.toast(p.repo.split('/')[1] + ' #' + p.nr + ' gemerged (' + (this.state.method === 'squash' ? 'squash' : 'merge commit') + ')', 'ok');
+  }
+  startRun(agent, mode){
+    const p = this.current();
+    if(!p) return;
+    if(!this.state.linked[p.repo]){ this.setState({forcePath:true}); this.toast('Koppel eerst de lokale map van ' + p.repo.split('/')[1], 'fout'); return; }
+    this.setState({run:{id:p.id, agent:agent, mode:mode, step:1, status:'draait', secs:0}});
+  }
+
+  reasons(p){
+    const out = [];
+    const openNrs = this.state.prs.filter(x => x.repo === p.repo).map(x => x.nr);
+    if(p.draft) out.push('Concept: markeer de PR eerst als klaar voor review');
+    if(p.mergeable === 'conflict') out.push('Conflicten met ' + p.base + ', eerst lokaal oplossen');
+    if(p.ci === 'rood') out.push(p.failed.length + (p.failed.length === 1 ? ' check' : ' checks') + ' gefaald');
+    if(p.ci === 'bezig') out.push('Checks draaien nog');
+    if(p.review === 'changes') out.push('Changes requested, nog niet opgelost');
+    const blk = (p.blockers || []).filter(n => openNrs.indexOf(n) >= 0);
+    if(blk.length) out.push('Wacht op ' + blk.map(n => '#' + n).join(' en ') + ' in de stapel');
+    if(p.mergeable === 'onbekend' && !p.draft) out.push('Mergebaarheid nog onbekend bij GitHub');
+    return out;
+  }
+
+  renderVals(){
+    const s = this.state;
+    const set = (o) => () => this.setState(o);
+    const list = this.visible();
+    const cur = this.current();
+    const run = s.run;
+
+    const counts = {};
+    s.prs.forEach(p => { counts[p.repo] = (counts[p.repo] || 0) + 1; });
+
+    const groups = [];
+    if(s.listState === 'ok'){
+      const gs = [];
+      if(s.sort === 'project'){
+        ORDER.forEach(repo => {
+          const rows = list.filter(p => p.repo === repo);
+          if(rows.length) gs.push({name:repo, rows:rows, show:s.scope === 'alles'});
+        });
+        gs.sort((a, b) => this.groupKey(a.rows) - this.groupKey(b.rows));
+      } else if(s.sort === 'status'){
+        [[2,'Jouw review nodig'],[1,'Klaar om te mergen'],[3,'Actie nodig'],[4,'Agent bezig'],[5,'Wachten'],[6,'Concept']].forEach(sec => {
+          const rows = list.filter(p => this.status(p).rank === sec[0]);
+          if(rows.length) gs.push({name:sec[1], rows:rows, show:true});
+        });
+      } else if(list.length){
+        gs.push({name:'', rows:list, show:false});
+      }
+      gs.forEach(g => {
+        const rows = g.rows;
+        groups.push({
+          name:g.name, count:rows.length, showHeader:g.show,
+          rows:rows.map(p => {
+            const running = run && run.id === p.id && run.status === 'draait';
+            const st = this.status(p);
+            return {
+              stLabel:st.label, stColor:st.color,
+              stCheck:st.kind === 'check', stAlert:st.kind === 'alert', stDot:st.kind === 'dot', stPulse:st.kind === 'pulse', stRing:st.kind === 'ring',
+              agentDone:(p.aRuns || []).map(agentInfo),
+              bars:sizeBars(p.tot), diffAdd:'+' + p.add, diffDel:'−' + p.del,
+              sizeTitle:p.tot + ' regels gewijzigd (' + sizeWord(p.tot) + '): +' + p.add + ' −' + p.del,
+              comments:p.comments, hasComments:p.comments > 0,
+              commentTitle:p.comments + (p.comments === 1 ? ' reactie' : ' reacties') + ' op deze PR',
+              hasCluster:(p.aRuns || []).length > 0,
+              showRepo:s.scope === 'alles' && s.sort !== 'project', repoShort:p.repo.split('/')[1],
+              nr:'#' + p.nr, title:p.title, author:p.author, branch:p.head + ' → ' + p.base, branchDot:'· ' + p.head + ' → ' + p.base, time:p.updated,
+              stack:p.stack ? p.pos + '/' + p.stackSize : '', hasStack:!!p.stack,
+              p1:p.prio === 'P1', p2:p.prio === 'P2', draft:p.draft,
+              av:av(p.author, p.agent), avHuman:!p.agent, avAgent:!!p.agent,
+              hasReviewers:(p.reviewers || []).length > 0,
+              reviewers:(p.reviewers || []).map(function(r){
+                const a = av(r.login, null);
+                return {ch:a.ch, bg:a.bg, ring:a.me ? 'var(--accent)' : 'var(--list)', hasState:r.state !== 'gevraagd', state:stateColor(r.state), title:r.login + ' · ' + r.state};
+              }),
+              ciOk:p.ci === 'groen', ciBad:p.ci === 'rood', ciBusy:p.ci === 'bezig', ciNone:p.ci === 'geen',
+              changes:p.review === 'changes' && !running,
+              running:running, runLabel:(run && run.agent === 'claude' ? 'Claude' : 'Codex') + ' reviewt',
+              on:p.id === s.sel,
+              go:() => this.setState({sel:p.id, merge:null, err:null, forcePath:false}),
+              open:() => this.openGithub()
+            };
+          })
+        });
+      });
+    }
+
+    let emptyish = false, emptyTitle = '', emptyBody = '', emptyIcon = '#i-check', emptyColor = 'var(--ok)', act = null, actLabel = '', actKbd = '';
+    if(s.listState === 'fout'){
+      emptyish = true; emptyIcon = '#i-let-op'; emptyColor = 'var(--err)';
+      emptyTitle = 'Ophalen mislukt';
+      emptyBody = 'GitHub antwoordde met 502 op /search/issues. De laatst bekende lijst is van 20:12.';
+      act = () => this.refresh(); actLabel = 'Opnieuw proberen'; actKbd = '⌘R';
+    } else if(s.listState === 'leeg' || (s.listState === 'ok' && !list.length && !s.query)){
+      emptyish = true; emptyIcon = '#i-check'; emptyColor = 'var(--ok)';
+      emptyTitle = 'Niets te reviewen';
+      emptyBody = 'Geen open PR\u2019s waar jij reviewer of assignee bent. Nieuwe verzoeken komen hier automatisch binnen.';
+      act = () => this.refresh(); actLabel = 'Verversen'; actKbd = '⌘R';
+    } else if(s.listState === 'ok' && !list.length && s.query){
+      emptyish = true; emptyIcon = '#i-zoek'; emptyColor = 'var(--text-3)';
+      emptyTitle = 'Geen resultaten voor \u201c' + s.query + '\u201d';
+      emptyBody = 'Gezocht in titel, repo, nummer en auteur van ' + s.prs.length + ' open PR\u2019s.';
+      act = () => this.setState({query:''}); actLabel = 'Zoekveld leegmaken'; actKbd = 'esc';
+    }
+
+    let d = null;
+    if(cur && s.listState === 'ok' && !emptyish){
+      const reasons = this.reasons(cur);
+      const stackAll = cur.stack ? s.prs.filter(x => x.stack === cur.stack).sort((a,b) => a.pos - b.pos) : [];
+      const stackItems = stackAll.map((x, i) => {
+        const blk = (x.blockers || []).filter(n => s.prs.filter(y => y.repo === x.repo).map(y => y.nr).indexOf(n) >= 0);
+        return {
+          order:i + 1, nr:'#' + x.nr, title:x.title, base:'op ' + x.base, ml:i * 16, elbow:i > 0,
+          on:x.id === cur.id, off:x.id !== cur.id,
+          wait:blk.length > 0 || x.ci === 'bezig', ready:!blk.length && x.ci !== 'bezig',
+          note:blk.length ? 'wacht op ' + blk.map(n => '#' + n).join(' en ') : (x.ci === 'bezig' ? 'checks draaien' : 'klaar om te mergen'),
+          go:() => this.setState({sel:x.id, merge:null, err:null})
+        };
+      });
+      const runHere = run && run.id === cur.id;
+      const noRun = s.prs.filter(x => !(x.aRuns || []).length && !x.draft);
+      const linked = !!s.linked[cur.repo];
+      const needsPath = (!linked && s.forcePath) || (!linked && !runHere);
+      const cst = this.status(cur);
+      d = {
+        stLabel:cst.label, stColor:cst.color, stSoft:'color-mix(in srgb, ' + cst.color + ' 16%, transparent)',
+        agentDone:(cur.aRuns || []).map(agentInfo), hasAgentDone:(cur.aRuns || []).length > 0,
+        title:cur.title, slug:cur.repo + ' #' + cur.nr,
+        p1:cur.prio === 'P1', p2:cur.prio === 'P2', draft:cur.draft,
+        hasStack:!!cur.stack, stack:'stapel ' + cur.pos + '/' + cur.stackSize,
+        stackTitle:stackAll.length + " PR's, merge van boven naar onder",
+        people:[
+          {k:'Auteur', persons:[chipOf(cur.author, cur.agent, cur.agent ? 'agent' : '')], empty:false, none:''},
+          {k:'Assignee', persons:(cur.assignees || []).map(l => chipOf(l, null, l === ME ? 'jij' : '')), empty:!(cur.assignees || []).length, none:'geen assignee'},
+          {k:'Reviewers', persons:(cur.reviewers || []).map(r => chipOf(r.login, null, (r.login === ME ? 'jij · ' : '') + r.state)), empty:!(cur.reviewers || []).length, none:'geen review gevraagd'}
+        ],
+        reviewLabel:cur.review === 'gevraagd' ? 'review gevraagd' : (cur.review === 'goedgekeurd' ? 'goedgekeurd' : (cur.review === 'changes' ? 'changes requested' : 'geen review')),
+        ciOk:cur.ci === 'groen', ciBad:cur.ci === 'rood', ciBusy:cur.ci === 'bezig', ciNone:cur.ci === 'geen',
+        ciLabel:cur.ci === 'groen' ? 'Alle checks geslaagd' : (cur.ci === 'rood' ? cur.failed.length + (cur.failed.length === 1 ? ' check gefaald' : ' checks gefaald') : (cur.ci === 'bezig' ? 'Checks draaien' : 'Geen checks ingesteld')),
+        hasFailed:cur.failed.length > 0, failed:cur.failed.map(f => ({name:f})),
+        stackItems:stackItems,
+        meta:[
+          {k:'Branch', v:cur.head + ' → ' + cur.base},
+          {k:'Diff', v:'+' + cur.add + ' −' + cur.del + '  (' + cur.tot + ' regels, ' + sizeWord(cur.tot) + ')'},
+          {k:'Reacties', v:cur.comments + (cur.comments === 1 ? ' reactie' : ' reacties')},
+          {k:'Aangemaakt', v:cur.created},
+          {k:'Bijgewerkt', v:cur.updated + ' geleden'}
+        ],
+        prios:[{label:'P1', on:cur.prio === 'P1', go:() => this.setPrio(cur.id, 'P1')},{label:'P2', on:cur.prio === 'P2', go:() => this.setPrio(cur.id, 'P2')},{label:'Geen', on:!cur.prio, go:() => this.setPrio(cur.id, null)}],
+        prioError:!!(s.err && s.err.id === cur.id), prioErrorText:s.err ? s.err.text : '',
+        showAgents:!(runHere && run.status === 'draait'),
+        agents:['claude','codex'].map(nm => {
+          const en = nm === 'claude' ? true : s.codex;
+          const primary = s.cfg.mode;
+          const alt = primary === 'fixes' ? 'comments' : 'fixes';
+          const lab = mm => mm === 'fixes' ? 'Comments + fixes' : 'Comments';
+          return {
+            name:nm,
+            cfgLabel:nm === 'claude' ? s.cfg.claudeModel + ' · ' + s.cfg.claudeEffort : (s.codex ? s.cfg.codexModel + ' · ' + s.cfg.codexEffort : 'CLI ontbreekt'),
+            enabled:en, disabled:!en, reason:'Codex CLI niet gevonden',
+            primaryLabel:lab(primary), altLabel:lab(alt), hasKbd:nm === 'claude',
+            goPrimary:() => { this.setState({agentMenu:null}); this.startRun(nm, primary); },
+            goAlt:() => { this.setState({agentMenu:null}); this.startRun(nm, alt); },
+            menuOpen:s.agentMenu === nm,
+            toggleMenu:() => this.setState({agentMenu:s.agentMenu === nm ? null : nm})
+          };
+        }),
+        hasBulk:noRun.length > 1, bulkLabel:'Review alle ' + noRun.length + ' PR\u2019s zonder agent-review',
+        bulkRun:() => this.toast('Claude gestart op ' + noRun.length + ' PR\u2019s zonder agent-review (' + (s.cfg.mode === 'fixes' ? 'comments + fixes' : 'alleen comments') + ')', 'ok'),
+        showRun:!!runHere,
+        runBusy:!!(runHere && run.status === 'draait'), runDone:!!(runHere && run.status !== 'draait'),
+        runLabel:runHere ? (run.agent === 'claude' ? 'Claude' : 'Codex') + (run.status === 'draait' ? ' reviewt' : ' klaar') + (run.mode === 'fixes' ? ' met fixes' : '') : '',
+        runTime:runHere ? '00:' + (run.secs < 10 ? '0' + run.secs : run.secs) : '',
+        runLines:runHere ? this.lines(run).slice(0, run.step).map(t => ({text:t})) : [],
+        stopRun:() => this.setState({run:Object.assign({}, run, {status:'gestopt'})}),
+        clearRun:() => this.setState({run:null}),
+        needsPath:needsPath,
+        pathText:'De agent draait in een git-worktree van ' + cur.repo.split('/')[1] + '. Kies de map waar de repo lokaal staat.',
+        pathValue:s.pathValue, onPath:(e) => this.setState({pathValue:e.target.value}),
+        findPath:() => { this.setState({linked:Object.assign({}, s.linked, {[cur.repo]:true}), forcePath:false}); this.toast('~/Code/' + cur.repo.split('/')[1] + ' gekoppeld', 'ok'); },
+        savePath:() => { this.setState({linked:Object.assign({}, s.linked, {[cur.repo]:true}), forcePath:false}); this.toast((s.pathValue || '~/Code/' + cur.repo.split('/')[1]) + ' gekoppeld', 'ok'); },
+        canMerge:!reasons.length, blocked:!!reasons.length,
+        reasons:reasons.map(t => ({text:t})), blockTitle:reasons.join(' · '),
+        mergeLabel:s.method === 'squash' ? 'Squash and merge' : 'Merge commit',
+        doMerge:() => this.doMerge(),
+        mergeMenuOpen:s.mergeMenu, toggleMergeMenu:() => this.setState({mergeMenu:!s.mergeMenu}),
+        methods:[
+          {label:'Squash and merge', note:cur.title.slice(0, 34) + '… (#' + cur.nr + ')', on:s.method === 'squash', go:() => this.setState({method:'squash', mergeMenu:false})},
+          {label:'Merge commit', note:'Merge pull request #' + cur.nr + ' from ' + cur.head, on:s.method === 'merge', go:() => this.setState({method:'merge', mergeMenu:false})}
+        ],
+        openGithub:() => this.openGithub()
+      };
+    }
+
+    const logins = {
+      'login-client':{isSlot:true, isGithub:false, title:'Client-ID nog niet geconfigureerd', body:'PR Cockpit gebruikt de GitHub device-flow. Zet je OAuth client-ID in de instellingen, daarna kun je inloggen.', hasField:true, hasButton:true, button:'Client-ID opslaan', foot:'Wordt opgeslagen in de Keychain, niet in het project.', hasCode:false},
+      'login-uit':{isSlot:false, isGithub:true, title:'Inloggen bij GitHub', body:'Je bent uitgelogd. PR Cockpit vraagt om read/write op pull requests en labels van de repo\u2019s waar je toegang hebt.', hasField:false, hasButton:true, button:'Inloggen met GitHub', foot:'Scopes: repo, read:org', hasCode:false},
+      'login-device':{isSlot:false, isGithub:true, title:'Voer de code in op github.com', body:'De browser is geopend op github.com/login/device. Voer daar deze code in, dit venster gaat automatisch verder.', hasField:false, hasButton:true, button:'Open github.com/login/device', foot:'Code verloopt over 14:32', hasCode:true, code:'WDJB-MJHT', wait:'wachten op goedkeuring…'}
+    };
+    const L = logins[s.screen] || logins['login-uit'];
+    const login = Object.assign({}, L, {
+      copyLabel:s.copied ? 'Gekopieerd' : 'Code kopiëren',
+      copy:() => { this.setState({copied:true}); this.toast('Code gekopieerd', 'ok'); },
+      field:s.clientId, onField:(e) => this.setState({clientId:e.target.value}),
+      go:() => { this.setState({screen:'app'}); this.toast('Ingelogd als @octocat', 'ok'); }
+    });
+
+    const chip = (label, on, go, title) => ({label:label, on:on, go:go, title:title || label});
+    const switchGroups = [
+      {label:'Weergave', items:[chip('Alles', s.scope === 'alles' && s.screen === 'app', set({scope:'alles', screen:'app'})), chip('knowledge-base', s.scope === 'acme/knowledge-base', set({scope:'acme/knowledge-base', screen:'app', sel:'ken188'}))]},
+      {label:'Lijst', items:[chip('Normaal', s.listState === 'ok', set({listState:'ok'})), chip('Leeg', s.listState === 'leeg', set({listState:'leeg'})), chip('Laden', s.listState === 'laden', set({listState:'laden'})), chip('Fout', s.listState === 'fout', set({listState:'fout'}))]},
+      {label:'Detail', items:[
+        chip('Stapel', s.sel === 'ken188' && !s.merge && !s.err, set({sel:'ken188', merge:null, err:null, forcePath:false, listState:'ok', screen:'app'})),
+        chip('Kan niet mergen', s.sel === 'hoc49', set({sel:'hoc49', merge:null, err:null, listState:'ok', screen:'app'})),
+        chip('Merge-menu', s.mergeMenu, () => this.setState({sel:'ama36', listState:'ok', screen:'app', mergeMenu:true, err:null})),
+        chip('Agent draait', s.sel === 'ken167' && !!run && run.id === 'ken167', () => this.setState({sel:'ken167', listState:'ok', screen:'app', merge:null, err:null, run:{id:'ken167', agent:'claude', mode:'fixes', step:2, status:'draait', secs:8}})),
+        chip('Map koppelen', s.sel === 'klp427', () => this.setState({sel:'klp427', listState:'ok', screen:'app', merge:null, err:null, forcePath:true, linked:Object.assign({}, s.linked, {'acme/portal-projects':false})})),
+        chip('Schrijffout', !!s.err, () => this.setState({sel:'ken167', listState:'ok', screen:'app', merge:null, err:{id:'ken167', text:'Prioriteit niet opgeslagen: GitHub gaf 403 bij het zetten van label P1 op knowledge-base #167. De lijst is ongewijzigd.'}}))
+      ]},
+      {label:'Login', items:[chip('Client-ID', s.screen === 'login-client', set({screen:'login-client'})), chip('Uitgelogd', s.screen === 'login-uit', set({screen:'login-uit'})), chip('Device-flow', s.screen === 'login-device', set({screen:'login-device'}))]},
+      {label:'Thema', items:[chip('Dark', s.theme === 'dark', set({theme:'dark'})), chip('Light', s.theme === 'light', set({theme:'light'}))]},
+      {label:'Wallpaper', items:[chip('Donker', s.wall === 'donker', set({wall:'donker'})), chip('Licht', s.wall === 'licht', set({wall:'licht'}))]},
+      {label:'Venster', items:[chip('1100×720', s.wide, set({wide:true})), chip('940×600', !s.wide, set({wide:false}))]},
+      {label:'Codex CLI', items:[chip('Beschikbaar', s.codex, set({codex:true})), chip('Ontbreekt', !s.codex, set({codex:false}))]}
+    ];
+
+    const cfg = s.cfg;
+    const seg = (key, val, label) => ({label:label, on:cfg[key] === val, go:() => this.setState({cfg:Object.assign({}, cfg, {[key]:val})})});
+    const settings = [
+      {title:'Claude', note:'claude CLI, lokaal', rows:[
+        {k:'Model', hint:'gaat mee als --model', options:[seg('claudeModel','haiku','haiku'), seg('claudeModel','sonnet','sonnet'), seg('claudeModel','opus','opus')]},
+        {k:'Effort', hint:'denkbudget per review', options:[seg('claudeEffort','laag','laag'), seg('claudeEffort','midden','midden'), seg('claudeEffort','hoog','hoog')]}
+      ]},
+      {title:'Codex', note:'codex CLI, lokaal', rows:[
+        {k:'Model', hint:'gaat mee als --model', options:[seg('codexModel','o4-mini','o4-mini'), seg('codexModel','gpt-5','gpt-5'), seg('codexModel','gpt-5-codex','gpt-5-codex')]},
+        {k:'Effort', hint:'reasoning effort', options:[seg('codexEffort','laag','laag'), seg('codexEffort','midden','midden'), seg('codexEffort','hoog','hoog')]}
+      ]},
+      {title:'Reviewen', note:'', rows:[
+        {k:'Primaire actie', hint:'wat de agent-knop en toets R doen', options:[seg('mode','comments','alleen comments'), seg('mode','fixes','comments + fixes')]},
+        {k:'Auto-review', hint:'nieuwe PR\u2019s automatisch laten reviewen', options:[seg('auto','uit','uit'), seg('auto','claude','claude'), seg('auto','codex','codex')]},
+        {k:'Time-out per run', hint:'stop de agent automatisch', options:[seg('timeout','2','2 min'), seg('timeout','5','5 min'), seg('timeout','10','10 min')]},
+        {k:'Verversen', hint:'ophalen bij GitHub, ⌘R blijft werken', options:[seg('refresh','1','1 min'), seg('refresh','5','5 min'), seg('refresh','15','15 min'), seg('refresh','0','handmatig')]}
+      ]}
+    ];
+
+    return {
+      settingsOpen:s.settingsOpen, openSettings:set({settingsOpen:true}), closeSettings:set({settingsOpen:false}),
+      settings:settings,
+      logout:() => this.setState({settingsOpen:false, screen:'login-uit'}),
+      repoRows:ORDER.map(r => ({
+        short:r.split('/')[1], linked:!!s.linked[r], missing:!s.linked[r],
+        path:'~/Code/' + r.split('/')[1], action:s.linked[r] ? 'Wijzig' : 'Koppel',
+        go:() => { this.setState({linked:Object.assign({}, s.linked, {[r]:true})}); this.toast('~/Code/' + r.split('/')[1] + ' gekoppeld', 'ok'); }
+      })),
+      theme:s.theme, isApp:s.screen === 'app', isLogin:s.screen !== 'app', login:login,
+      wallBg:s.wall === 'donker' ? 'radial-gradient(120% 100% at 18% 8%, #2b3350 0%, #171b26 52%, #0d0f15 100%)' : 'radial-gradient(120% 100% at 22% 10%, #eef1f6 0%, #d6dbe4 48%, #b7c0cd 100%)',
+      winW:s.wide ? 1100 : 940, winH:s.wide ? 720 : 600,
+      sortLabel:(SORTS.filter(x => x.key === s.sort)[0] || SORTS[0]).short,
+      sortOpen:s.sortOpen, toggleSort:() => this.setState({sortOpen:!s.sortOpen}), closeSort:set({sortOpen:false}),
+      sortOptions:SORTS.map(o => ({label:o.label, kbd:o.kbd, on:s.sort === o.key, go:() => this.setState({sort:o.key, sortOpen:false})})),
+      query:s.query, onQuery:(e) => this.setState({query:e.target.value}), searchRef:this.searchRef, logRef:this.logRef,
+      searchActive:!!s.query, searchEmpty:!s.query,
+      resultLabel:list.length + ' van ' + s.prs.length,
+      clearQuery:set({query:''}),
+      refreshTitle:s.listState === 'laden' ? 'verversen…' : 'Verversen (⌘R) · bijgewerkt 20:12',
+      loading:s.listState === 'laden', notLoading:s.listState !== 'laden',
+      refresh:() => this.refresh(),
+      totalCount:s.prs.length, allActive:s.scope === 'alles', selectAll:set({scope:'alles'}),
+      projects:ORDER.filter(r => counts[r]).map(r => ({full:r, short:r.split('/')[1], count:counts[r], on:s.scope === r, go:() => this.setState({scope:r, merge:null, err:null})})),
+      codexOn:s.codex, codexOff:!s.codex,
+      groups:groups, listOk:s.listState === 'ok' && !emptyish, listLoading:s.listState === 'laden', listEmptyish:emptyish,
+      skeletons:[{w1:'62%',w2:'34%'},{w1:'78%',w2:'41%'},{w1:'54%',w2:'30%'},{w1:'70%',w2:'38%'},{w1:'46%',w2:'26%'},{w1:'66%',w2:'36%'}],
+      emptyTitle:emptyTitle, emptyBody:emptyBody, emptyColor:emptyColor,
+      emptyIsCheck:emptyIcon === '#i-check', emptyIsZoek:emptyIcon === '#i-zoek', emptyIsFout:emptyIcon === '#i-let-op',
+      hasEmptyAction:!!act, emptyAction:act, emptyActionLabel:actLabel, emptyActionKbd:actKbd,
+      showWriteError:!!s.err, writeErrorText:s.err ? s.err.text : '', dismissError:set({err:null}),
+      hasDetail:!!d, noDetail:!d, d:d || {},
+      hasToast:!!s.toast, toastText:s.toast ? s.toast.text : '', toastColor:s.toast && s.toast.kind === 'fout' ? '#FF6F63' : '#4FBE7C',
+      switchGroups:switchGroups,
+      legend:[
+        {k:'Actiestatus', row:'Eén glyph in de gutter van 14px, altijd op dezelfde plek: groen vinkje klaar om te mergen, amber stip jouw review nodig, rode driehoek actie nodig (conflicten, gefaalde checks of changes requested), violette pulserende stip agent bezig, grijze ring wachten (op de stapel of op checks) en bij een concept.', detail:'De kop van het detailpaneel herhaalt de status als eerste chip in dezelfde kleur, met de concrete redenen bij de merge-knop. De standaardweergave (Triage) groepeert de lijst in secties in deze volgorde: jouw review, klaar om te mergen, actie nodig, agent bezig, wachten, concept.'},
+        {k:'Omvang', row:'Rechts in de rij een vaste kolom van 52px: vier staafjes van 3px als omvangsklasse (<30, <150, <600 en 600+ regels); de exacte +/− staat in de tooltip en in het detailpaneel. Op de tweede regel het aantal reacties met een bubble-icoon, verborgen bij nul.', detail:'Zo scan je verticaal wat snel op te pakken is: één staafje zonder reacties is een minuutje, vier staafjes met 24 reacties plan je in. Sorteren op “Snelste eerst” (⌘5) zet de kleinste diff bovenaan.'},
+        {k:'Instellingen', row:'Niet in de rij: een sliders-icoon in de toolbar (⌘,) opent het instellingenblad.', detail:'Model en effort per agent staan onder de agent-naam in het detailpaneel als mono-regel van 9px (“sonnet · hoog”) en als eerste logregel van elke run, zodat je later kunt terugzien waarmee een review is gedaan.'},
+        {k:'Sorteren', row:'De sorteerknop in de toolbar toont de actieve modus. Default is Triage: secties op wat er nu moet gebeuren. Per project groeperen is een modus (⌘6), geen vaste indeling.', detail:'Zes modi met ⌘1 tot ⌘6: triage (default), prioriteit, laatst bijgewerkt, aanmaakdatum (oudste eerst), omvang en per project gegroepeerd.'},
+        {k:'Agent-review', row:'Heeft Claude of Codex de PR al gereviewd, dan staat de agent achteraan de avatar-cluster als afgerond vierkant met een badge: violet is alleen comments, groen is comments plus gepushte fixes. Tooltip geeft aantal opmerkingen en commits.', detail:'Onder Laten reviewen staat de geschiedenis uitgeschreven: “Claude · alleen comments · 4 opmerkingen · 40 min”. Zo start je nooit per ongeluk dezelfde review twee keer, en na een run verschijnt de nieuwe regel direct.'},
+        {k:'CI', row:'Niet in de rij: gefaalde of draaiende checks komen al via de actiestatus-glyph binnen, een tweede CI-signaal was dubbel.', detail:'Namen van gefaalde checks alleen in het detailpaneel, nooit in de rij.'},
+        {k:'Prioriteit', row:'P1 als gevuld amber blokje vóór de titel, P2 als omlijnd blokje. Geen prioriteit = geen element.', detail:'Zetten gebeurt met de segmented control; een mislukte write toont de reden onder de control en laat de lijst intact.'},
+        {k:'Stapel', row:'Alleen als de PR in een stapel zit: laagjes-icoon met positie, bijvoorbeeld 2/3, links van de CI-stip.', detail:'Het detailpaneel toont de hele rail met welke nummers eerst moeten en wat er klaar is om te mergen.'},
+        {k:'Concept en review', row:'Concept is een omlijnd chip vóór de titel. Changes requested is de enige reviewstatus die in de rij komt, als rood woord achteraan de metaregel.', detail:'Review gevraagd en goedgekeurd staan alleen in het detailpaneel: ze gelden voor bijna elke rij en zouden ruis worden.'},
+        {k:'Mensen', row:'De metaregel begint met de avatar van de auteur (rond voor mensen, afgeronde vierkant met terminal-glyph voor Claude en Codex). Rechts staat alleen nog de agent-badge; menselijke reviewers staan in het detailpaneel.', detail:'Auteur, assignees en reviewers staan uitgeschreven met status per reviewer: groen vinkje goedgekeurd, rode stip changes requested, geen stip is nog gevraagd.'},
+        {k:'Agent', row:'Loopt er een run, dan vervangt een pulserend violet label de rechterkant van de metaregel: Claude reviewt. Agent-auteurs krijgen een terminal-icoon vóór de naam.', detail:'De live log met stopknop hoort in het detailpaneel, niet in de rij.'}
+      ],
+      notes:[
+        {comp:'tokens (:root)', text:'Alle kleuren, radii en type-maten staan als custom properties in het style-blok bovenaan dit bestand: neem :root, [data-theme="dark"] en [data-theme="light"] letterlijk over en zet in de app data-theme op html, met prefers-color-scheme als default.'},
+        {comp:'RowMetrics', text:'Vaste kolom van 52px rechts in elke rij: omvangsstaafjes op regel 1 (exacte +/− in de tooltip), reactieteller op regel 2. Data: additions, deletions en comments + review_comments uit de PR-payload. Sorteermodus “omvang” gebruikt additions + deletions, zodat “snel oppakken” ook een sortering is en niet alleen een gevoel.'},
+        {comp:'SettingsSheet', text:'Blad van 520px binnen het venster (geen apart macOS-paneel) met scrim van 30%, radius 12 en var(--menu). Rijen zijn een grid van 132px label plus segmented control; ⌘, opent, Escape sluit. Secties: Claude (model, effort), Codex (model, effort), Reviewen (primaire actie, time-out, verversinterval), Lokale mappen (zelfde koppel-actie als RepoPathSetup) en account met uitloggen. De modellijst hoort in de echte app uit de CLI te komen in plaats van hardcoded; model en effort gaan mee als eerste logregel van de run.'},
+        {comp:'SortMenu', text:'Knop van 26px rechts in de toolbar met het sorteer-icoon en de korte naam van de modus; het menu is een popover van 224px (radius 9, var(--menu) met 1px lijn en schaduw) met een vinkje bij de actieve modus en ⌘1 tot ⌘6 als hint. Triage bouwt secties op status-rank; alleen de modus Project groepeert per repo (groupKey neemt de beste rij per project).'},
+        {comp:'StatusGlyph', text:'Vervangt de oude relatie-stip. Eén functie: wat moet er nu met deze PR gebeuren. Rank 1 tot 6 (klaar, jouw review, actie nodig, agent bezig, wachten, concept) is ook de sorteersleutel voor “Status”, dus glyph en volgorde kunnen niet uit elkaar lopen. Wie de PR aan jou toewees lees je nu af aan de avatar-cluster.'},
+        {comp:'Toolbar', text:'Hoogte 52px, overlay-titlebar dus 14px links vrij voor de traffic lights. Zoekveld 330×28, radius 7, ring inset 1px var(--line); actief krijgt var(--accent-line) plus resultaatteller "6 van 14" (treffers van totaal). ⌘F focust, Escape leegt en blurt.'},
+        {comp:'Sidebar', text:'216px breed (onder 1000px venster naar 196px), rijen 27px hoog met radius 6. Selectie is een tint van var(--accent-soft), geen volle vulling. Voetregel toont login en CLI-status: dat is echte data en voorkomt dat agent-knoppen onverklaarbaar uitgeschakeld lijken.'},
+        {comp:'PrList-rij', text:'Twee regels, 47px hoog: padding 7px 10px 8px, titel 13/17px gewicht 500, metaregel 11.5/15px in var(--text-3). Kolommen: gutter 8px, nummer 36px mono rechts, dan de flexibele titel. Bij 40 PR\u2019s blijft dat rustig omdat alleen de titel varieert in lengte.'},
+        {comp:'Groepskop', text:'Sticky binnen de scroller, mono 10px uppercase met 0.085em tracking, met var(--list) plus backdrop-filter blur(14px) als achtergrond. Bij één geselecteerd project vervalt de kop, de projectnaam staat dan in de sidebar-selectie en in het detailpaneel.'},
+        {comp:'DetailPanel', text:'340px breed, drie zones: vaste kop (chips, titel, slug), scrollende body (CI, stapel, meta, prioriteit, agent) en een vaste voet met de acties. Zo blijft Merge altijd zichtbaar zonder scrollen.'},
+        {comp:'StackRail', text:'Nu echt een stapel: één kaart per PR (radius 8, var(--card) met 1px lijn en een lichte schaduw), elke volgende kaart 16px verder ingesprongen met een elleboog-connector van 1px die base-branch naar head-branch volgt. Volgorde-badge 1, 2, 3 links; regel 2 toont "op <base-branch>" plus "klaar om te mergen" in var(--ok) of "wacht op #186 en #188". De actieve kaart krijgt de amber tint met ring. Klikken selecteert die PR.'},
+        {comp:'Avatar', text:'Geen remote avatar_url (CSP): render een cirkel van 15px in de rij en 18px in het detail met de eerste letter van de login, achtergrondkleur deterministisch uit een palet in oklch (L .56-.60, C .10-.12) zodat contrast met wit gelijk blijft. Agents krijgen een afgeronde vierkant met het terminal-icoon in violet, zo zie je mens versus agent zonder tekst. Wil je echte GitHub-avatars, cache ze dan lokaal op schijf en laad ze via file://, of houd de initialen als fallback.'},
+        {comp:'Mensen-blok', text:'In het detailpaneel een grid van 74px labels: Auteur, Assignee, Reviewers. Per reviewer een avatar met statusbadge van 6px rechtsonder en de status in tekst. Jouw eigen avatar krijgt een amber ring van 1.5px, dus je ziet direct of het verzoek aan jou is.'},
+        {comp:'PrioritySegmented', text:'Drie segmenten in een spoor van 28px (P1, P2, Geen). Actief segment is var(--accent-soft) met var(--accent-line). Optimistisch schrijven; bij een fout blijft de oude waarde staan en verschijnt de reden eronder plus een banner boven de lijst.'},
+        {comp:'MergeSection', text:'Primair en enig gevuld amber vlak in de hele app, 31px hoog. M of ⌘⏎ merget direct met de onthouden methode (het label toont welke); het chevron ernaast wisselt squash/merge commit. Geen bevestigingsstap meer. Kan de PR niet gemerged worden, dan wordt de knop een omlijnd, niet-klikbaar vlak met de redenen als opsomming eronder (nooit alleen een tooltip).'},
+        {comp:'AgentButtons', text:'Per agent één knop van 26px die de ingestelde primaire actie doet (toets R start Claude), met de andere modus achter een chevron-menu. Daaronder een bulkactie: review alle PR\u2019s zonder agent-review. Ontbreekt de CLI, dan vervangt de reden de knop.'},
+        {comp:'AgentLogPanel', text:'Vervangt de agent-knoppen tijdens een run. Kop met pulserende stip, tijd en Stop; log max-height 132px met eigen overflow en white-space:pre, zodat lange regels nooit het venster laten scrollen.'},
+        {comp:'RepoPathSetup', text:'Verschijnt in het detailpaneel zodra een agent-actie een niet-gekoppelde repo raakt. Primair "Map zoeken…", daaronder een mono-invoer voor het pad. Geen apart modaal venster, de context blijft de PR.'},
+        {comp:'Afwijkingen', text:'Bewust anders dan de huidige app: (1) de branchnaam staat niet meer in de rij, de repo alleen kort in de metaregel; (2) CI staat niet in de rij, de actiestatus-glyph dekt het; (3) amber is exclusief voor selectie en de primaire actie, status gebruikt groen/rood/violet; (4) acties staan in een vaste voet in plaats van in de scroll; (5) de detailkop begint met chips zodat prioriteit en stapel bovenaan leesbaar zijn.'}
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>
+

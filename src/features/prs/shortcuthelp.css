@@ -1,0 +1,55 @@
+/* ShortcutHelp-overlay: gecentreerd paneel met de beschikbare sneltoetsen
+   (U8), zelfde tokens als sortmenu.css. */
+.shortcut-help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 58;
+  border: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.28);
+  cursor: default;
+}
+
+.shortcut-help {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 60;
+  min-width: 260px;
+  padding: 12px;
+  border-radius: 11px;
+  background: var(--menu);
+  box-shadow:
+    0 20px 46px rgba(0, 0, 0, 0.38),
+    inset 0 0 0 1px var(--line-2);
+}
+
+.shortcut-help-title {
+  padding: 2px 4px 8px;
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.shortcut-help-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shortcut-help-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 26px;
+  padding: 0 4px;
+  color: var(--text-1);
+  font-size: 12px;
+}
+
+.shortcut-help-keys {
+  flex: 0 0 76px;
+  color: var(--text-3);
+  font-size: 11px;
+}

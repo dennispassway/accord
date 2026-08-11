@@ -1,0 +1,38 @@
+# Houdt een release-PR bij op basis van de conventional commits op main. De
+# merge van die PR bumpt de versie, schrijft de CHANGELOG en maakt tag +
+# GitHub Release; daarna bouwt release.yml de installers erbij.
+name: release-please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      release_body: ${{ steps.release.outputs.body }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+      release_body: ${{ needs.release-please.outputs.release_body }}
+    secrets: inherit
+    permissions:
+      contents: write

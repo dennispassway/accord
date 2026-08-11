@@ -1,0 +1,172 @@
+/* Toolbar / sleepstrook: bovenste 52px van het venster (design v2). */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 52px;
+  flex: 0 0 52px;
+  padding: 0 12px 0 10px;
+  background: var(--bar);
+  border-bottom: 1px solid var(--line);
+}
+
+.toolbar-spacer {
+  flex: 1;
+  height: 100%;
+}
+
+.toolbar-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 330px;
+  height: 28px;
+  padding: 0 8px 0 9px;
+  border-radius: var(--r-2);
+  background: var(--fill-1);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.toolbar-search:focus-within,
+.toolbar-search.active {
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.toolbar-search-icon {
+  flex: 0 0 13px;
+  width: 13px;
+  height: 13px;
+  color: var(--text-3);
+}
+
+.toolbar-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  padding: 0;
+  font-size: 12.5px;
+  background: transparent;
+  color: var(--text-1);
+}
+
+.toolbar-search input:focus-visible {
+  outline: none;
+}
+
+.toolbar-search-result {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.toolbar-search-kbd {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-3);
+  padding: 2px 4px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.toolbar-search-clear {
+  flex: 0 0 16px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fill-2);
+  color: var(--text-2);
+}
+
+.toolbar-search-clear:hover {
+  background: var(--line-2);
+  color: var(--text-1);
+}
+
+.toolbar-search-clear svg {
+  width: 9px;
+  height: 9px;
+}
+
+.toolbar-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--text-2);
+}
+
+.toolbar-icon-btn:hover {
+  background: var(--fill-1);
+  border-color: transparent;
+  color: var(--text-1);
+}
+
+.toolbar-icon-btn.refreshing {
+  color: var(--text-1);
+}
+
+.toolbar-icon-btn svg.spinning {
+  animation: toolbar-spin 0.8s linear infinite;
+}
+
+@keyframes toolbar-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.toolbar-last-updated {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.toolbar-sort-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.toolbar-sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 7px 0 8px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: var(--fill-1);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-1);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.toolbar-sort:hover {
+  background: var(--fill-2);
+  border-color: transparent;
+}
+
+.toolbar-sort-icon {
+  color: var(--text-3);
+}
+
+.toolbar-sort-chevron {
+  width: 9px;
+  height: 9px;
+  color: var(--text-3);
+  transform: rotate(90deg);
+}

@@ -1,0 +1,66 @@
+/* Toast: vaste positie onderin het venster, kleur onafhankelijk van het
+   thema (altijd een donkere chip), zoals docs/design-v2/pr-cockpit-v2.dc.html
+   regel 589. */
+
+.toast-stack {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 70vw;
+  padding: 8px 12px;
+  border-radius: 9px;
+  background: rgba(20, 20, 24, 0.86);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  color: #f3f3f5;
+  font: 500 12px / 1.35 var(--font);
+  pointer-events: none;
+}
+
+.toast-dot {
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.toast-dot-ok {
+  background: #4fbe7c;
+}
+
+.toast-dot-fout {
+  background: #ff6f63;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation: toast-in 0.16s ease-out;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
