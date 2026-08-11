@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "title": "Accord",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 940,
+        "minHeight": 600
+      }
+    ]
+  }
+}
