@@ -90,6 +90,10 @@ jobs:
           releaseBody: ${{ inputs.release_body || '' }}
           args: ${{ env.TAG != '' && '--config src-tauri/tauri.release.conf.json' || '' }}
 
+      # De updater-artifacts (.sig, .app.tar.gz) horen hier ook bij: alleen zo
+      # kun je vóór een echte release nagaan of de signing-sleutel bij de pubkey
+      # in tauri.conf.json hoort. Signing slaagt namelijk ook met een verkeerde
+      # sleutel, en dan verifieert geen enkele installatie ooit een update.
       - name: Bundels als run-artifact (geen tag)
         if: ${{ env.TAG == '' }}
         uses: actions/upload-artifact@v4
@@ -101,3 +105,5 @@ jobs:
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/rpm/*.rpm
             src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/release/bundle/**/*.sig
