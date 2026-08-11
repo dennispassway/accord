@@ -598,6 +598,7 @@
   display: grid;
   place-items: center;
   height: 31px;
+  padding: 0;
   border: 0;
   border-radius: var(--r-2);
   background: var(--accent);
@@ -839,6 +840,7 @@
   place-items: center;
   width: 24px;
   height: 26px;
+  padding: 0;
   border: 0;
   border-radius: var(--r-2);
   background: var(--fill-1);
