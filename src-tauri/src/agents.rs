@@ -521,7 +521,7 @@ fn prompt_for_mode(
     // refspec die hij zelf bouwt. Zo kan een agent de bestemming niet meer
     // beïnvloeden en is force-pushen onmogelijk in plaats van afgesproken.
     let hand_off = format!(
-        "Push zelf niets en gebruik geen git push. Zijn de tests en de linter groen en mogen je commits naar de PR, maak dan als laatste stap het bestand {} aan (leeg is goed); Accord pusht ze daarna naar {head_ref}. Zijn ze rood of kom je er niet uit, maak dat bestand dan NIET aan: je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom.",
+        "Push zelf niets en gebruik geen git push. Draai de tests en de linter. Is alles groen en mogen je commits naar de PR, maak dan als laatste stap het bestand {} aan (leeg is goed); Accord pusht ze daarna naar {head_ref}. Faalt er iets, ga dan niet op de uitkomst af maar bepaal of jouw wijziging de oorzaak is: draai datzelfde falen opnieuw zonder jouw commits (git stash, of de basisbranch {base_ref} uitchecken in een los pad). Faalt het daar aantoonbaar ook en staat het los van wat je aanraakte, maak het bestand dan wel aan en benoem dat bestaande falen in je PR-comment. Veroorzaak je het falen zelf, kom je er niet uit, of kun je niet bewijzen dat het al bestond, maak dat bestand dan NIET aan: je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom.",
         push_marker.to_string_lossy()
     );
     let prompt = match mode {
@@ -1403,6 +1403,25 @@ mod tests {
             );
             assert!(prompt.contains("gebruik geen git push"), "mode {mode}");
             assert!(!prompt.contains("git push origin"), "mode {mode}");
+        }
+    }
+
+    #[test]
+    /// Een falende test die er al stond blokkeert de push niet: anders blijven
+    /// correcte fixes lokaal staan omdat de suite elders al rood was. De prijs
+    /// is een bewijsplicht, en bij twijfel geen marker.
+    fn fix_modes_allow_a_push_when_the_failure_predates_the_change() {
+        for mode in ["withFixes", "fixComments", "fixChecks", "fixConflicts"] {
+            let prompt = prompt_for_mode("claude", mode, 42, "feature/x", "main").expect("prompt");
+            assert!(prompt.contains("zonder jouw commits"), "mode {mode}");
+            assert!(
+                prompt.contains("maak het bestand dan wel aan"),
+                "mode {mode}"
+            );
+            assert!(
+                prompt.contains("kun je niet bewijzen dat het al bestond"),
+                "mode {mode}"
+            );
         }
     }
 
