@@ -76,6 +76,10 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # beforeBuildCommand draait vite build in deze step: zonder deze var
+          # is de client ID leeg en toont de app het "geen Client ID"-scherm.
+          # Een device-flow client ID is geen secret, dus een repo variable.
+          VITE_GITHUB_CLIENT_ID: ${{ vars.VITE_GITHUB_CLIENT_ID }}
           # Zonder deze twee draait de build wel, maar levert hij geen
           # ondertekende updater-artifacts (en dus geen latest.json).
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
