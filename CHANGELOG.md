@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/dennispassway/accord/compare/v0.3.0...v0.3.1) (2026-08-13)
+
+
+### Opgelost
+
+* **linux:** venster opaak maken zodat de WebView op Linux zichtbaar is ([#4](https://github.com/dennispassway/accord/issues/4)) ([7860be7](https://github.com/dennispassway/accord/commit/7860be78d277b12dd3f75b93e55f96c806fe5d26))
+
 ## [0.3.0](https://github.com/dennispassway/accord/compare/v0.2.0...v0.3.0) (2026-08-11)
 
 
