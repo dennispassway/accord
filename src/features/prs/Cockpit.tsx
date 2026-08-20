@@ -137,15 +137,18 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     );
     void refresh();
     // Lessen structureel: na een geslaagde run die fixes toepaste destilleert
-    // dezelfde agent automatisch de lessen; de prompt stopt zelf als er geen
-    // generaliseerbare les in de comments zit.
+    // dezelfde agent automatisch de lessen, inline op de PR-branch zelf (een
+    // aparte lessen-PR is er alleen via de handmatige actie); de prompt stopt
+    // zelf als er geen generaliseerbare les in de comments zit.
     if (status === "done" && chainsIntoLearnings(mode)) {
       const pr = prs.find((candidate) => keyOfPr(candidate) === prKey);
       if (pr != null) {
         showToast(`Lessen vastleggen gestart: #${number}`, "ok");
-        void startRun(pr, agent, "distillLearnings").catch((error: unknown) => {
-          showToast(String(error), "fout");
-        });
+        void startRun(pr, agent, "distillLearningsInline").catch(
+          (error: unknown) => {
+            showToast(String(error), "fout");
+          },
+        );
       }
     }
   });

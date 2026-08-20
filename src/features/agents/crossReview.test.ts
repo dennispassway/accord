@@ -84,6 +84,7 @@ describe("chainsIntoLearnings", () => {
 
   it("chaint niet na distillLearnings zelf (geen loop) of modes zonder comments", () => {
     expect(chainsIntoLearnings("distillLearnings")).toBe(false);
+    expect(chainsIntoLearnings("distillLearningsInline")).toBe(false);
     expect(chainsIntoLearnings("commentsOnly")).toBe(false);
     expect(chainsIntoLearnings("fixChecks")).toBe(false);
     expect(chainsIntoLearnings("fixConflicts")).toBe(false);
