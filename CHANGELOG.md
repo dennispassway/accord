@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0](https://github.com/dennispassway/accord/compare/v0.3.1...v0.4.0) (2026-08-20)
+
+
+### Nieuw
+
+* **agents:** start automatisch een lessen-run na een geslaagde fix-run ([f465bb8](https://github.com/dennispassway/accord/commit/f465bb8d293180e896df8414876bd81fa758e96b))
+* **agents:** withFixes leest bestaande review-threads en beide fix-modes resolven verwerkte threads ([e5be789](https://github.com/dennispassway/accord/commit/e5be78951b097181d761a303d10a9ab9f3a70ff7))
+* **prs:** fix-modes ook in het contextmenu en tooltip bij Lessen vastleggen ([0c98906](https://github.com/dennispassway/accord/commit/0c98906a28af749d879b630494d500b5d4489546))
+* **tray:** monochroom template-icoon met alleen de logo-pijl in de macOS-menubar ([4d64a02](https://github.com/dennispassway/accord/commit/4d64a02782b15524582b34b14be577df4d6efd8e))
+
 ## [0.3.1](https://github.com/dennispassway/accord/compare/v0.3.0...v0.3.1) (2026-08-13)
 
 
