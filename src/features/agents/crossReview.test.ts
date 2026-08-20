@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { PullRequest } from "../../lib/github/domain";
 import { toPrNumber, toRepoId } from "../../lib/github/domain";
-import { availableFixModes, preferredReviewer } from "./crossReview";
+import {
+  availableFixModes,
+  chainsIntoLearnings,
+  preferredReviewer,
+} from "./crossReview";
 
 function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
   return {
@@ -69,6 +73,20 @@ describe("availableFixModes", () => {
         }),
       ),
     ).toEqual(["fixConflicts", "fixChecks", "fixComments", "distillLearnings"]);
+  });
+});
+
+describe("chainsIntoLearnings", () => {
+  it("chaint na runs die comments verwerken en fixes toepassen", () => {
+    expect(chainsIntoLearnings("fixComments")).toBe(true);
+    expect(chainsIntoLearnings("withFixes")).toBe(true);
+  });
+
+  it("chaint niet na distillLearnings zelf (geen loop) of modes zonder comments", () => {
+    expect(chainsIntoLearnings("distillLearnings")).toBe(false);
+    expect(chainsIntoLearnings("commentsOnly")).toBe(false);
+    expect(chainsIntoLearnings("fixChecks")).toBe(false);
+    expect(chainsIntoLearnings("fixConflicts")).toBe(false);
   });
 });
 

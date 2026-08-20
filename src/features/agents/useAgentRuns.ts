@@ -71,9 +71,14 @@ export function prKeyOf(pr: PullRequest): string {
 export function useAgentRuns(
   settings: Settings,
   /** U10: wordt aangeroepen zodra een run afrondt met "done" of "failed" (dus
-   * niet bij "cancelled"), zodat de aanroeper eenmalig een toast kan tonen en
-   * de PR-lijst kan verversen. */
-  onRunFinished?: (prKey: string, status: "done" | "failed") => void,
+   * niet bij "cancelled"), zodat de aanroeper eenmalig een toast kan tonen, de
+   * PR-lijst kan verversen en op mode/agent een vervolg-run kan starten. */
+  onRunFinished?: (
+    prKey: string,
+    status: "done" | "failed",
+    agent: ReviewAgent,
+    mode: AgentMode,
+  ) => void,
 ) {
   const [runs, setRuns] = useState<Map<string, AgentRun>>(new Map());
   const [clis, setClis] = useState<AgentClis>(
@@ -254,7 +259,12 @@ export function useAgentRuns(
             !notifiedRunIds.current.has(runId)
           ) {
             notifiedRunIds.current.add(runId);
-            onRunFinishedRef.current?.(run.prKey, nextStatus);
+            onRunFinishedRef.current?.(
+              run.prKey,
+              nextStatus,
+              run.agent,
+              run.mode,
+            );
           }
           return next;
         });
@@ -313,7 +323,7 @@ export function useAgentRuns(
             const wasCancelled = cancelled.current.has(runId);
             cancelled.current.delete(runId);
             const nextStatus = wasCancelled ? "cancelled" : "done";
-            const prKey = runsRef.current.get(runId)?.prKey;
+            const finished = runsRef.current.get(runId);
             setRuns((current) => {
               const run = current.get(runId);
               if (!run) return current;
@@ -321,8 +331,13 @@ export function useAgentRuns(
               next.set(runId, { ...run, status: nextStatus, exitCode: 0 });
               return next;
             });
-            if (nextStatus !== "cancelled" && prKey != null) {
-              onRunFinishedRef.current?.(prKey, nextStatus);
+            if (nextStatus !== "cancelled" && finished != null) {
+              onRunFinishedRef.current?.(
+                finished.prKey,
+                nextStatus,
+                finished.agent,
+                finished.mode,
+              );
             }
           } else if (tick <= MOCK_LOG_LINES.length) {
             setRuns((current) => {

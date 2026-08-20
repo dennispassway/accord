@@ -8,7 +8,7 @@ import { computeStackInfo } from "../../lib/github/stacks";
 import { modKey } from "../../lib/platform";
 import { useSettings } from "../../lib/settings";
 import type { AgentMode, ReviewAgent } from "../agents/crossReview";
-import { preferredReviewer } from "../agents/crossReview";
+import { chainsIntoLearnings, preferredReviewer } from "../agents/crossReview";
 import { prKeyOf, useAgentRuns } from "../agents/useAgentRuns";
 import { SettingsSheet } from "../settings/SettingsSheet";
 import { UpdateBanner } from "../update/UpdateBanner";
@@ -123,7 +123,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     cancelRun,
     runForPr,
     runningPrKeys,
-  } = useAgentRuns(settings, (prKey, status) => {
+  } = useAgentRuns(settings, (prKey, status, agent, mode) => {
     // U10: een afgeronde agent-run is verder onzichtbaar zolang je niet zelf
     // op die PR zit te kijken; één toast plus één refresh maakt 'm zichtbaar
     // zonder een aparte polling-loop toe te voegen. Cancelled runs melden
@@ -136,6 +136,18 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       status === "done" ? "ok" : "fout",
     );
     void refresh();
+    // Lessen structureel: na een geslaagde run die fixes toepaste destilleert
+    // dezelfde agent automatisch de lessen; de prompt stopt zelf als er geen
+    // generaliseerbare les in de comments zit.
+    if (status === "done" && chainsIntoLearnings(mode)) {
+      const pr = prs.find((candidate) => keyOfPr(candidate) === prKey);
+      if (pr != null) {
+        showToast(`Lessen vastleggen gestart: #${number}`, "ok");
+        void startRun(pr, agent, "distillLearnings").catch((error: unknown) => {
+          showToast(String(error), "fout");
+        });
+      }
+    }
   });
   const [selectedRepoId, setSelectedRepoIdState] = useState<RepoId | "all">(
     () => loadRepoFilter() as RepoId | "all",
