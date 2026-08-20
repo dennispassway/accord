@@ -1455,6 +1455,28 @@ mod tests {
     }
 
     #[test]
+    /// Een fix-run die bestaande review-threads negeert laat de reviewer zijn
+    /// punten dubbel maken: withFixes leest de open threads, verwerkt ze en
+    /// sluit ze af (reply + resolve), net als fixComments.
+    fn with_fixes_prompt_reads_replies_and_resolves_existing_threads() {
+        let prompt =
+            prompt_for_mode("claude", "withFixes", 42, "feature/x", "main").expect("prompt");
+        assert!(prompt.contains("gh api repos/{owner}/{repo}/pulls/42/comments"));
+        assert!(prompt.contains("in_reply_to"));
+        assert!(prompt.contains("resolveReviewThread"));
+    }
+
+    #[test]
+    /// Replyen zonder resolven laat de thread als openstaand werk achter;
+    /// verwerkt betekent ook afgesloten.
+    fn fix_comments_prompt_resolves_the_threads_it_handles() {
+        let prompt =
+            prompt_for_mode("claude", "fixComments", 42, "feature/x", "main").expect("prompt");
+        assert!(prompt.contains("resolveReviewThread"));
+        assert!(prompt.contains("laat die thread open"));
+    }
+
+    #[test]
     fn fix_checks_prompt_covers_logs_billing_and_stop_without_changes() {
         let prompt =
             prompt_for_mode("claude", "fixChecks", 42, "feature/x", "main").expect("prompt");
