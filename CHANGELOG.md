@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/dennispassway/accord/compare/v0.4.0...v0.5.0) (2026-08-20)
+
+
+### Nieuw
+
+* **agents:** lessen-run landt na een fix-run op de PR-branch zelf, met rem op CLAUDE.md-groei ([c7d8614](https://github.com/dennispassway/accord/commit/c7d8614f1a0141934efabbb561a7109f9d0d5e5d))
+* **agents:** lessen-run landt na een fix-run op de PR-branch zelf, met rem op CLAUDE.md-groei ([452f1b1](https://github.com/dennispassway/accord/commit/452f1b1bff13b74bd0520b70e405964eae1d9b0d))
+
 ## [0.4.0](https://github.com/dennispassway/accord/compare/v0.3.1...v0.4.0) (2026-08-20)
 
 
