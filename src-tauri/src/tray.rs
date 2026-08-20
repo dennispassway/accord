@@ -72,6 +72,17 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .menu(&menu)
         .on_menu_event(handle_menu_event);
+    // macOS: alleen de pijl uit het logo als template-icoon (zwart + alpha),
+    // zodat de menubar hem zelf wit of zwart kleurt naar het balkthema.
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .icon(tauri::image::Image::from_bytes(include_bytes!(
+                "../icons/tray.png"
+            ))?)
+            .icon_as_template(true);
+    }
+    #[cfg(not(target_os = "macos"))]
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone());
     }

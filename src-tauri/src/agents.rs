@@ -526,13 +526,13 @@ fn prompt_for_mode(
     );
     let prompt = match mode {
         "withFixes" => format!(
-            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}) en de omliggende code van elk gewijzigd bestand, en vorm daarna pas je oordeel. Richt je op problemen die gedrag raken (bugs, security, dataverlies); stijl alleen als het echt schaadt. Fix wat je vindt met kleine, losse commits. Draai daarna de tests en linter van het project. {hand_off} Sluit af met één samenvattende review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `<!-- accord:{agent}:withFixes -->` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review), gevolgd door per bevinding bestand:regel, wat er mis was en wat je hebt aangepast."
+            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}) en de omliggende code van elk gewijzigd bestand, plus de al geplaatste review-comments en open threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments), en vorm daarna pas je oordeel. Richt je op problemen die gedrag raken (bugs, security, dataverlies); stijl alleen als het echt schaadt. Fix wat je vindt met kleine, losse commits, en verwerk daarbij ook de terechte punten uit de open threads. Draai daarna de tests en linter van het project. {hand_off} Reageer per verwerkte thread in die thread zelf (gh api met in_reply_to) wat je hebt aangepast en resolve hem daarna via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het met een punt gemotiveerd oneens, leg dat uit in een reply en laat die thread open. Sluit af met één samenvattende review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `<!-- accord:{agent}:withFixes -->` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review), gevolgd door per bevinding bestand:regel, wat er mis was en wat je hebt aangepast."
         ),
         "commentsOnly" => format!(
             "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}) en de omliggende code van elk gewijzigd bestand, en vorm daarna pas je bevindingen. Controleer elke bevinding tegen de code en meld alleen punten waar je zeker van bent, met bestand:regel erbij. Label elke bevinding: [belangrijk] voor bugs, security of dataverlies, [nit] voor stijl; maximaal 5 nits, en sla gegenereerde bestanden en lockfiles over. Plaats alles als één review met inline comments op de betreffende regels: post naar gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/reviews --input - een JSON-payload met event COMMENT, en als body: de regel `<!-- accord:{agent}:commentsOnly -->` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review) gevolgd door een korte samenvatting, en per bevinding een entry in comments met path, line en side RIGHT (regelnummer in het nieuwe bestand, niet de diff-positie). Per inline comment: het probleem, waarom het uitmaakt en een concreet fix-voorstel. Geen blokkerende punten: zeg dat dan expliciet in één zin in de review-body. Wijzig geen bestanden en push geen code."
         ),
         "fixComments" => format!(
-            "Los de openstaande review-comments op pull request #{pr_number} in deze repo op. Lees eerst alle open threads via gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments, en bepaal per punt of het terecht is. Fix de terechte punten met kleine, losse commits; los een falend punt op in de code, nooit door een test te verzwakken, te skippen of te verwijderen. Draai daarna de tests en linter. {hand_off} Reageer daarna per verwerkte comment in zijn eigen thread (gh api met in_reply_to) wat je hebt aangepast; ben je het ergens gemotiveerd oneens, leg dat uit in een reply zonder code te wijzigen."
+            "Los de openstaande review-comments op pull request #{pr_number} in deze repo op. Lees eerst alle open threads via gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments, en bepaal per punt of het terecht is. Fix de terechte punten met kleine, losse commits; los een falend punt op in de code, nooit door een test te verzwakken, te skippen of te verwijderen. Draai daarna de tests en linter. {hand_off} Reageer daarna per verwerkte comment in zijn eigen thread (gh api met in_reply_to) wat je hebt aangepast en resolve die thread via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het ergens gemotiveerd oneens, leg dat uit in een reply zonder code te wijzigen en laat die thread open."
         ),
         "fixChecks" => format!(
             "De CI-checks op pull request #{pr_number} in deze repo falen. Bekijk de falende checks met gh pr checks {pr_number}, haal daar het run-id uit en lees de logs met gh run view <run-id> --log-failed (draai gh run view nooit zonder run-id, dat wordt interactief). Reproduceer de fout daarna lokaal voor je iets wijzigt. Is de oorzaak niet in code op te lossen (billing of spending limit, infra-storing, ontbrekende secrets of permissions, een flaky run), stop dan zonder iets te wijzigen en plaats één PR-comment via de gh CLI die de oorzaak uitlegt. Is de oorzaak wel fixbaar (falende tests, lint, types, build), fix dan de onderliggende oorzaak en niet het symptoom: verzwak, skip of verwijder nooit een test om groen te worden. Commit klein en los en draai de geraakte checks lokaal opnieuw. {hand_off}"
@@ -1452,6 +1452,28 @@ mod tests {
         let with_fixes =
             prompt_for_mode("codex", "withFixes", 42, "feature/x", "main").expect("prompt");
         assert!(with_fixes.contains("<!-- accord:codex:withFixes -->"));
+    }
+
+    #[test]
+    /// Een fix-run die bestaande review-threads negeert laat de reviewer zijn
+    /// punten dubbel maken: withFixes leest de open threads, verwerkt ze en
+    /// sluit ze af (reply + resolve), net als fixComments.
+    fn with_fixes_prompt_reads_replies_and_resolves_existing_threads() {
+        let prompt =
+            prompt_for_mode("claude", "withFixes", 42, "feature/x", "main").expect("prompt");
+        assert!(prompt.contains("gh api repos/{owner}/{repo}/pulls/42/comments"));
+        assert!(prompt.contains("in_reply_to"));
+        assert!(prompt.contains("resolveReviewThread"));
+    }
+
+    #[test]
+    /// Replyen zonder resolven laat de thread als openstaand werk achter;
+    /// verwerkt betekent ook afgesloten.
+    fn fix_comments_prompt_resolves_the_threads_it_handles() {
+        let prompt =
+            prompt_for_mode("claude", "fixComments", 42, "feature/x", "main").expect("prompt");
+        assert!(prompt.contains("resolveReviewThread"));
+        assert!(prompt.contains("laat die thread open"));
     }
 
     #[test]

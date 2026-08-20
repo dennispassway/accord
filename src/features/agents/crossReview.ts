@@ -21,6 +21,16 @@ export function preferredReviewer(author: Author): ReviewAgent {
 }
 
 /**
+ * Een geslaagde run die fixes toepaste krijgt automatisch een vervolg-run die
+ * de lessen destilleert. distillLearnings chaint zelf nooit, dus dit loopt
+ * niet rond; fixChecks en fixConflicts verwerken geen review-comments en
+ * leveren dus geen lessen op.
+ */
+export function chainsIntoLearnings(mode: AgentMode): boolean {
+  return mode === "fixComments" || mode === "withFixes";
+}
+
+/**
  * Fix-acties die op deze PR van toepassing zijn, blokkerend eerst: een
  * mergeconflict of falende check houdt de PR tegen, openstaande comments niet.
  */
