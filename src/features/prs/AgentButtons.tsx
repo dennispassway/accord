@@ -7,13 +7,20 @@ import "./detail.css";
 import { ChevronIcon } from "./icons";
 import { useRovingMenu } from "./menuNav";
 
-const MODE_LABEL: Record<AgentMode, string> = {
+export const MODE_LABEL: Record<AgentMode, string> = {
   commentsOnly: "Comments",
   withFixes: "Comments + fixes",
   fixComments: "Fix bevindingen",
   fixChecks: "Fix checks",
   fixConflicts: "Los conflict op",
   distillLearnings: "Lessen vastleggen",
+};
+
+/** Uitleg voor modi waarvan het label alleen niet duidelijk maakt wat er
+ * gebeurt; getoond als title-tooltip in beide menu's. */
+export const MODE_TITLE: Partial<Record<AgentMode, string>> = {
+  distillLearnings:
+    "Destilleert de lessen uit de review-comments en fixes naar CLAUDE.md of een skill, via een eigen PR",
 };
 
 function altMode(mode: ReviewMode): ReviewMode {
@@ -137,6 +144,7 @@ export function AgentButtons({
                       ref={setItemRef(index + 1)}
                       tabIndex={tabIndexFor(index + 1)}
                       className="detail-agent-menu-item"
+                      title={MODE_TITLE[mode]}
                       onClick={() => {
                         closeMenu();
                         onStartRun(pr, agent, mode);

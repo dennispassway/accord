@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
-import type { ReviewAgent, ReviewMode } from "../agents/crossReview";
+import type { AgentMode, ReviewAgent, ReviewMode } from "../agents/crossReview";
+import { availableFixModes } from "../agents/crossReview";
+import { MODE_LABEL, MODE_TITLE } from "./AgentButtons";
 import "./contextmenu.css";
 import { useRovingMenu } from "./menuNav";
 import { keyOfPr } from "./PrList";
@@ -13,7 +15,7 @@ interface PrContextMenuProps {
   onOpenOnGitHub: (prs: PullRequest[]) => void;
   onStartReview: (
     prs: PullRequest[],
-    mode: ReviewMode,
+    mode: AgentMode,
     agent: ReviewAgent,
   ) => void;
   onSetPriority: (prs: PullRequest[], priority: 1 | 2 | null) => void;
@@ -104,6 +106,19 @@ export function PrContextMenu({
   const canMerge = singlePr != null && mergeReasons.length === 0;
   const stoppableRun = singlePr != null && runningPrKeys.has(keyOfPr(singlePr));
 
+  // Zelfde fix-modes als het chevron-menu in het detailpaneel, zodat beide
+  // menu's dezelfde acties bieden; alleen bij één PR, want de modes hangen af
+  // van de toestand van die ene PR.
+  const agentLabel: Record<ReviewAgent, string> = {
+    claude: "Claude",
+    codex: "Codex",
+  };
+  const fixChoices = singlePr
+    ? (["claude", "codex"] as const).flatMap((agent) =>
+        availableFixModes(singlePr).map((mode) => ({ agent, mode })),
+      )
+    : [];
+
   const actions: MenuAction[] = [
     {
       key: "open",
@@ -124,6 +139,12 @@ export function PrContextMenu({
     ...REVIEW_CHOICES.map(({ agent, mode, label }) => ({
       key: `review-${agent}-${mode}`,
       label: withCount(label, n),
+      onSelect: () => onStartReview(prs, mode, agent),
+    })),
+    ...fixChoices.map(({ agent, mode }) => ({
+      key: `fix-${agent}-${mode}`,
+      label: `${agentLabel[agent]}: ${MODE_LABEL[mode].charAt(0).toLowerCase()}${MODE_LABEL[mode].slice(1)}`,
+      title: MODE_TITLE[mode],
       onSelect: () => onStartReview(prs, mode, agent),
     })),
     ...(stoppableRun && singlePr
@@ -157,6 +178,8 @@ export function PrContextMenu({
     "review-codex-withFixes",
     "stop-review",
   ]);
+  const lastFix = fixChoices[fixChoices.length - 1];
+  if (lastFix) sepAfter.add(`fix-${lastFix.agent}-${lastFix.mode}`);
   const disabledMask = actions.map((action) => action.disabled === true);
 
   const { setItemRef, handleKeyDown, tabIndexFor } = useRovingMenu(
