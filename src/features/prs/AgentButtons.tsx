@@ -14,6 +14,7 @@ export const MODE_LABEL: Record<AgentMode, string> = {
   fixChecks: "Fix checks",
   fixConflicts: "Los conflict op",
   distillLearnings: "Lessen vastleggen",
+  distillLearningsInline: "Lessen vastleggen (in PR)",
 };
 
 /** Uitleg voor modi waarvan het label alleen niet duidelijk maakt wat er
@@ -21,6 +22,8 @@ export const MODE_LABEL: Record<AgentMode, string> = {
 export const MODE_TITLE: Partial<Record<AgentMode, string>> = {
   distillLearnings:
     "Destilleert de lessen uit de review-comments en fixes naar CLAUDE.md of een skill, via een eigen PR",
+  distillLearningsInline:
+    "Destilleert de lessen uit de review-comments en fixes naar CLAUDE.md of een skill, als commit op de PR-branch zelf",
 };
 
 function altMode(mode: ReviewMode): ReviewMode {

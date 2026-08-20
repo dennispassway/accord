@@ -6,7 +6,8 @@ export type FixMode =
   | "fixComments"
   | "fixChecks"
   | "fixConflicts"
-  | "distillLearnings";
+  | "distillLearnings"
+  | "distillLearningsInline";
 export type AgentMode = ReviewMode | FixMode;
 
 /**
@@ -22,9 +23,10 @@ export function preferredReviewer(author: Author): ReviewAgent {
 
 /**
  * Een geslaagde run die fixes toepaste krijgt automatisch een vervolg-run die
- * de lessen destilleert. distillLearnings chaint zelf nooit, dus dit loopt
- * niet rond; fixChecks en fixConflicts verwerken geen review-comments en
- * leveren dus geen lessen op.
+ * de lessen op de PR-branch zelf destilleert (distillLearningsInline); alleen
+ * de handmatige actie opent een aparte lessen-PR (distillLearnings). Geen van
+ * beide lessen-modes chaint zelf, dus dit loopt niet rond; fixChecks en
+ * fixConflicts verwerken geen review-comments en leveren dus geen lessen op.
  */
 export function chainsIntoLearnings(mode: AgentMode): boolean {
   return mode === "fixComments" || mode === "withFixes";

@@ -524,6 +524,14 @@ fn prompt_for_mode(
         "Push zelf niets en gebruik geen git push. Draai de tests en de linter. Is alles groen en mogen je commits naar de PR, maak dan als laatste stap het bestand {} aan (leeg is goed); Accord pusht ze daarna naar {head_ref}. Faalt er iets, ga dan niet op de uitkomst af maar bepaal of jouw wijziging de oorzaak is: draai datzelfde falen opnieuw zonder jouw commits (git stash, of de basisbranch {base_ref} uitchecken in een los pad). Faalt het daar aantoonbaar ook en staat het los van wat je aanraakte, maak het bestand dan wel aan en benoem dat bestaande falen in je PR-comment. Veroorzaak je het falen zelf, kom je er niet uit, of kun je niet bewijzen dat het al bestond, maak dat bestand dan NIET aan: je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom.",
         push_marker.to_string_lossy()
     );
+    // Gedeelde kern van beide lessen-modes. De anti-bloat-regels (cap op twee
+    // lessen, CLAUDE.md als laatste optie, 2-3 zinnen, budget met one-in-one-out)
+    // zijn er omdat ongebreidelde lessen-runs CLAUDE.md anders per PR met
+    // alinea's laten dichtgroeien; alleen de bestemming van de commits verschilt
+    // per mode.
+    let learnings_core = format!(
+        "Destilleer de lessen uit pull request #{pr_number} in deze repo, zodat een volgende PR in één keer goed gaat. Lees eerst alle review-comments en threads (gh pr view {pr_number} --comments en gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments) en de fix-commits die na de eerste review kwamen met hun diffs, en bepaal per punt wat er in de oorspronkelijke code misging. Bewaar alleen generaliseerbare lessen: een regel die een toekomstige fout in deze repo voorkomt en die nog niet uit de code, de linter of de bestaande instructies volgt. Sla PR-specifieke feiten, eenmalige vergissingen en pure smaak over. Maximaal twee lessen per PR: vind je er meer, houd dan de twee met de grootste kans op herhaling en laat de rest weg. Verifieer elke les tegen de huidige code voordat je hem opschrijft. Kies per les de juiste plek en behandel CLAUDE.md als laatste optie: een meerstaps-werkwijze wordt een skill in .claude/skills/<naam>/SKILL.md met name en description in de frontmatter, een instructie die alleen bij bepaalde bestanden of paden geldt een regelbestand onder .claude/rules/, en alleen een korte tijdloze regel die bij elke taak in deze repo nodig is komt in CLAUDE.md (maak het bestand aan als het ontbreekt). Een les in CLAUDE.md is maximaal 2-3 zinnen zonder PR-nummers of casuïstiek; het verhaal erachter hoort in de commit-tekst. Check eerst of een bestaande regel of skill hetzelfde probleem al dekt en werk die dan bij in plaats van een duplicaat toe te voegen. Is CLAUDE.md na jouw wijziging groter dan 10 kilobyte (meet met wc -c CLAUDE.md), dan geldt one-in-one-out: er mag alleen iets bij als je tegelijk een bestaande regel schrapt of verplaatst naar een skill of regelbestand. Geen les gevonden: stop dan zonder iets te wijzigen."
+    );
     let prompt = match mode {
         "withFixes" => format!(
             "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}) en de omliggende code van elk gewijzigd bestand, plus de al geplaatste review-comments en open threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments), en vorm daarna pas je oordeel. Richt je op problemen die gedrag raken (bugs, security, dataverlies); stijl alleen als het echt schaadt. Fix wat je vindt met kleine, losse commits, en verwerk daarbij ook de terechte punten uit de open threads. Draai daarna de tests en linter van het project. {hand_off} Reageer per verwerkte thread in die thread zelf (gh api met in_reply_to) wat je hebt aangepast en resolve hem daarna via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het met een punt gemotiveerd oneens, leg dat uit in een reply en laat die thread open. Sluit af met één samenvattende review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `<!-- accord:{agent}:withFixes -->` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review), gevolgd door per bevinding bestand:regel, wat er mis was en wat je hebt aangepast."
@@ -541,7 +549,10 @@ fn prompt_for_mode(
             "Pull request #{pr_number} in deze repo heeft merge-conflicten met de basisbranch {base_ref}. Haal de basisbranch op met git fetch origin {base_ref} en merge origin/{base_ref} in HEAD. Los de conflicten inhoudelijk op: lees van beide kanten wat de bedoeling was en behoud die, kies nooit blind één kant. Let ook op botsingen buiten de conflict-markers, zoals een hernoemde functie die de andere kant nog onder de oude naam aanroept. Draai na de merge de build en tests en commit pas bij groen. {hand_off}"
         ),
         "distillLearnings" => format!(
-            "Destilleer de lessen uit pull request #{pr_number} in deze repo, zodat een volgende PR in één keer goed gaat. Lees eerst alle review-comments en threads (gh pr view {pr_number} --comments en gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments) en de fix-commits die na de eerste review kwamen met hun diffs, en bepaal per punt wat er in de oorspronkelijke code misging. Bewaar alleen generaliseerbare lessen: een regel die een toekomstige fout in deze repo voorkomt en die nog niet uit de code, de linter of de bestaande instructies volgt. Sla PR-specifieke feiten, eenmalige vergissingen en pure smaak over. Verifieer elke les tegen de huidige code voordat je hem opschrijft. Kies per les de juiste plek: een korte regel of voorkeur hoort in CLAUDE.md (maak het bestand aan als het ontbreekt), een meerstaps-werkwijze hoort als skill in .claude/skills/<naam>/SKILL.md met name en description in de frontmatter. Check eerst of een bestaande regel of skill hetzelfde probleem al dekt en werk die dan bij in plaats van een duplicaat toe te voegen. Geen les gevonden: stop dan zonder iets te wijzigen. Wel lessen: maak een verse branch vanaf origin/{base_ref} met een naam die met claude/ begint (andere namen worden geweigerd), commit per les apart, push met git push origin HEAD:claude/<naam> en open met gh pr create een PR naar {base_ref} die per les uitlegt wat er in PR #{pr_number} misging en welke regel dat voortaan voorkomt. Push nooit geforceerd en nooit direct naar {base_ref} of {head_ref}."
+            "{learnings_core} Wel lessen: maak een verse branch vanaf origin/{base_ref} met een naam die met claude/ begint (andere namen worden geweigerd), commit per les apart, push met git push origin HEAD:claude/<naam> en open met gh pr create een PR naar {base_ref} die per les uitlegt wat er in PR #{pr_number} misging en welke regel dat voortaan voorkomt. Push nooit geforceerd en nooit direct naar {base_ref} of {head_ref}."
+        ),
+        "distillLearningsInline" => format!(
+            "{learnings_core} Wel lessen: commit ze per les apart op de huidige branch (de PR-branch van #{pr_number}) en raak daarbij alleen documentatie- en instructiebestanden aan, geen productiecode. {hand_off} Plaats tot slot via gh pr comment {pr_number} één comment die per les kort benoemt wat is vastgelegd en waar."
         ),
         other => return Err(format!("onbekende mode: {other}")),
     };
@@ -1436,6 +1447,33 @@ mod tests {
     }
 
     #[test]
+    /// De inline-variant (auto-chain na een fix-run) landt op de PR-branch zelf
+    /// via de hand-off: geen eigen branch, geen eigen PR.
+    fn distill_learnings_inline_commits_on_the_pr_branch_and_hands_off() {
+        let prompt = prompt_for_mode("claude", "distillLearningsInline", 42, "feature/x", "main")
+            .expect("prompt");
+        assert!(prompt.contains(TEST_MARKER));
+        assert!(prompt.contains("Accord pusht ze daarna naar feature/x"));
+        assert!(!prompt.contains("gh pr create"));
+        assert!(!prompt.contains("git push origin"));
+    }
+
+    #[test]
+    /// Zonder rem groeit CLAUDE.md met alinea's per PR dicht: beide lessen-modes
+    /// cappen aantal en lengte, routeren CLAUDE.md als laatste optie en dwingen
+    /// one-in-one-out af boven het budget.
+    fn learnings_prompts_cap_claude_md_growth() {
+        for mode in ["distillLearnings", "distillLearningsInline"] {
+            let prompt = prompt_for_mode("claude", mode, 42, "feature/x", "main").expect("prompt");
+            assert!(prompt.contains("Maximaal twee lessen"), "mode {mode}");
+            assert!(prompt.contains("laatste optie"), "mode {mode}");
+            assert!(prompt.contains("2-3 zinnen"), "mode {mode}");
+            assert!(prompt.contains("wc -c"), "mode {mode}");
+            assert!(prompt.contains("one-in-one-out"), "mode {mode}");
+        }
+    }
+
+    #[test]
     /// Binnen de worktree zou `git add -A` van de agent de marker meecommitten.
     fn push_marker_lives_next_to_the_worktree_not_inside_it() {
         let worktree = std::env::temp_dir().join("pr-cockpit").join("run-7");
@@ -1542,6 +1580,7 @@ mod tests {
             "fixChecks",
             "fixConflicts",
             "distillLearnings",
+            "distillLearningsInline",
         ] {
             let prompt = prompt_for_mode("claude", mode, 7, "feature", "main").expect("prompt");
             assert!(prompt.starts_with(AUTONOMOUS_PREFIX), "mode {mode}");
