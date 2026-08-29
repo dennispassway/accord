@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { RepoId } from "../../lib/github/domain";
 import type { RepoGroup } from "../../lib/github/organize";
+import { avatarBg } from "./Avatar";
 import { loadFavorites, saveFavorites } from "./cockpitPrefs";
 import { GithubIcon } from "./icons";
 import "./sidebar.css";
@@ -60,7 +61,10 @@ export function Sidebar({
           title={group.repoId}
           onClick={() => onSelect(group.repoId)}
         >
-          <span className="sidebar-dot" />
+          <span
+            className="sidebar-dot sidebar-dot-repo"
+            style={{ background: avatarBg(group.repoId) }}
+          />
           <span className="sidebar-name">{repoNameOnly(group.repoId)}</span>
           <span className="sidebar-count mono">{group.prs.length}</span>
         </button>
