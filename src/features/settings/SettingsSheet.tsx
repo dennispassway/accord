@@ -13,6 +13,7 @@ import {
   TIMEOUT_OPTIONS,
   withCurrent,
 } from "../../lib/settings";
+import { THEMES } from "../../lib/theme";
 import { RepoPathSetup } from "../agents/RepoPathSetup";
 import { CloseIcon, SettingsIcon } from "../prs/icons";
 import { nextLogoutClick } from "./logoutConfirm";
@@ -218,6 +219,23 @@ export function SettingsSheet({
           </button>
         </div>
         <div className="settings-body">
+          <div className="settings-section">
+            <div className="settings-section-head">
+              <span className="settings-section-title">Weergave</span>
+            </div>
+            <div className="settings-row">
+              <span className="settings-row-label">
+                <span className="settings-row-k">Thema</span>
+              </span>
+              <Segmented
+                value={settings.theme}
+                options={THEMES}
+                labels={{ light: "Licht", dark: "Donker", system: "Systeem" }}
+                onChange={(theme) => onUpdate((s) => ({ ...s, theme }))}
+              />
+            </div>
+          </div>
+
           <div className="settings-section">
             <div className="settings-section-head">
               <span className="settings-section-title">Claude</span>

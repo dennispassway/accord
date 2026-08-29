@@ -7,11 +7,27 @@
     <title>Accord</title>
     <script>
       (() => {
+        // Persistentie (src/lib/settings.ts) is synchrone localStorage, dus
+        // hier al leesbaar vóór React mount: voorkomt een flash naar het
+        // systeemthema als de gebruiker een hard thema koos.
+        var stored = null;
+        var raw;
+        try {
+          raw = localStorage.getItem("pr-cockpit.settings");
+          if (raw) stored = JSON.parse(raw).theme;
+        } catch (_e) {}
+        var isHard = stored === "light" || stored === "dark";
         var media = window.matchMedia("(prefers-color-scheme: dark)");
         function applyTheme(matches) {
-          document.documentElement.dataset.theme = matches ? "dark" : "light";
+          document.documentElement.dataset.theme = isHard
+            ? stored
+            : matches
+              ? "dark"
+              : "light";
         }
         applyTheme(media.matches);
+        // Bij een hard thema neemt applyTheme (src/lib/theme.ts) dit meteen na
+        // mount over; deze listener is dan alleen nog relevant vóór dat moment.
         media.addEventListener("change", (event) => applyTheme(event.matches));
       })();
     </script>

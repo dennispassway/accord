@@ -84,6 +84,30 @@ describe("loadSettings", () => {
   });
 });
 
+describe("theme", () => {
+  it("staat standaard op system", () => {
+    expect(loadSettings().theme).toBe("system");
+  });
+
+  it("rondt light en dark om via save en load", () => {
+    saveSettings({ ...DEFAULT_SETTINGS, theme: "dark" });
+    expect(loadSettings().theme).toBe("dark");
+    saveSettings({ ...DEFAULT_SETTINGS, theme: "light" });
+    expect(loadSettings().theme).toBe("light");
+  });
+
+  it.each([null, undefined, "", "sepia"])(
+    "valt bij %j terug op system",
+    (value) => {
+      localStorage.setItem(
+        "pr-cockpit.settings",
+        JSON.stringify({ ...DEFAULT_SETTINGS, theme: value }),
+      );
+      expect(loadSettings().theme).toBe("system");
+    },
+  );
+});
+
 describe("modellijsten", () => {
   it("vult de claude-aliassen uit de CLI aan met de fallback", () => {
     expect(claudeModels(["fable", "opus", "sonnet"])).toEqual([

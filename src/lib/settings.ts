@@ -1,5 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ReviewMode } from "../features/agents/crossReview";
+import { applyTheme, type Theme } from "./theme";
 
 export type Effort = "laag" | "midden" | "hoog";
 
@@ -46,6 +47,7 @@ export interface Settings {
   claude: AgentSettings;
   codex: AgentSettings;
   review: ReviewSettings;
+  theme: Theme;
 }
 
 const STORAGE_KEY = "pr-cockpit.settings";
@@ -60,7 +62,14 @@ export const DEFAULT_SETTINGS: Settings = {
     refreshMinutes: 5,
     timeoutMinutes: 20,
   },
+  theme: "system",
 };
+
+/** null, undefined, lege string of een onbekende waarde vallen terug op
+ * "system"; een verplicht veld komt bij oudere/corrupte opslag vaak als "" binnen. */
+function normalizeTheme(value: unknown): Theme {
+  return value === "light" || value === "dark" ? value : "system";
+}
 
 /** Leest settings uit localStorage; valt terug op de defaults bij ontbrekende
  * data, corrupte JSON of een ander versieveld, en vult ontbrekende velden aan. */
@@ -75,6 +84,7 @@ export function loadSettings(): Settings {
       claude: { ...DEFAULT_SETTINGS.claude, ...parsed.claude },
       codex: { ...DEFAULT_SETTINGS.codex, ...parsed.codex },
       review: { ...DEFAULT_SETTINGS.review, ...parsed.review },
+      theme: normalizeTheme(parsed.theme),
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -96,6 +106,11 @@ export function useSettings() {
       return next;
     });
   }, []);
+
+  // Past het thema toe zodra settings geladen zijn en bij elke wissel.
+  useEffect(() => {
+    applyTheme(settings.theme);
+  }, [settings.theme]);
 
   return { settings, update };
 }
