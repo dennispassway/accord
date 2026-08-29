@@ -1,5 +1,3 @@
-import { ReactieIcon } from "./icons";
-
 const BAR_COUNT = 4;
 
 /** <30, <150, <600, 600+ regels (additions + deletions). */
@@ -20,42 +18,23 @@ export function sizeWord(total: number): string {
 interface RowMetricsProps {
   additions: number;
   deletions: number;
-  comments: number;
 }
 
-/**
- * Vaste kolom van 52px: vier staafjes van 3px als omvangsklasse (exacte
- * +/- in de tooltip), en op regel 2 de reactieteller, verborgen bij nul.
- */
-export function RowMetrics({
-  additions,
-  deletions,
-  comments,
-}: RowMetricsProps) {
+/** Vaste kolom van 22px: vier staafjes van 3px als omvangsklasse (exacte +/- in de tooltip). */
+export function RowMetrics({ additions, deletions }: RowMetricsProps) {
   const total = additions + deletions;
   const level = sizeLevel(total);
   const sizeTitle = `${total} regels gewijzigd (${sizeWord(total)}): +${additions} −${deletions}`;
 
   return (
-    <div className="row-metrics">
-      <span className="row-metrics-bars" title={sizeTitle}>
-        {Array.from({ length: BAR_COUNT }, (_, i) => (
-          <span
-            // biome-ignore lint/suspicious/noArrayIndexKey: vaste, niet-herordenende reeks van 4 staafjes
-            key={i}
-            className={i < level ? "row-metrics-bar on" : "row-metrics-bar off"}
-          />
-        ))}
-      </span>
-      {comments > 0 && (
+    <span className="row-metrics" title={sizeTitle}>
+      {Array.from({ length: BAR_COUNT }, (_, i) => (
         <span
-          className="row-metrics-comments"
-          title={`${comments} ${comments === 1 ? "reactie" : "reacties"} op deze PR`}
-        >
-          <ReactieIcon size={11} />
-          <span className="mono">{comments}</span>
-        </span>
-      )}
-    </div>
+          // biome-ignore lint/suspicious/noArrayIndexKey: vaste, niet-herordenende reeks van 4 staafjes
+          key={i}
+          className={i < level ? "row-metrics-bar on" : "row-metrics-bar off"}
+        />
+      ))}
+    </span>
   );
 }

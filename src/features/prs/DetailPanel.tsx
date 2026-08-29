@@ -293,7 +293,7 @@ export function DetailPanel({
 
         <StackRail pr={pr} stackChain={stackChain} onSelectPr={onSelectPr} />
 
-        <div className="detail-meta">
+        <div className="detail-meta detail-card">
           <span className="detail-label">Branch</span>
           <span
             className="detail-meta-value"
@@ -330,7 +330,7 @@ export function DetailPanel({
           </span>
         </div>
 
-        <div className="detail-people">
+        <div className="detail-people detail-card">
           <PeopleColumn
             label="Auteur"
             entries={[authorEntry]}
@@ -360,7 +360,7 @@ export function DetailPanel({
         />
 
         {runningHere ? null : (
-          <div className="detail-agents">
+          <div className="detail-agents detail-card">
             <div className="detail-agents-head">
               <span className="detail-label">Laten reviewen</span>
               <span className="detail-agents-rule" />

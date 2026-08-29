@@ -18,7 +18,13 @@ function ciLabel(ciStatus: PullRequest["ciStatus"]): string {
 /** CI-kaart: icoon + label, en bij rood de namen van de gefaalde checks. */
 export function CiStatus({ ciStatus }: { ciStatus: PullRequest["ciStatus"] }) {
   return (
-    <div className="detail-ci">
+    <div
+      className={
+        ciStatus.state === "failure"
+          ? "detail-ci detail-card detail-ci-failure"
+          : "detail-ci detail-card"
+      }
+    >
       <div className="detail-ci-head">
         {ciStatus.state === "success" && (
           <CheckIcon size={13} className="detail-ci-icon-ok" />

@@ -5,12 +5,14 @@ import type { PrStackInfo } from "../../lib/github/stacks";
 import { modKey } from "../../lib/platform";
 import { Avatar, avatarBg } from "./Avatar";
 import { formatAmsterdam, formatRelative } from "./format";
-import { AgentIcon, ConceptIcon, StackIcon } from "./icons";
+import { AgentIcon, ConceptIcon, ReactieIcon, StackIcon } from "./icons";
 import "./prlist.css";
 import { RowMetrics } from "./RowMetrics";
 import { prStatus } from "./rank";
-import { StatusGlyph } from "./StatusGlyph";
 import type { PrSection } from "./sort";
+
+/** Statuskeys die als pill in de rij verschijnen; "wachten"/"concept" niet. */
+const PILL_STATUS_KEYS = new Set(["actie", "agent", "klaar", "review"]);
 
 interface PrListProps {
   /** Secties uit sort.ts; een lege titel betekent geen kop tonen. */
@@ -96,15 +98,18 @@ export function PrList({
             agentBezig: running,
             stackBlocked: (stackInfo?.blockedByPrNumbers.length ?? 0) > 0,
           });
-          const showChanges =
-            pr.reviewState.state === "changesRequested" && !running;
+          const showPill = PILL_STATUS_KEYS.has(status.key);
           const isSelected = key === selectedKey || selectedKeys.has(key);
 
           return (
             <li key={key} role="presentation">
               {startsSection && (
                 <div className="pl-group-header mono" role="presentation">
+                  <span
+                    className={`pl-group-dot pl-group-dot-${section.statusKey}`}
+                  />
                   {section.titel}
+                  <span className="pl-group-count">{section.prs.length}</span>
                 </div>
               )}
               <button
@@ -131,90 +136,93 @@ export function PrList({
                   onContextMenu(key, event);
                 }}
               >
-                <span className="pl-gutter">
-                  <StatusGlyph status={status} />
-                </span>
                 <span className="pl-number mono">#{pr.number}</span>
-                <div className="pl-main">
-                  <div className="pl-title-line">
-                    {pr.priority === 1 && (
-                      <span className="priority-chip priority-p1">P1</span>
-                    )}
-                    {pr.priority === 2 && (
-                      <span className="priority-chip priority-p2">P2</span>
-                    )}
-                    {pr.isDraft && (
-                      <span className="pl-draft-chip">
-                        <ConceptIcon size={9} />
-                        concept
-                      </span>
-                    )}
-                    <span className="pl-title">{pr.title}</span>
-                    {stackInfo && stackInfo.stackSize > 1 && (
-                      <span
-                        className="pl-stack-chip mono"
-                        title="Positie in de stack"
-                      >
-                        <StackIcon />
-                        {stackInfo.stackPosition}/{stackInfo.stackSize}
-                      </span>
-                    )}
-                  </div>
-                  <div className="pl-meta">
-                    <Avatar author={pr.author} size={15} />
-                    <span className="pl-meta-author">{pr.author.login}</span>
-                    {showRepoMeta && (
-                      <>
-                        <span className="pl-meta-sep">·</span>
-                        <span className="pl-meta-repo mono">
-                          {pr.repoId.split("/")[1]}
+                {pr.priority === 1 && (
+                  <span className="priority-chip priority-p1">P1</span>
+                )}
+                {pr.priority === 2 && (
+                  <span className="priority-chip priority-p2">P2</span>
+                )}
+                {pr.isDraft && (
+                  <span className="pl-draft-chip">
+                    <ConceptIcon size={9} />
+                    concept
+                  </span>
+                )}
+                <span className="pl-title">{pr.title}</span>
+                {stackInfo && stackInfo.stackSize > 1 && (
+                  <span
+                    className="pl-stack-chip mono"
+                    title="Positie in de stack"
+                  >
+                    <StackIcon />
+                    {stackInfo.stackPosition}/{stackInfo.stackSize}
+                  </span>
+                )}
+                <span className="pl-row-end">
+                  {showPill && (
+                    <span
+                      className={`pl-status-pill pl-status-pill-${status.key}`}
+                    >
+                      {status.key === "agent" && (
+                        <span className="pl-running-dot" />
+                      )}
+                      {status.label}
+                    </span>
+                  )}
+                  {pr.agentReviews.length > 0 && (
+                    <span className="pl-agent-cluster">
+                      {pr.agentReviews.map((review) => (
+                        <span
+                          key={review.agent}
+                          className="pl-agent-badge"
+                          style={{ background: avatarBg(review.agent) }}
+                          title={agentBadgeTitle(review)}
+                        >
+                          <AgentIcon size={9} />
+                          <span
+                            className={
+                              review.mode === "commentsAndFixes"
+                                ? "pl-agent-badge-dot pl-agent-badge-dot-fixes"
+                                : "pl-agent-badge-dot"
+                            }
+                          />
                         </span>
+                      ))}
+                    </span>
+                  )}
+                  <Avatar author={pr.author} size={15} />
+                  {showRepoMeta && (
+                    <span className="pl-repo mono">
+                      {pr.repoId.split("/")[1]}
+                    </span>
+                  )}
+                  <RowMetrics
+                    additions={pr.additions}
+                    deletions={pr.deletions}
+                  />
+                  <span
+                    className="pl-comments"
+                    title={
+                      pr.comments > 0
+                        ? `${pr.comments} ${pr.comments === 1 ? "reactie" : "reacties"} op deze PR`
+                        : undefined
+                    }
+                  >
+                    {pr.comments > 0 && (
+                      <>
+                        <ReactieIcon size={11} />
+                        <span className="mono">{pr.comments}</span>
                       </>
                     )}
-                    <span className="pl-meta-sep">·</span>
-                    <span
-                      className="pl-meta-time"
-                      title={formatAmsterdam(pr.updatedAt)}
-                    >
-                      {formatRelative(pr.updatedAt)}
-                    </span>
-                    {running && (
-                      <span className="pl-running">
-                        <span className="pl-running-dot" />
-                        reviewt
-                      </span>
-                    )}
-                    {showChanges && (
-                      <span className="pl-changes">changes requested</span>
-                    )}
-                    {pr.agentReviews.length > 0 && (
-                      <span className="pl-agent-cluster">
-                        {pr.agentReviews.map((review) => (
-                          <span
-                            key={review.agent}
-                            className="pl-agent-badge"
-                            style={{ background: avatarBg(review.agent) }}
-                            title={agentBadgeTitle(review)}
-                          >
-                            <AgentIcon size={9} />
-                            <span
-                              className={
-                                review.mode === "commentsAndFixes"
-                                  ? "pl-agent-badge-dot pl-agent-badge-dot-fixes"
-                                  : "pl-agent-badge-dot"
-                              }
-                            />
-                          </span>
-                        ))}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <RowMetrics
-                  additions={pr.additions}
-                  deletions={pr.deletions}
-                  comments={pr.comments}
-                />
+                  </span>
+                  <span
+                    className="pl-time"
+                    title={formatAmsterdam(pr.updatedAt)}
+                  >
+                    {formatRelative(pr.updatedAt)}
+                  </span>
+                </span>
               </button>
             </li>
           );
