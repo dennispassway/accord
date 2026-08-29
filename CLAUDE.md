@@ -25,3 +25,6 @@ Achtergrond en het weekritme staan in de vault onder `00 Projecten/Accord/`.
 
 `docs/design.md` en `docs/design-v2/` beschrijven de UI-richting, `docs/handoffs/` bevat
 losse overdrachten.
+
+Bestandsspecifieke regels staan in `.claude/rules/`: lees het bijbehorende bestand
+voor je CSS in `src/` of het bootstrap-script in `index.html` aanraakt.

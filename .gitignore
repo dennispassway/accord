@@ -18,7 +18,9 @@ dist-ssr
 .env.*
 !.env.example
 
-.claude
+.claude/*
+# Gedeelde regelbestanden voor Claude horen wel in de repo
+!.claude/rules/
 
 # Editor directories and files
 .vscode/*
