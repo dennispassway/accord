@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.0](https://github.com/dennispassway/accord/compare/v0.5.0...v0.6.0) (2026-08-29)
+
+
+### Nieuw
+
+* **detail:** kaarten-anatomie voor het detailpaneel met getinte CI-kaart ([23eba31](https://github.com/dennispassway/accord/commit/23eba319d4b57b7e319ca1c75914e1c289a20caa))
+* **prs:** dichte eenregel-rijen met status-pills en sectiekop-dots ([afa1a6e](https://github.com/dennispassway/accord/commit/afa1a6e305c4b2bfa045604cb5ee544a09317d94))
+* **settings:** thema-keuze licht/donker/systeem met flashvrije load ([68fa738](https://github.com/dennispassway/accord/commit/68fa7389d76249300fb3e437d1e6c47b09ab2383))
+* **sidebar:** deterministische kleurdot per repo ([3c82662](https://github.com/dennispassway/accord/commit/3c826624a162a14efb4e5dac73afd14048a93365))
+* **ui:** cockpit-redesign met dichte rijen, kaarten-detailpaneel en thema-keuze ([3a87372](https://github.com/dennispassway/accord/commit/3a8737259408554b63406cfc5901150e25d8f7f0))
+* **ui:** redesign-tokens (kaarten, knop-gradients, koelere chrome) en witte toolbar-controls ([499db85](https://github.com/dennispassway/accord/commit/499db8560042544f72f2cb6b197b0f48a7bb4789))
+
+
+### Opgelost
+
+* **prs:** laat het rechtercluster krimpen zodat de reponaam afkapt ([1caa4fa](https://github.com/dennispassway/accord/commit/1caa4fa4f0241ecd85c5b6e39e231bf79cca6466))
+* **theme:** laat de bootstrap-listener de thema-keuze niet overschrijven ([0e43ee0](https://github.com/dennispassway/accord/commit/0e43ee0194c3e2b2e57a47ca05cb1bb771b84d24))
+
 ## [0.5.0](https://github.com/dennispassway/accord/compare/v0.4.0...v0.5.0) (2026-08-20)
 
 
