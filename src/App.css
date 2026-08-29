@@ -23,10 +23,22 @@
   -webkit-text-size-adjust: 100%;
 }
 
+/* Redesign-tokens (canvas "Accord cockpit-voorstellen", 2026-08-29): witte
+   kaarten/knoppen met hairline + zachte schaduw, knop-gradients met
+   top-highlight, koelere chrome-tint. Status-pills krijgen geen token: die
+   tinten met color-mix(in srgb, currentColor 9%, transparent). */
 [data-theme="dark"] {
   --text-1: #fbfbfd;
   --text-2: rgba(240, 240, 246, 0.76);
   --text-3: rgba(240, 240, 246, 0.52);
+  --card-2: rgba(255, 255, 255, 0.07);
+  --card-line: rgba(255, 255, 255, 0.1);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --btn: rgba(255, 255, 255, 0.08);
+  --btn-line: rgba(255, 255, 255, 0.14);
+  --btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --grad-accent: linear-gradient(180deg, #5d97ff 0%, #4d8dff 55%, #3a74e6 100%);
+  --btn-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   --accent: #4d8dff;
   --accent-ink: #04122c;
   --accent-soft: rgba(77, 141, 255, 0.2);
@@ -55,6 +67,14 @@
   --text-1: #0d0d10;
   --text-2: rgba(20, 20, 24, 0.74);
   --text-3: rgba(20, 20, 24, 0.54);
+  --card-2: #ffffff;
+  --card-line: rgba(0, 0, 0, 0.07);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --btn: #ffffff;
+  --btn-line: rgba(0, 0, 0, 0.1);
+  --btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --grad-accent: linear-gradient(180deg, #3b76ea 0%, #1f5fe0 55%, #1a51c4 100%);
+  --btn-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.22);
   --accent: #1f5fe0;
   --accent-ink: #ffffff;
   --accent-soft: rgba(31, 95, 224, 0.13);
@@ -63,13 +83,13 @@
   --err: #b02a20;
   --warn: #7d4f06;
   --agent: #5636bd;
-  --line: rgba(0, 0, 0, 0.13);
-  --line-2: rgba(0, 0, 0, 0.22);
+  --line: rgba(0, 0, 0, 0.1);
+  --line-2: rgba(0, 0, 0, 0.2);
   --fill-1: rgba(0, 0, 0, 0.055);
   --fill-2: rgba(0, 0, 0, 0.11);
-  --side: rgba(240, 240, 244, 0.78);
+  --side: rgba(236, 239, 245, 0.8);
   --list: rgba(255, 255, 255, 0.88);
-  --detail: rgba(247, 247, 250, 0.8);
+  --detail: rgba(244, 246, 250, 0.82);
   --bar: rgba(252, 252, 254, 0.66);
   --card: rgba(0, 0, 0, 0.03);
   --code: rgba(0, 0, 0, 0.05);
