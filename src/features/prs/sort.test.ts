@@ -75,6 +75,12 @@ describe("buildSections", () => {
       ["actie"],
       ["concept"],
     ]);
+    expect(sections.map((s) => s.statusKey)).toEqual([
+      "review",
+      "klaar",
+      "actie",
+      "concept",
+    ]);
   });
 
   it("triage: agent bezig sectie tussen actie en wachten", () => {
@@ -166,6 +172,7 @@ describe("buildSections", () => {
     const sections = buildSections([repoA1, repoB1], "project", idleCtx);
     expect(sections.map((s) => s.key)).toEqual(["acme/aaa", "acme/bbb"]);
     expect(sections.map((s) => s.titel)).toEqual(["acme/aaa", "acme/bbb"]);
+    expect(sections.map((s) => s.statusKey)).toEqual(["klaar", "actie"]);
   });
 
   it("lege lijst geeft lege secties", () => {

@@ -20,6 +20,8 @@ export interface PrSection {
   key: string;
   titel: string;
   prs: PullRequest[];
+  /** Statuskleur voor de sectiekop-dot; leeg als de sectie geen titel toont. */
+  statusKey: PrStatusKey | null;
 }
 
 /** Sectievolgorde uit het design-script: jouw review, klaar, actie, agent, wachten, concept. */
@@ -112,6 +114,7 @@ export function buildSections(
       key: sec.key,
       titel: sec.titel,
       prs: sorted.filter((pr) => statusOf(pr, ctx).rank === sec.rank),
+      statusKey: sec.key,
     })).filter((sec) => sec.prs.length > 0);
   }
 
@@ -130,9 +133,15 @@ export function buildSections(
         groupRank: Math.min(...rows.map((pr) => statusOf(pr, ctx).rank)),
       }))
       .sort((a, b) => a.groupRank - b.groupRank)
-      .map(({ key, titel, prs: rows }) => ({ key, titel, prs: rows }));
+      .map(({ key, titel, prs: rows, groupRank }) => ({
+        key,
+        titel,
+        prs: rows,
+        statusKey:
+          TRIAGE_SECTIONS.find((sec) => sec.rank === groupRank)?.key ?? null,
+      }));
   }
 
   if (sorted.length === 0) return [];
-  return [{ key: "", titel: "", prs: sorted }];
+  return [{ key: "", titel: "", prs: sorted, statusKey: null }];
 }
