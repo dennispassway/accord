@@ -10,25 +10,25 @@
         // Persistentie (src/lib/settings.ts) is synchrone localStorage, dus
         // hier al leesbaar vóór React mount: voorkomt een flash naar het
         // systeemthema als de gebruiker een hard thema koos.
-        var stored = null;
-        var raw;
-        try {
-          raw = localStorage.getItem("pr-cockpit.settings");
-          if (raw) stored = JSON.parse(raw).theme;
-        } catch (_e) {}
-        var isHard = stored === "light" || stored === "dark";
-        var media = window.matchMedia("(prefers-color-scheme: dark)");
-        function applyTheme(matches) {
-          document.documentElement.dataset.theme = isHard
-            ? stored
-            : matches
-              ? "dark"
-              : "light";
+        function hardTheme() {
+          try {
+            const raw = localStorage.getItem("pr-cockpit.settings");
+            const theme = raw ? JSON.parse(raw).theme : null;
+            return theme === "light" || theme === "dark" ? theme : null;
+          } catch (_e) {
+            return null;
+          }
         }
-        applyTheme(media.matches);
-        // Bij een hard thema neemt applyTheme (src/lib/theme.ts) dit meteen na
-        // mount over; deze listener is dan alleen nog relevant vóór dat moment.
-        media.addEventListener("change", (event) => applyTheme(event.matches));
+        const media = window.matchMedia("(prefers-color-scheme: dark)");
+        function applyTheme() {
+          // Bij elke aanroep opnieuw uit localStorage lezen: deze listener
+          // blijft na mount actief, en een bij het laden vastgelegde keuze zou
+          // een latere wissel in de instellingen overschrijven.
+          document.documentElement.dataset.theme =
+            hardTheme() || (media.matches ? "dark" : "light");
+        }
+        applyTheme();
+        media.addEventListener("change", applyTheme);
       })();
     </script>
   </head>
