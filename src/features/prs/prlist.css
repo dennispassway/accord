@@ -159,7 +159,10 @@
 }
 
 .pl-row-end {
-  flex: 0 0 auto;
+  /* Krimpt mee zodat .pl-repo kan ellipsen; anders loopt de rij op smalle
+     vensters horizontaal over in plaats van de reponaam af te kappen. */
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -202,7 +205,8 @@
 }
 
 .pl-repo {
-  flex: 0 0 150px;
+  /* Mag krimpen: op smalle vensters duwt een vaste 150px de titel naar 0. */
+  flex: 0 1 150px;
   min-width: 0;
   text-align: right;
   font: 400 10.5px / 1 var(--mono);
