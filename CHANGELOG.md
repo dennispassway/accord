@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.0](https://github.com/dennispassway/accord/compare/v0.6.0...v0.7.0) (2026-08-30)
+
+
+### Nieuw
+
+* **notificaties:** macos-systeemnotificaties bij run, ci-omslag en merge ([0046c2e](https://github.com/dennispassway/accord/commit/0046c2e6f653c66fec2288555937c1108113ff11))
+* **notificaties:** systeemnotificaties bij run, ci-omslag en merge ([e7939b9](https://github.com/dennispassway/accord/commit/e7939b9646211877bcf67fc609a954e6a057f119))
+* **prs:** auto-rebase van bovenliggende stapel-PR's na een merge ([7bf59fe](https://github.com/dennispassway/accord/commit/7bf59fe5789f0046177e01d20543ae3b1f6026a6))
+* **prs:** auto-rebase van stapels na een merge ([76b8d5c](https://github.com/dennispassway/accord/commit/76b8d5c375879ae54635562fbf4a5c349b5d0429))
+* **stacks:** tauri-commands voor het rebasen van stapel-branches ([0355e1f](https://github.com/dennispassway/accord/commit/0355e1f5ba4ab531c0f11eb08f7b0572cdaaf4e9))
+
+
+### Opgelost
+
+* **prs:** koppel de rebase-status aan repo plus PR-nummer ([77454b6](https://github.com/dennispassway/accord/commit/77454b6ee0b0fb0d0d018517db5afbfdbf3fd6ea))
+* **stacks:** meld een gefaalde rebase alleen als conflict bij een echte stop ([0695869](https://github.com/dennispassway/accord/commit/069586904704d7fa720e84773ad26629ae2a4c10))
+
 ## [0.6.0](https://github.com/dennispassway/accord/compare/v0.5.0...v0.6.0) (2026-08-29)
 
 
