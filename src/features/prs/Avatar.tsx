@@ -7,12 +7,20 @@ import { AgentIcon } from "./icons";
  * het design-script.
  */
 export function avatarBg(login: string): string {
+  return `oklch(.58 .11 ${hueOf(login)})`;
+}
+
+/** Verzadigde variant voor de repo-dots in de sidebar (Strak: 9px, vol van kleur). */
+export function repoDotBg(repoId: string): string {
+  return `oklch(.7 .19 ${hueOf(repoId)})`;
+}
+
+function hueOf(text: string): number {
   let hash = 0;
-  for (let i = 0; i < login.length; i++) {
-    hash = (hash * 31 + login.charCodeAt(i)) | 0;
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash * 31 + text.charCodeAt(i)) | 0;
   }
-  const hue = Math.abs(hash) % 360;
-  return `oklch(.58 .11 ${hue})`;
+  return Math.abs(hash) % 360;
 }
 
 interface AvatarProps {

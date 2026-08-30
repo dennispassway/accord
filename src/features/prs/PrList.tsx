@@ -194,12 +194,13 @@ export function PrList({
                   {showPill && (
                     <span
                       className={`pl-status-pill pl-status-pill-${status.key}`}
+                      title={status.label}
                     >
                       {status.key === "agent" && (
                         <span className="pl-running-dot" />
                       )}
                       <span className="pl-status-pill-label">
-                        {status.label}
+                        {status.short}
                       </span>
                     </span>
                   )}
@@ -224,7 +225,7 @@ export function PrList({
                       ))}
                     </span>
                   )}
-                  <Avatar author={pr.author} size={15} />
+                  <Avatar author={pr.author} size={18} />
                   {showRepoMeta && (
                     <span className="pl-repo mono">
                       {pr.repoId.split("/")[1]}

@@ -11,7 +11,10 @@ export type PrStatusKey =
 export interface PrStatus {
   rank: 1 | 2 | 3 | 4 | 5 | 6;
   key: PrStatusKey;
+  /** Volledige tekst voor het detailpaneel en tooltips. */
   label: string;
+  /** Korte variant voor de pill in de lijstrij (1-2 woorden). */
+  short: string;
 }
 
 /**
@@ -24,22 +27,42 @@ export function prStatus(
   ctx: { agentBezig: boolean; stackBlocked: boolean },
 ): PrStatus {
   if (ctx.agentBezig) {
-    return { rank: 4, key: "agent", label: "agent reviewt" };
+    return { rank: 4, key: "agent", label: "agent reviewt", short: "agent" };
   }
   if (pr.isDraft) {
-    return { rank: 6, key: "concept", label: "concept" };
+    return { rank: 6, key: "concept", label: "concept", short: "concept" };
   }
   if (pr.mergeable === "CONFLICTING") {
-    return { rank: 3, key: "actie", label: "conflicten oplossen" };
+    return {
+      rank: 3,
+      key: "actie",
+      label: "conflicten oplossen",
+      short: "conflicten",
+    };
   }
   if (pr.ciStatus.state === "failure") {
-    return { rank: 3, key: "actie", label: "checks repareren" };
+    return {
+      rank: 3,
+      key: "actie",
+      label: "checks repareren",
+      short: "checks",
+    };
   }
   if (pr.reviewState.state === "changesRequested") {
-    return { rank: 3, key: "actie", label: "changes requested" };
+    return {
+      rank: 3,
+      key: "actie",
+      label: "changes requested",
+      short: "changes",
+    };
   }
   if (pr.reviewRequestedFromMe) {
-    return { rank: 2, key: "review", label: "jouw review nodig" };
+    return {
+      rank: 2,
+      key: "review",
+      label: "jouw review nodig",
+      short: "jouw review",
+    };
   }
   if (
     pr.ciStatus.state === "pending" ||
@@ -53,7 +76,8 @@ export function prStatus(
         pr.ciStatus.state === "pending"
           ? "checks draaien"
           : "wacht op de stapel",
+      short: pr.ciStatus.state === "pending" ? "draait" : "stapel",
     };
   }
-  return { rank: 1, key: "klaar", label: "klaar om te mergen" };
+  return { rank: 1, key: "klaar", label: "klaar om te mergen", short: "klaar" };
 }

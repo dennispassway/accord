@@ -41,6 +41,7 @@ describe("prStatus", () => {
       rank: 1,
       key: "klaar",
       label: "klaar om te mergen",
+      short: "klaar",
     });
   });
 
@@ -50,6 +51,7 @@ describe("prStatus", () => {
       rank: 2,
       key: "review",
       label: "jouw review nodig",
+      short: "jouw review",
     });
   });
 
@@ -59,6 +61,7 @@ describe("prStatus", () => {
       rank: 3,
       key: "actie",
       label: "conflicten oplossen",
+      short: "conflicten",
     });
   });
 
@@ -70,6 +73,7 @@ describe("prStatus", () => {
       rank: 3,
       key: "actie",
       label: "checks repareren",
+      short: "checks",
     });
   });
 
@@ -79,6 +83,7 @@ describe("prStatus", () => {
       rank: 3,
       key: "actie",
       label: "changes requested",
+      short: "changes",
     });
   });
 
@@ -88,6 +93,7 @@ describe("prStatus", () => {
       rank: 4,
       key: "agent",
       label: "agent reviewt",
+      short: "agent",
     });
   });
 
@@ -97,6 +103,7 @@ describe("prStatus", () => {
       rank: 5,
       key: "wachten",
       label: "checks draaien",
+      short: "draait",
     });
   });
 
@@ -106,6 +113,7 @@ describe("prStatus", () => {
       rank: 5,
       key: "wachten",
       label: "wacht op de stapel",
+      short: "stapel",
     });
   });
 
@@ -115,6 +123,7 @@ describe("prStatus", () => {
       rank: 5,
       key: "wachten",
       label: "wacht op de stapel",
+      short: "stapel",
     });
   });
 
@@ -124,6 +133,7 @@ describe("prStatus", () => {
       rank: 6,
       key: "concept",
       label: "concept",
+      short: "concept",
     });
   });
 
@@ -133,6 +143,7 @@ describe("prStatus", () => {
       rank: 4,
       key: "agent",
       label: "agent reviewt",
+      short: "agent",
     });
   });
 
@@ -142,6 +153,7 @@ describe("prStatus", () => {
       rank: 6,
       key: "concept",
       label: "concept",
+      short: "concept",
     });
   });
 });

@@ -17,13 +17,13 @@
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   height: 28px;
   padding: 0 12px;
   margin-top: 12px;
   background: var(--list);
-  font: 700 10px / 1 var(--mono);
-  letter-spacing: 0.07em;
+  font: 800 11px / 1 var(--mono);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -69,15 +69,15 @@ li:first-child > .pl-group-header {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: color-mix(in srgb, currentColor 11%, transparent);
+  background: color-mix(in srgb, currentColor 14%, transparent);
 }
 
 .pl-group-count {
   flex: 0 0 auto;
   padding: 0 7px;
   border-radius: 999px;
-  background: color-mix(in srgb, currentColor 11%, transparent);
-  font-weight: 700;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  font-weight: 800;
   font-size: 11px;
 }
 
@@ -212,9 +212,11 @@ li:first-child > .pl-group-header {
   display: flex;
   align-items: center;
   gap: 4px;
-  font: 700 10px / 1 var(--font);
-  padding: 2.5px 7px;
-  border-radius: 20px;
+  font: 800 10.5px / 1 var(--font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
   background: color-mix(in srgb, currentColor 11%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent);
   white-space: nowrap;
@@ -262,7 +264,7 @@ li:first-child > .pl-group-header {
   max-width: 150px;
   min-width: 0;
   text-align: right;
-  font: 400 10.5px / 1 var(--mono);
+  font: 400 11px / 1 var(--mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -329,7 +331,7 @@ li:first-child > .pl-group-header {
   align-items: center;
   justify-content: center;
   color: #fff;
-  font: 600 8.5px / 1 var(--font);
+  font: 800 9.5px / 1 var(--font);
 }
 
 .pr-avatar-human {
