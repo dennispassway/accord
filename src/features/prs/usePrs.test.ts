@@ -4,6 +4,7 @@ import { toPrNumber, toRepoId } from "../../lib/github/domain";
 import type { PrsState } from "./usePrs";
 import {
   createRecentlyMergedTracker,
+  detectCiFlippedToRed,
   nextStateOnLoadError,
   shouldRefreshOnVisible,
 } from "./usePrs";
@@ -99,5 +100,64 @@ describe("createRecentlyMergedTracker (B2)", () => {
     const other = pr({ id: "PR_other" });
 
     expect(tracker.filter([other], 0)).toEqual([other]);
+  });
+});
+
+describe("detectCiFlippedToRed", () => {
+  it("geeft een eigen PR terug die van pending naar failure omslaat", () => {
+    const before = pr({ id: "PR_1", ciStatus: { state: "pending" } });
+    const after = pr({
+      id: "PR_1",
+      ciStatus: { state: "failure", failedChecks: ["build"] },
+    });
+
+    expect(detectCiFlippedToRed([before], [after])).toEqual([after]);
+  });
+
+  it("geeft een eigen PR terug die van success naar failure omslaat", () => {
+    const before = pr({ id: "PR_1", ciStatus: { state: "success" } });
+    const after = pr({
+      id: "PR_1",
+      ciStatus: { state: "failure", failedChecks: ["build"] },
+    });
+
+    expect(detectCiFlippedToRed([before], [after])).toEqual([after]);
+  });
+
+  it("negeert een PR die niet van de gebruiker zelf is", () => {
+    const before = pr({
+      id: "PR_1",
+      authoredByMe: false,
+      ciStatus: { state: "success" },
+    });
+    const after = pr({
+      id: "PR_1",
+      authoredByMe: false,
+      ciStatus: { state: "failure", failedChecks: ["build"] },
+    });
+
+    expect(detectCiFlippedToRed([before], [after])).toEqual([]);
+  });
+
+  it("negeert een PR die al rood was (geen omslag)", () => {
+    const before = pr({
+      id: "PR_1",
+      ciStatus: { state: "failure", failedChecks: ["build"] },
+    });
+    const after = pr({
+      id: "PR_1",
+      ciStatus: { state: "failure", failedChecks: ["build", "lint"] },
+    });
+
+    expect(detectCiFlippedToRed([before], [after])).toEqual([]);
+  });
+
+  it("negeert een nieuwe PR zonder vorige snapshot", () => {
+    const after = pr({
+      id: "PR_new",
+      ciStatus: { state: "failure", failedChecks: ["build"] },
+    });
+
+    expect(detectCiFlippedToRed([], [after])).toEqual([]);
   });
 });
