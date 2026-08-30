@@ -39,15 +39,3 @@ export function mockMode(): MockMode {
     ? (value as MockMode)
     : "app";
 }
-
-// De transparante vibrancy-achtergrond van de echte Tauri-app mengt in een
-// kale browser met het witte canvas, waardoor dark uitgewassen oogt. Zet een
-// class op <html> zodra de mockmodus actief is, zodat App.css daar een
-// ondoorzichtige achtergrond voor kan zetten (de echte app blijft transparant).
-if (
-  import.meta.env.DEV &&
-  typeof document !== "undefined" &&
-  mockMode() !== "off"
-) {
-  document.documentElement.classList.add("mock-backdrop");
-}

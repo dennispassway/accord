@@ -1,9 +1,9 @@
 import { useState } from "react";
 import type { RepoId } from "../../lib/github/domain";
 import type { RepoGroup } from "../../lib/github/organize";
-import { avatarBg } from "./Avatar";
+import { repoDotBg } from "./Avatar";
 import { loadFavorites, saveFavorites } from "./cockpitPrefs";
-import { GithubIcon, InboxIcon } from "./icons";
+import { GithubIcon, InboxIcon, MergeIcon } from "./icons";
 import "./sidebar.css";
 
 interface SidebarProps {
@@ -63,7 +63,7 @@ export function Sidebar({
         >
           <span
             className="sidebar-dot sidebar-dot-repo"
-            style={{ background: avatarBg(group.repoId) }}
+            style={{ background: repoDotBg(group.repoId) }}
           />
           <span className="sidebar-name">{repoNameOnly(group.repoId)}</span>
           <span className="sidebar-count mono">{group.prs.length}</span>
@@ -88,6 +88,12 @@ export function Sidebar({
       {/* Loopt door tot de vensterrand: deze strook houdt de macOS-stoplichten
           vrij en lijnt de eerste rij uit met de onderkant van de toolbar. */}
       <div className="sidebar-top" data-tauri-drag-region />
+      <div className="sidebar-head" data-tauri-drag-region>
+        <span className="sidebar-logo">
+          <MergeIcon size={14} />
+        </span>
+        Accord
+      </div>
       <div className="sidebar-rows">
         <button
           type="button"
