@@ -27,4 +27,5 @@ Achtergrond en het weekritme staan in de vault onder `00 Projecten/Accord/`.
 losse overdrachten.
 
 Bestandsspecifieke regels staan in `.claude/rules/`: lees het bijbehorende bestand
-voor je CSS in `src/` of het bootstrap-script in `index.html` aanraakt.
+voor je CSS in `src/` of het bootstrap-script in `index.html` aanraakt, en voor werk in
+`src/features/prs/` of `src/lib/github/` (PR-identiteit, meerstaps-remote-acties).
