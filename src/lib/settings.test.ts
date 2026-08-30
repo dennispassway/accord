@@ -108,6 +108,38 @@ describe("theme", () => {
   );
 });
 
+describe("autoRebaseStacks", () => {
+  it("staat standaard aan", () => {
+    expect(loadSettings().autoRebaseStacks).toBe(true);
+  });
+
+  it("rondt uit en aan om via save en load", () => {
+    saveSettings({ ...DEFAULT_SETTINGS, autoRebaseStacks: false });
+    expect(loadSettings().autoRebaseStacks).toBe(false);
+    saveSettings({ ...DEFAULT_SETTINGS, autoRebaseStacks: true });
+    expect(loadSettings().autoRebaseStacks).toBe(true);
+  });
+
+  it("vult het veld aan met de default als het ontbreekt", () => {
+    localStorage.setItem(
+      "pr-cockpit.settings",
+      JSON.stringify({ version: 2, claude: { model: "opus" } }),
+    );
+    expect(loadSettings().autoRebaseStacks).toBe(true);
+  });
+
+  it.each([null, undefined, "", "ja"])(
+    "valt bij %j terug op de default",
+    (value) => {
+      localStorage.setItem(
+        "pr-cockpit.settings",
+        JSON.stringify({ ...DEFAULT_SETTINGS, autoRebaseStacks: value }),
+      );
+      expect(loadSettings().autoRebaseStacks).toBe(true);
+    },
+  );
+});
+
 describe("notifications", () => {
   it("staat standaard aan", () => {
     expect(loadSettings().notifications).toBe(true);

@@ -1,12 +1,26 @@
-import type { PullRequest } from "../../lib/github/domain";
+import type { PrNumber, PullRequest, RepoId } from "../../lib/github/domain";
 import { computeStackInfo } from "../../lib/github/stacks";
 import "./detail.css";
 import { keyOfPr } from "./PrList";
+
+/** Status van de auto-rebase van de stapel na een merge, gericht op één
+ * specifieke PR erin. `null` als er niets loopt. */
+export interface StackRebaseStatus {
+  /** Samen met prNumber de identiteit: PR-nummers zijn per repo, dus zonder
+   * repoId plakt de status van repo A op het gelijke nummer in repo B. */
+  repoId: RepoId;
+  prNumber: PrNumber;
+  label: string;
+  isError: boolean;
+}
 
 interface StackRailProps {
   pr: PullRequest;
   stackChain: PullRequest[];
   onSelectPr?: (key: string) => void;
+  autoRebaseEnabled: boolean;
+  onToggleAutoRebase: () => void;
+  rebaseStatus?: StackRebaseStatus | null;
 }
 
 /**
@@ -20,6 +34,9 @@ export function StackRail({
   pr,
   stackChain,
   onSelectPr = () => {},
+  autoRebaseEnabled,
+  onToggleAutoRebase,
+  rebaseStatus,
 }: StackRailProps) {
   if (stackChain.length <= 1) return null;
 
@@ -35,12 +52,34 @@ export function StackRail({
           {stackChain.length} PR's, merge van boven naar onder
         </span>
       </div>
+      <button
+        type="button"
+        className="detail-stack-autorebase"
+        aria-pressed={autoRebaseEnabled}
+        onClick={onToggleAutoRebase}
+      >
+        <span>Auto-rebase stapels</span>
+        <span
+          className={
+            autoRebaseEnabled
+              ? "detail-stack-autorebase-state on"
+              : "detail-stack-autorebase-state"
+          }
+        >
+          {autoRebaseEnabled ? "aan" : "uit"}
+        </span>
+      </button>
       <div className="detail-stack-list">
         {stackChain.map((chainPr, index) => {
           const info = infoByNumber.get(chainPr.number);
           const blockers = info?.blockedByPrNumbers ?? [];
           const depth = (info?.stackPosition ?? 1) - 1;
           const ready = blockers.length === 0;
+          const status =
+            rebaseStatus?.repoId === chainPr.repoId &&
+            rebaseStatus.prNumber === chainPr.number
+              ? rebaseStatus
+              : null;
           return (
             <button
               type="button"
@@ -65,7 +104,17 @@ export function StackRail({
                     op {chainPr.baseRef}
                   </span>
                   <span>·</span>
-                  {ready ? (
+                  {status != null ? (
+                    <span
+                      className={
+                        status.isError
+                          ? "detail-stack-note-error"
+                          : "detail-stack-note-rebasing"
+                      }
+                    >
+                      {status.label}
+                    </span>
+                  ) : ready ? (
                     <span className="detail-stack-note-ready">
                       klaar om te mergen
                     </span>

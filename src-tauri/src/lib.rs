@@ -2,6 +2,7 @@ mod agents;
 mod auth;
 mod claude_stream;
 mod repos;
+mod stacks;
 mod tray;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -30,7 +31,9 @@ pub fn run() {
             agents::start_agent_review,
             agents::cancel_agent_review,
             agents::list_runs,
-            tray::update_tray
+            tray::update_tray,
+            stacks::resolve_branch_shas,
+            stacks::rebase_stack_branch
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

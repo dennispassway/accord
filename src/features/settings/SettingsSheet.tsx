@@ -394,6 +394,24 @@ export function SettingsSheet({
                 }
               />
             </div>
+            <div className="settings-row">
+              <span className="settings-row-label">
+                <span className="settings-row-k">Auto-rebase stapels</span>
+                <span className="settings-row-hint">
+                  bovenliggende PR's automatisch rebasen na een merge
+                </span>
+              </span>
+              <Segmented
+                value={settings.autoRebaseStacks ? "aan" : "uit"}
+                options={["aan", "uit"] as const}
+                onChange={(value) =>
+                  onUpdate((s) => ({
+                    ...s,
+                    autoRebaseStacks: value === "aan",
+                  }))
+                }
+              />
+            </div>
           </div>
 
           <div className="settings-section">

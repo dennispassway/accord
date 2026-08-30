@@ -353,7 +353,7 @@ fn run_ref_for(run_id: &str) -> String {
 /// nooit om een wachtwoord vraagt (een GUI-app heeft geen terminal om op te
 /// antwoorden) en een harde timeout zodat een hangende fetch de run niet
 /// eeuwig op "reviewt" laat staan.
-fn run_git(repo_path: &Path, args: &[&str]) -> Result<String, String> {
+pub(crate) fn run_git(repo_path: &Path, args: &[&str]) -> Result<String, String> {
     let child = Command::new("git")
         .arg("-C")
         .arg(repo_path)

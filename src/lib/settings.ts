@@ -48,6 +48,9 @@ export interface Settings {
   codex: AgentSettings;
   review: ReviewSettings;
   theme: Theme;
+  /** Rebaset PR's die op een net gemergde PR stapelen automatisch op de
+   * nieuwe base. */
+  autoRebaseStacks: boolean;
   /** Systeemnotificaties (agent-run klaar/mislukt, CI-omslag, merge), alleen
    * als het venster niet gefocust is. */
   notifications: boolean;
@@ -66,6 +69,7 @@ export const DEFAULT_SETTINGS: Settings = {
     timeoutMinutes: 20,
   },
   theme: "system",
+  autoRebaseStacks: true,
   notifications: true,
 };
 
@@ -73,6 +77,11 @@ export const DEFAULT_SETTINGS: Settings = {
  * "system"; een verplicht veld komt bij oudere/corrupte opslag vaak als "" binnen. */
 function normalizeTheme(value: unknown): Theme {
   return value === "light" || value === "dark" ? value : "system";
+}
+
+/** null, undefined of een niet-boolean waarde vallen terug op de default. */
+function normalizeAutoRebaseStacks(value: unknown): boolean {
+  return typeof value === "boolean" ? value : DEFAULT_SETTINGS.autoRebaseStacks;
 }
 
 /** null, undefined, lege string of een ander type vallen terug op de default
@@ -95,6 +104,7 @@ export function loadSettings(): Settings {
       codex: { ...DEFAULT_SETTINGS.codex, ...parsed.codex },
       review: { ...DEFAULT_SETTINGS.review, ...parsed.review },
       theme: normalizeTheme(parsed.theme),
+      autoRebaseStacks: normalizeAutoRebaseStacks(parsed.autoRebaseStacks),
       notifications: normalizeNotifications(parsed.notifications),
     };
   } catch {

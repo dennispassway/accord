@@ -32,6 +32,7 @@ import { ReviewHistory } from "./ReviewHistory";
 import { sizeWord } from "./RowMetrics";
 import type { PrStatusKey } from "./rank";
 import { prStatus } from "./rank";
+import type { StackRebaseStatus } from "./StackRail";
 import { StackRail } from "./StackRail";
 
 const STATUS_COLOR: Record<PrStatusKey, string> = {
@@ -166,6 +167,10 @@ interface DetailPanelProps {
    * geselecteerd"-chip); 1 of undefined betekent geen multi-selectie, dus
    * geen banner. */
   selectedCount?: number;
+  /** Wisselt settings.autoRebaseStacks. Gewired in Cockpit voor StackRail. */
+  onToggleAutoRebase: () => void;
+  /** Status van een lopende auto-rebase na een merge, zie StackRail. */
+  stackRebaseStatus?: StackRebaseStatus | null;
 }
 
 export function DetailPanel({
@@ -191,6 +196,8 @@ export function DetailPanel({
   shortcutsEnabled,
   onOpenSettings,
   selectedCount,
+  onToggleAutoRebase,
+  stackRebaseStatus,
 }: DetailPanelProps) {
   if (!pr) {
     return (
@@ -291,7 +298,14 @@ export function DetailPanel({
       <div className="detail-body">
         <CiStatus ciStatus={pr.ciStatus} />
 
-        <StackRail pr={pr} stackChain={stackChain} onSelectPr={onSelectPr} />
+        <StackRail
+          pr={pr}
+          stackChain={stackChain}
+          onSelectPr={onSelectPr}
+          autoRebaseEnabled={settings.autoRebaseStacks}
+          onToggleAutoRebase={onToggleAutoRebase}
+          rebaseStatus={stackRebaseStatus}
+        />
 
         <div className="detail-meta detail-card">
           <span className="detail-label">Branch</span>

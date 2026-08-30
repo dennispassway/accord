@@ -372,6 +372,52 @@
   flex: 0 0 auto;
 }
 
+.detail-stack-note-rebasing {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-stack-note-error {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--err);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-stack-autorebase {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font-size: 11px;
+  color: var(--text-2);
+  cursor: default;
+}
+
+.detail-stack-autorebase:hover {
+  background: var(--fill-1);
+}
+
+.detail-stack-autorebase-state {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.detail-stack-autorebase-state.on {
+  color: var(--ok);
+}
+
 /* Meta- en mensen-grid: label van 74px. */
 .detail-meta {
   display: grid;
