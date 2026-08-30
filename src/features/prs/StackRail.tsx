@@ -13,6 +13,9 @@ const STACK_MERGE_BEZIG_LABEL: Record<StackMergeProgress["bezig"], string> = {
 /** Status van de auto-rebase van de stapel na een merge, gericht op één
  * specifieke PR erin. `null` als er niets loopt. */
 export interface StackRebaseStatus {
+  /** Samen met prNumber de identiteit: PR-nummers zijn per repo, dus zonder
+   * repoId plakt de status van repo A op het gelijke nummer in repo B. */
+  repoId: RepoId;
   prNumber: PrNumber;
   label: string;
   isError: boolean;
@@ -133,11 +136,13 @@ export function StackRail({
           // stop- of voortgangsnotitie van deze run.
           const chainKey = keyOfPr(chainPr);
           const status =
-            rebaseStatus?.prNumber === chainPr.number
+            rebaseStatus != null &&
+            `${rebaseStatus.repoId}#${rebaseStatus.prNumber}` === chainKey
               ? rebaseStatus
               : mergeStop != null &&
                   `${mergeStop.repoId}#${mergeStop.prNumber}` === chainKey
                 ? {
+                    repoId: chainPr.repoId,
                     prNumber: chainPr.number,
                     label: mergeStop.label,
                     isError: true,
@@ -146,6 +151,7 @@ export function StackRail({
                     `${mergeProgress.repoId}#${mergeProgress.prNumber}` ===
                       chainKey
                   ? {
+                      repoId: chainPr.repoId,
                       prNumber: chainPr.number,
                       label: `${STACK_MERGE_BEZIG_LABEL[mergeProgress.bezig]} (stap ${mergeProgress.stap}/${mergeProgress.totaal})`,
                       isError: false,

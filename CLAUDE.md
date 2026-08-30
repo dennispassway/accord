@@ -28,4 +28,5 @@ losse overdrachten.
 
 Bestandsspecifieke regels staan in `.claude/rules/`: lees het bijbehorende bestand
 voor je CSS in `src/` of het bootstrap-script in `index.html` aanraakt, en voor werk in
-`src/features/prs/` of `src/lib/github/` (PR-identiteit, meerstaps-remote-acties).
+`src/features/prs/` of `src/lib/github/` (PR-identiteit, meerstaps-remote-acties) of in
+`src-tauri/src/` (classificatie van git-fouten).

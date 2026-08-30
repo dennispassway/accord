@@ -54,10 +54,14 @@ fn checked_sha(value: &str, label: &str) -> Result<(), String> {
 }
 
 fn checked_ref_name(value: &str, label: &str) -> Result<(), String> {
+    // Naast een `-`-prefix ook de tekens die git zelf in een refnaam verbiedt
+    // (git-check-ref-format): `:` maakt van `origin/<branch>` een <rev>:<pad>
+    // en van de lease `--force-with-lease=<ref>:<sha>` een ander paar, `^~*?[`
+    // en `..` zijn revisie-syntax.
     let has_bad_char = value
         .chars()
-        .any(|c| c.is_whitespace() || c.is_ascii_control());
-    if value.is_empty() || value.starts_with('-') || has_bad_char {
+        .any(|c| c.is_whitespace() || c.is_ascii_control() || ":?[\\^~*".contains(c));
+    if value.is_empty() || value.starts_with('-') || has_bad_char || value.contains("..") {
         return Err(format!("{label} is geen geldige refnaam"));
     }
     Ok(())
@@ -113,10 +117,20 @@ fn rebase_stack_branch_impl(
         &worktree,
         &["rebase", "--onto", &format!("origin/{new_base}"), old_base_sha],
     );
-    if rebase.is_err() {
+    if let Err(rebase_err) = rebase {
+        // Niet elke gefaalde rebase is een conflict: een onbekende
+        // old_base_sha, een timeout of een kapotte hook falen net zo goed.
+        // REBASE_HEAD bestaat alleen als git echt midden in een rebase is
+        // blijven staan, en dat is precies het geval waarin de gebruiker
+        // handmatig moet oplossen. Al het andere is een echte fout.
+        let stopped_on_conflict =
+            run_git(&worktree, &["rev-parse", "--verify", "REBASE_HEAD"]).is_ok();
         let _ = run_git(&worktree, &["rebase", "--abort"]);
         cleanup_worktree(repo_path, &worktree);
-        return Ok("conflict".to_string());
+        if stopped_on_conflict {
+            return Ok("conflict".to_string());
+        }
+        return Err(format!("rebase van {branch} mislukte: {rebase_err}"));
     }
 
     let lease = format!("--force-with-lease={branch}:{expected_head_sha}");
@@ -399,6 +413,42 @@ mod tests {
 
         let err = resolve_branch_shas_impl(repo, &["--mirror".to_string()]);
         assert!(err.is_err_and(|e| e.contains("refnaam")));
+
+        // `origin/a:b` leest git als <rev>:<pad> en in de lease splitst `:`
+        // het paar refnaam/sha; `..` is revisie-syntax.
+        let err = rebase_stack_branch_impl(repo, "a:b", &sha, &sha, "main");
+        assert!(err.is_err_and(|e| e.contains("refnaam")));
+
+        let err = rebase_stack_branch_impl(repo, "B", &sha, &sha, "main..HEAD");
+        assert!(err.is_err_and(|e| e.contains("refnaam")));
+    }
+
+    #[test]
+    fn rebase_stack_errors_instead_of_reporting_conflict_when_old_base_is_unreachable() {
+        let repo = TestRepo::new("unknown-old-base");
+        repo.sh(&["checkout", "-b", "main"]);
+        repo.write_and_commit("readme.txt", "base\n", "initial");
+        repo.sh(&["push", "-u", "origin", "main"]);
+
+        repo.sh(&["checkout", "-b", "B"]);
+        repo.write_and_commit("b.txt", "feature b\n", "feature B");
+        repo.sh(&["push", "-u", "origin", "B"]);
+        let old_b_sha = repo.sh(&["rev-parse", "B"]);
+
+        // Geldig van vorm, maar bestaat niet in deze repo: de rebase faalt
+        // zonder ooit op een conflict te stoppen, en dat mag niet als
+        // "conflict" naar de UI ("los dit handmatig op" is dan onzin).
+        let ghost_sha = "0".repeat(40);
+        let outcome = rebase_stack_branch_impl(&repo.clone, "B", &ghost_sha, &old_b_sha, "main");
+        assert!(
+            outcome.as_ref().is_err_and(|e| e.contains("rebase van B mislukte")),
+            "verwacht een echte fout, kreeg: {outcome:?}"
+        );
+
+        repo.sh(&["fetch", "origin"]);
+        assert_eq!(repo.sh(&["rev-parse", "origin/B"]), old_b_sha);
+        let worktree_list = repo.sh(&["worktree", "list", "--porcelain"]);
+        assert_eq!(worktree_list.matches("worktree ").count(), 1);
     }
 
     #[test]

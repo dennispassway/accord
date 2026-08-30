@@ -787,6 +787,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       const step = steps[i];
       if (step == null) continue;
       setStackRebaseStatus({
+        repoId: pr.repoId,
         prNumber: step.prNumber,
         label: `Stapel rebasen, stap ${i + 1} van ${steps.length}`,
         isError: false,
@@ -801,6 +802,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         );
         if (result === "conflict") {
           setStackRebaseStatus({
+            repoId: pr.repoId,
             prNumber: step.prNumber,
             label: `Rebase-conflict in #${step.prNumber}, los dit handmatig op`,
             isError: true,
@@ -813,6 +815,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         }
       } catch (error) {
         setStackRebaseStatus({
+          repoId: pr.repoId,
           prNumber: step.prNumber,
           label: `Rebase van #${step.prNumber} mislukt: ${String(error)}`,
           isError: true,
