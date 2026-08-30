@@ -264,6 +264,24 @@ describe("runStackMerge", () => {
     expect(deps.mergeStep).not.toHaveBeenCalled();
   });
 
+  it("voortgang draagt de repoId mee, zodat de UI niet op kaal PR-nummer matcht", async () => {
+    const chain = [pr(1), pr(2)];
+    const deps = makeDeps({
+      refreshPr: vi.fn().mockImplementation(async (key: string) => {
+        const number = Number(key.split("#")[1]);
+        return chain.find((p) => p.number === number) ?? null;
+      }),
+    });
+
+    await runStackMerge(deps, chain, 10);
+
+    const gemeld = deps.progressLog.filter((p) => p != null);
+    expect(gemeld.length).toBeGreaterThan(0);
+    for (const p of gemeld) {
+      expect(p).toMatchObject({ repoId: "acme/octocat" });
+    }
+  });
+
   it("NIT 9: annuleren tussen twee poll-ticks doet geen extra refreshPr-call meer", async () => {
     const chain = [pr(1), pr(2, { ciStatus: ci("pending") })];
     let cancelled = false;

@@ -235,6 +235,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   const [stackMergeProgress, setStackMergeProgress] =
     useState<StackMergeProgress | null>(null);
   const [stackMergeStop, setStackMergeStop] = useState<{
+    repoId: RepoId;
     prNumber: PrNumber;
     label: string;
   } | null>(null);
@@ -269,7 +270,15 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   useEffect(() => {
     if (stackMergeStop == null) return;
     if (state.status !== "ready") return;
-    if (prs.some((candidate) => candidate.number === stackMergeStop.prNumber))
+    // Repo + nummer: PR-nummers zijn per repo uniek, dus een gelijk
+    // genummerde PR in een andere repo houdt de melding anders levend.
+    if (
+      prs.some(
+        (candidate) =>
+          candidate.repoId === stackMergeStop.repoId &&
+          candidate.number === stackMergeStop.prNumber,
+      )
+    )
       return;
     setStackMergeStop(null);
   }, [prs, state.status, stackMergeStop]);
@@ -749,7 +758,11 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     // BLOCKER 6: een geslaagde losse merge van de PR waar de vorige
     // stapel-merge op stopte, maakt die stopmelding stale.
     setStackMergeStop((current) =>
-      current != null && current.prNumber === pr.number ? null : current,
+      current != null &&
+      current.repoId === pr.repoId &&
+      current.prNumber === pr.number
+        ? null
+        : current,
     );
 
     // De gemergde PR verdwijnt meteen uit de lijst; stond die geselecteerd,
@@ -868,7 +881,15 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         // NIT 8: de deelvoortgang bij het stoplabel, zodat "gestopt bij #7"
         // ook meteen zegt hoeveel van de stapel al wel gemerged is.
         const toastLabel = `${STACK_MERGE_STOP_LABEL[reden](prNumber)} (${result.gemerged.length} van ${chain.length} gemerged)`;
-        setStackMergeStop({ prNumber, label: STACK_MERGE_STOP_SHORT[reden] });
+        // De keten is per definitie één repo (buildStackChain filtert
+        // daarop), dus de repoId van de eerste stap dekt elke stop.
+        const stopRepoId = chain[0]?.repoId;
+        if (stopRepoId != null)
+          setStackMergeStop({
+            repoId: stopRepoId,
+            prNumber,
+            label: STACK_MERGE_STOP_SHORT[reden],
+          });
         showToast(toastLabel, reden === "geannuleerd" ? "ok" : "fout");
       } else if (result.gemerged.length > 0) {
         showToast(`Stapel gemerged: ${result.gemerged.length} PR's`, "ok");

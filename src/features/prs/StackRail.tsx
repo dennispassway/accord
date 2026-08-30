@@ -1,4 +1,4 @@
-import type { PrNumber, PullRequest } from "../../lib/github/domain";
+import type { PrNumber, PullRequest, RepoId } from "../../lib/github/domain";
 import type { StackMergeProgress } from "../../lib/github/stackMerge";
 import { computeStackInfo } from "../../lib/github/stacks";
 import "./detail.css";
@@ -31,7 +31,7 @@ interface StackRailProps {
    * de keten), `null` als er niets loopt. */
   mergeProgress: StackMergeProgress | null;
   /** Bij welke PR de laatste stapel-merge stopte, met reden. */
-  mergeStop: { prNumber: PrNumber; label: string } | null;
+  mergeStop: { repoId: RepoId; prNumber: PrNumber; label: string } | null;
   onMergeStackInOrder: () => void;
   onCancelStackMergeInOrder: () => void;
 }
@@ -128,16 +128,23 @@ export function StackRail({
           // Volgorde: een lopende auto-rebase van deze kaart wint (meest
           // acute), dan de stapel-merge-voortgang/stop voor deze kaart, dan
           // de gewone klaar/wacht-notitie.
+          // PR-nummers zijn per repo uniek: vergelijk op repo + nummer,
+          // anders krijgt een gelijk genummerde PR in een andere repo de
+          // stop- of voortgangsnotitie van deze run.
+          const chainKey = keyOfPr(chainPr);
           const status =
             rebaseStatus?.prNumber === chainPr.number
               ? rebaseStatus
-              : mergeStop?.prNumber === chainPr.number
+              : mergeStop != null &&
+                  `${mergeStop.repoId}#${mergeStop.prNumber}` === chainKey
                 ? {
                     prNumber: chainPr.number,
                     label: mergeStop.label,
                     isError: true,
                   }
-                : mergeProgress?.prNumber === chainPr.number
+                : mergeProgress != null &&
+                    `${mergeProgress.repoId}#${mergeProgress.prNumber}` ===
+                      chainKey
                   ? {
                       prNumber: chainPr.number,
                       label: `${STACK_MERGE_BEZIG_LABEL[mergeProgress.bezig]} (stap ${mergeProgress.stap}/${mergeProgress.totaal})`,

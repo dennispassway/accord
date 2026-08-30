@@ -1,4 +1,4 @@
-import type { PrNumber, PullRequest } from "./domain";
+import type { PrNumber, PullRequest, RepoId } from "./domain";
 
 export type StackMergeStop =
   | "rodeCi"
@@ -14,6 +14,9 @@ export interface StackMergeProgress {
   stap: number;
   totaal: number;
   bezig: "mergen" | "rebasen" | "wachtenOpCi";
+  /** PR-nummers zijn per repo uniek, niet globaal: zonder repoId zou de UI
+   * de voortgang op een gelijk genummerde PR in een andere repo tonen. */
+  repoId: RepoId;
   prNumber: PrNumber;
 }
 
@@ -84,6 +87,7 @@ export async function runStackMerge(
         stap: i + 1,
         totaal: chain.length,
         bezig: "wachtenOpCi",
+        repoId: current.repoId,
         prNumber: current.number,
       });
       // SHOULD 4: de allereerste refresh kan nog de CI-rollup van vóór de
@@ -146,6 +150,7 @@ export async function runStackMerge(
       stap: i + 1,
       totaal: chain.length,
       bezig: "mergen",
+      repoId: current.repoId,
       prNumber: current.number,
     });
     let result: "merged" | "rebase-conflict";

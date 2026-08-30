@@ -177,7 +177,7 @@ interface DetailPanelProps {
   /** Voortgang van een lopende stapel-merge, zie StackRail. */
   stackMergeProgress: StackMergeProgress | null;
   /** Bij welke PR de laatste stapel-merge stopte, met reden. */
-  stackMergeStop: { prNumber: PrNumber; label: string } | null;
+  stackMergeStop: { repoId: RepoId; prNumber: PrNumber; label: string } | null;
   onMergeStackInOrder: () => void;
   onCancelStackMergeInOrder: () => void;
 }
