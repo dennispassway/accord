@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.0](https://github.com/dennispassway/accord/compare/v0.8.0...v0.9.0) (2026-08-30)
+
+
+### Nieuw
+
+* **ui:** dekkende Strak-kleuren en typografie uit het ontwerp ([304d37f](https://github.com/dennispassway/accord/commit/304d37f27a039d4e7f8daa1fc303e56a770f0aa6))
+* **ui:** dekkende Strak-vlakken in plaats van vibrancy ([6c009e2](https://github.com/dennispassway/accord/commit/6c009e2c467f850a13d7dcfb15c94230f87f326f))
+* **ui:** typografie en gewicht uit het Strak-ontwerp ([be6244d](https://github.com/dennispassway/accord/commit/be6244df22ad5c4da72da014930e0abeef740d90))
+
 ## [0.8.0](https://github.com/dennispassway/accord/compare/v0.7.0...v0.8.0) (2026-08-30)
 
 
