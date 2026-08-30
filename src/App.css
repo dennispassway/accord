@@ -52,11 +52,12 @@
   --line-2: rgba(255, 255, 255, 0.24);
   --fill-1: rgba(255, 255, 255, 0.08);
   --fill-2: rgba(255, 255, 255, 0.15);
-  --side: rgba(26, 26, 31, 0.68);
-  --list: rgba(15, 15, 18, 0.82);
-  --detail: rgba(23, 23, 28, 0.76);
-  --bar: rgba(20, 20, 24, 0.62);
-  --card: rgba(255, 255, 255, 0.05);
+  --bg: #0b0b0d;
+  --side: #1a1a1f;
+  --list: #0f0f12;
+  --detail: #17171c;
+  --bar: #141418;
+  --card: #1c1c22;
   --code: rgba(0, 0, 0, 0.32);
   --menu: rgba(48, 48, 54, 0.97);
   --win-line: rgba(255, 255, 255, 0.14);
@@ -89,11 +90,12 @@
   --line-2: rgba(0, 0, 0, 0.2);
   --fill-1: rgba(0, 0, 0, 0.055);
   --fill-2: rgba(0, 0, 0, 0.11);
-  --side: rgba(236, 239, 245, 0.8);
-  --list: rgba(255, 255, 255, 0.88);
-  --detail: rgba(244, 246, 250, 0.82);
-  --bar: rgba(252, 252, 254, 0.66);
-  --card: rgba(0, 0, 0, 0.03);
+  --bg: #f0f0f3;
+  --side: #eceff5;
+  --list: #ffffff;
+  --detail: #f4f6fa;
+  --bar: #fcfcfe;
+  --card: #ffffff;
   --code: rgba(0, 0, 0, 0.05);
   --menu: rgba(252, 252, 254, 0.98);
   --win-line: rgba(0, 0, 0, 0.13);
@@ -105,27 +107,13 @@
   box-sizing: border-box;
 }
 
-/* Het venster is transparant (vibrancy via NSVisualEffectView); html/body
-   blijven doorzichtig zodat de glasvervaging overal doorschijnt, panelen
-   erboven leggen hun eigen (deels transparante) laag. Het design gebruikt
-   #0B0B0D als demo-achtergrond buiten de app; dat nemen we hier niet over. */
+/* Strak (canvas "Accord in kleur", 2026-08-30): dekkende vlakken, geen
+   vibrancy. Het venster is niet transparant, dus de mock in de browser toont
+   dezelfde kleuren als de app. */
 html,
 body {
   margin: 0;
-  background: transparent;
-}
-
-/* Effen achtergrond wanneer er geen NSVisualEffectView achter het venster
-   zit: in de dev-mockmodus (src/lib/mock/mode.ts) en op Linux/Windows
-   (src/lib/platform.ts via main.tsx). */
-html.mock-backdrop[data-theme="dark"],
-html.no-vibrancy[data-theme="dark"] {
-  background: #0b0b0d;
-}
-
-html.mock-backdrop[data-theme="light"],
-html.no-vibrancy[data-theme="light"] {
-  background: #f0f0f3;
+  background: var(--bg);
 }
 
 a {

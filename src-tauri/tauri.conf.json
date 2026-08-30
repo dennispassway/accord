@@ -10,21 +10,15 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "Accord",
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "transparent": true,
         "width": 1100,
         "height": 720,
         "minWidth": 940,
-        "minHeight": 600,
-        "windowEffects": {
-          "effects": ["sidebar"],
-          "state": "active"
-        }
+        "minHeight": 600
       }
     ],
     "security": {

@@ -22,8 +22,6 @@
   padding: 0 12px;
   margin-top: 12px;
   background: var(--list);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   font: 700 10px / 1 var(--mono);
   letter-spacing: 0.07em;
   text-transform: uppercase;
