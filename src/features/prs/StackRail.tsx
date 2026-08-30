@@ -1,4 +1,4 @@
-import type { PrNumber, PullRequest } from "../../lib/github/domain";
+import type { PrNumber, PullRequest, RepoId } from "../../lib/github/domain";
 import { computeStackInfo } from "../../lib/github/stacks";
 import "./detail.css";
 import { keyOfPr } from "./PrList";
@@ -6,6 +6,9 @@ import { keyOfPr } from "./PrList";
 /** Status van de auto-rebase van de stapel na een merge, gericht op één
  * specifieke PR erin. `null` als er niets loopt. */
 export interface StackRebaseStatus {
+  /** Samen met prNumber de identiteit: PR-nummers zijn per repo, dus zonder
+   * repoId plakt de status van repo A op het gelijke nummer in repo B. */
+  repoId: RepoId;
   prNumber: PrNumber;
   label: string;
   isError: boolean;
@@ -73,7 +76,10 @@ export function StackRail({
           const depth = (info?.stackPosition ?? 1) - 1;
           const ready = blockers.length === 0;
           const status =
-            rebaseStatus?.prNumber === chainPr.number ? rebaseStatus : null;
+            rebaseStatus?.repoId === chainPr.repoId &&
+            rebaseStatus.prNumber === chainPr.number
+              ? rebaseStatus
+              : null;
           return (
             <button
               type="button"
