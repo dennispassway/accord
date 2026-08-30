@@ -380,3 +380,45 @@ export function MapIcon({ className, size = SIZE }: SizedIconProps) {
     </svg>
   );
 }
+
+/** Oog: sectiekop "Jouw review nodig". */
+export function EyeIcon({ className, size = SIZE }: SizedIconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M2.5 12s3.4-6.5 9.5-6.5S21.5 12 21.5 12s-3.4 6.5-9.5 6.5S2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="2.8" />
+    </svg>
+  );
+}
+
+/** Inbox: sidebar-item "Alles". */
+export function InboxIcon({ className, size = SIZE }: SizedIconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 12.5h-5.5l-1.8 2.7h-3.4l-1.8-2.7H3" />
+      <path d="M6 5.6 3 12.5v5.4a1.6 1.6 0 0 0 1.6 1.6h14.8a1.6 1.6 0 0 0 1.6-1.6v-5.4l-3-6.9A1.6 1.6 0 0 0 16.5 4.6h-9A1.6 1.6 0 0 0 6 5.6z" />
+    </svg>
+  );
+}
