@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0](https://github.com/dennispassway/accord/compare/v0.7.0...v0.8.0) (2026-08-30)
+
+
+### Nieuw
+
+* **cockpit:** sidebar, detailpaneel en toolbar in de Strak-stijl ([1afb937](https://github.com/dennispassway/accord/commit/1afb9376ba8a049748820d8682f007e101589057))
+* **cockpit:** Strak-design, meer contrast en iconen in licht en donker ([2be92ef](https://github.com/dennispassway/accord/commit/2be92ef1ef2c7544add25b8a1b74914f0d4b7cb3))
+* **prlist:** sectiekoppen met iconen, getinte pills en selectierail ([fa274cb](https://github.com/dennispassway/accord/commit/fa274cbdfae331177cb017f9db57fd60e29ee6e2))
+* **tokens:** verzadigder ok/err/warn in het lichte thema en --ok-ink ([c1436c8](https://github.com/dennispassway/accord/commit/c1436c8a0b3bb117c0dce5dcf383f4e24a3d4ec1))
+
+
+### Opgelost
+
+* **tokens:** lichte statuskleuren halen 4,5:1 op hun eigen tint ([7369412](https://github.com/dennispassway/accord/commit/7369412f8d0125fe15600a6cde1c940d33d5a626))
+
 ## [0.7.0](https://github.com/dennispassway/accord/compare/v0.6.0...v0.7.0) (2026-08-30)
 
 
