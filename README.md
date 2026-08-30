@@ -156,8 +156,8 @@ also type a path by hand.
 Two loops, pick the one that matches what you are doing.
 
 **The real app** — `pnpm tauri dev`. Compiles the Rust side and opens the window
-with vibrancy and the menu bar icon. Required for anything touching Tauri: login,
-Keychain, agent runs, tray, and judging transparency or theme blending.
+with the menu bar icon. Required for anything touching Tauri: login, Keychain,
+agent runs and the tray.
 
 **UI only** — `pnpm dev`, then `http://localhost:1420/?mock=app` in a normal
 browser. Renders the full app from fixtures: no Rust compile, no GitHub, no login.
@@ -174,14 +174,9 @@ Mock mode is dev-only (`src/lib/mock/mode.ts`) and has these variants:
 | `?mock=login-device` | Device flow screen with a code |
 | `?mock=update` | The app with the update card in the corner |
 
-Two things worth knowing:
-
-- **Port 1420 is fixed** (`strictPort` in `vite.config.ts`; Tauri requires a fixed
-  port). If a dev server is already running, the second one fails with "Port 1420
-  is already in use" — reuse the running one.
-- **Dark mode looks different in a bare browser.** The surface tokens are
-  translucent and count on the macOS vibrancy backdrop a browser does not have.
-  Judge vibrancy and theme blending in `pnpm tauri dev`, not in mock mode.
+One thing worth knowing: **port 1420 is fixed** (`strictPort` in `vite.config.ts`;
+Tauri requires a fixed port). If a dev server is already running, the second one
+fails with "Port 1420 is already in use" — reuse the running one.
 
 ### Scripts
 
@@ -273,8 +268,7 @@ macOS. A dependable update flow on macOS needs an Apple Developer ID certificate
 ## Platform differences
 
 Linux works, with the expected divergences: shortcuts use Ctrl instead of ⌘, the
-window has a regular title bar and a solid background instead of vibrancy, and the
-token goes into the Secret Service (GNOME Keyring/KWallet) instead of the Keychain.
+window has a regular title bar, and the token goes into the Secret Service (GNOME Keyring/KWallet) instead of the Keychain.
 Windows is not supported yet — the process handling for agent runs is unix-only.
 
 ## License
