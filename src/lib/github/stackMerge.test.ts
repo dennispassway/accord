@@ -152,8 +152,10 @@ describe("runStackMerge", () => {
 
     const result = await runStackMerge(deps, chain, 10);
 
+    // #2 is wel degelijk gemerged: alleen de rebase van de stapel erboven
+    // liep vast, dus de teller moet 2 zijn, niet 1.
     expect(result).toEqual({
-      gemerged: [1],
+      gemerged: [1, 2],
       gestopt: { reden: "rebaseMislukt", prNumber: 2 },
     });
     expect(deps.mergeStep).toHaveBeenCalledTimes(2);

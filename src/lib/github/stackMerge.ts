@@ -165,6 +165,11 @@ export async function runStackMerge(
         gestopt: { reden: "mergeMislukt", prNumber: current.number },
       };
     }
+    // "rebase-conflict" komt pas ná een geslaagde merge terug (de rebase van
+    // de stapel erboven loopt daarna), dus deze PR telt hoe dan ook als
+    // gemerged. Anders meldt de UI "1 van 3 gemerged" terwijl er 2 op GitHub
+    // dicht staan.
+    gemerged.push(current.number);
     if (result === "rebase-conflict") {
       deps.onProgress(null);
       return {
@@ -172,7 +177,6 @@ export async function runStackMerge(
         gestopt: { reden: "rebaseMislukt", prNumber: current.number },
       };
     }
-    gemerged.push(current.number);
   }
 
   deps.onProgress(null);
