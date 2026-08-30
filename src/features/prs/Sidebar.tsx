@@ -3,7 +3,7 @@ import type { RepoId } from "../../lib/github/domain";
 import type { RepoGroup } from "../../lib/github/organize";
 import { avatarBg } from "./Avatar";
 import { loadFavorites, saveFavorites } from "./cockpitPrefs";
-import { GithubIcon } from "./icons";
+import { GithubIcon, InboxIcon } from "./icons";
 import "./sidebar.css";
 
 interface SidebarProps {
@@ -96,7 +96,9 @@ export function Sidebar({
           }
           onClick={() => onSelect("all")}
         >
-          <span className="sidebar-dot sidebar-dot-all" />
+          <span className="sidebar-item-icon">
+            <InboxIcon size={14} />
+          </span>
           <span className="sidebar-name sidebar-name-all">Alles</span>
           <span className="sidebar-count mono">{totalCount}</span>
         </button>

@@ -26,7 +26,7 @@
 /* Redesign-tokens (canvas "Accord cockpit-voorstellen", 2026-08-29): witte
    kaarten/knoppen met hairline + zachte schaduw, knop-gradients met
    top-highlight, koelere chrome-tint. Status-pills krijgen geen token: die
-   tinten met color-mix(in srgb, currentColor 9%, transparent). */
+   tinten met color-mix(in srgb, currentColor 11%, transparent). */
 [data-theme="dark"] {
   --text-1: #fbfbfd;
   --text-2: rgba(240, 240, 246, 0.76);
@@ -44,6 +44,7 @@
   --accent-soft: rgba(77, 141, 255, 0.2);
   --accent-line: rgba(77, 141, 255, 0.5);
   --ok: #5ed48b;
+  --ok-ink: #04120a;
   --err: #ff7d70;
   --warn: #f7b063;
   --agent: #b49bff;
@@ -79,9 +80,10 @@
   --accent-ink: #ffffff;
   --accent-soft: rgba(31, 95, 224, 0.13);
   --accent-line: rgba(31, 95, 224, 0.44);
-  --ok: #15753f;
-  --err: #b02a20;
-  --warn: #7d4f06;
+  --ok: #0d7139;
+  --ok-ink: #ffffff;
+  --err: #b42318;
+  --warn: #8a5a0b;
   --agent: #5636bd;
   --line: rgba(0, 0, 0, 0.1);
   --line-2: rgba(0, 0, 0, 0.2);

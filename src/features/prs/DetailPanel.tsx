@@ -40,7 +40,7 @@ const STATUS_COLOR: Record<PrStatusKey, string> = {
   review: "var(--accent)",
   actie: "var(--err)",
   agent: "var(--agent)",
-  wachten: "var(--text-3)",
+  wachten: "var(--warn)",
   concept: "var(--text-3)",
 };
 

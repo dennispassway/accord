@@ -18,51 +18,69 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 20px 12px 7px;
+  height: 28px;
+  padding: 0 12px;
+  margin-top: 12px;
   background: var(--list);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  font: 590 10px / 1 var(--mono);
+  font: 700 10px / 1 var(--mono);
   letter-spacing: 0.07em;
   text-transform: uppercase;
+}
+
+li:first-child > .pl-group-header {
+  margin-top: 4px;
+}
+
+.pl-group-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pl-group-header-review {
+  color: var(--accent);
+}
+
+.pl-group-header-klaar {
+  color: var(--ok);
+}
+
+.pl-group-header-actie {
+  color: var(--err);
+}
+
+.pl-group-header-agent {
+  color: var(--agent);
+}
+
+.pl-group-header-wachten {
+  color: var(--warn);
+}
+
+.pl-group-header-concept {
   color: var(--text-3);
 }
 
-.pl-group-dot {
+.pl-group-icon {
   flex: 0 0 auto;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-.pl-group-dot-review {
-  background: var(--accent);
-}
-
-.pl-group-dot-klaar {
-  background: var(--ok);
-}
-
-.pl-group-dot-actie {
-  background: var(--err);
-}
-
-.pl-group-dot-agent {
-  background: var(--agent);
-}
-
-.pl-group-dot-wachten {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--text-3);
-}
-
-.pl-group-dot-concept {
-  background: transparent;
-  border: 1px dashed var(--text-3);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 11%, transparent);
 }
 
 .pl-group-count {
-  font-weight: 400;
+  flex: 0 0 auto;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 11%, transparent);
+  font-weight: 700;
+  font-size: 11px;
 }
 
 .pl-row {
@@ -88,16 +106,35 @@
 
 .pl-row-selected,
 .pl-row-selected:hover {
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent-line);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.pl-row-selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--accent);
 }
 
 /* Overige rijen in een multi-selectie: dezelfde vorm, duidelijk lichter. */
 .pl-row-multi,
 .pl-row-multi:hover {
   background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
-  box-shadow: inset 0 0 0 1px
-    color-mix(in srgb, var(--accent-line) 45%, transparent);
+}
+
+.pl-row-multi::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .pl-number {
@@ -108,7 +145,10 @@
 }
 
 .pl-title {
-  flex: 1;
+  /* Basis > 0 zodat de titel meedeelt in het krimpen (met basis 0 ging hij op
+     het minimumvenster als eerste naar 0px); een hogere basis geeft hem een
+     groter krimpaandeel, zodat .pl-row-end niet buiten de rij wordt geknipt. */
+  flex: 1 1 200px;
   min-width: 0;
   font: 500 13px / 1 var(--font);
   letter-spacing: -0.01em;
@@ -127,14 +167,14 @@
 }
 
 .priority-p1 {
-  color: var(--accent-ink);
-  background: var(--accent);
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 14%, transparent);
 }
 
 .priority-p2 {
   color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   padding: 2px 3px;
-  box-shadow: inset 0 0 0 1px var(--accent-line);
 }
 
 .pl-draft-chip {
@@ -174,10 +214,22 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font: 500 10px / 1 var(--font);
+  font: 700 10px / 1 var(--font);
   padding: 2.5px 7px;
   border-radius: 20px;
-  background: color-mix(in srgb, currentColor 9%, transparent);
+  background: color-mix(in srgb, currentColor 11%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent);
+  white-space: nowrap;
+  /* Krimpt met ellipsis i.p.v. te wrappen, maar houdt een leesbare kern. */
+  flex: 0 1 auto;
+  min-width: 40px;
+  overflow: hidden;
+}
+
+.pl-status-pill-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pl-status-pill-actie {
@@ -205,8 +257,11 @@
 }
 
 .pl-repo {
-  /* Mag krimpen: op smalle vensters duwt een vaste 150px de titel naar 0. */
-  flex: 0 1 150px;
+  /* Basis is de contentbreedte (een vaste 150px reserveerde ruimte die de
+     titel en pill op 1280px al liet krimpen); krimpt 3x sneller dan titel en
+     pill zodat op smalle vensters eerst de reponaam wijkt. */
+  flex: 0 3 auto;
+  max-width: 150px;
   min-width: 0;
   text-align: right;
   font: 400 10.5px / 1 var(--mono);
@@ -321,4 +376,12 @@
 
 .pl-agent-badge-dot-fixes {
   background: var(--ok);
+}
+
+.pl-row-selected .pl-title {
+  font-weight: 600;
+}
+
+.pl-row-selected .pl-number {
+  color: var(--accent);
 }

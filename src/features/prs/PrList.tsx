@@ -5,14 +5,34 @@ import type { PrStackInfo } from "../../lib/github/stacks";
 import { modKey } from "../../lib/platform";
 import { Avatar, avatarBg } from "./Avatar";
 import { formatAmsterdam, formatRelative } from "./format";
-import { AgentIcon, ConceptIcon, ReactieIcon, StackIcon } from "./icons";
+import {
+  AgentIcon,
+  AlertIcon,
+  ClockIcon,
+  ConceptIcon,
+  EyeIcon,
+  MergeIcon,
+  ReactieIcon,
+  StackIcon,
+} from "./icons";
 import "./prlist.css";
 import { RowMetrics } from "./RowMetrics";
+import type { PrStatusKey } from "./rank";
 import { prStatus } from "./rank";
 import type { PrSection } from "./sort";
 
 /** Statuskeys die als pill in de rij verschijnen; "wachten"/"concept" niet. */
 const PILL_STATUS_KEYS = new Set(["actie", "agent", "klaar", "review"]);
+
+/** Icoon per sectiestatus in de gettinte sectiekop. */
+const SECTION_ICON: Record<PrStatusKey, typeof EyeIcon> = {
+  review: EyeIcon,
+  klaar: MergeIcon,
+  actie: AlertIcon,
+  agent: AgentIcon,
+  wachten: ClockIcon,
+  concept: ConceptIcon,
+};
 
 interface PrListProps {
   /** Secties uit sort.ts; een lege titel betekent geen kop tonen. */
@@ -100,15 +120,26 @@ export function PrList({
           });
           const showPill = PILL_STATUS_KEYS.has(status.key);
           const isSelected = key === selectedKey || selectedKeys.has(key);
+          const SectionIcon =
+            section.statusKey != null ? SECTION_ICON[section.statusKey] : null;
 
           return (
             <li key={key} role="presentation">
               {startsSection && (
-                <div className="pl-group-header mono" role="presentation">
-                  <span
-                    className={`pl-group-dot pl-group-dot-${section.statusKey}`}
-                  />
-                  {section.titel}
+                <div
+                  className={
+                    section.statusKey != null
+                      ? `pl-group-header mono pl-group-header-${section.statusKey}`
+                      : "pl-group-header mono"
+                  }
+                  role="presentation"
+                >
+                  {SectionIcon != null && (
+                    <span className="pl-group-icon">
+                      <SectionIcon size={14} />
+                    </span>
+                  )}
+                  <span className="pl-group-title">{section.titel}</span>
                   <span className="pl-group-count">{section.prs.length}</span>
                 </div>
               )}
@@ -167,7 +198,9 @@ export function PrList({
                       {status.key === "agent" && (
                         <span className="pl-running-dot" />
                       )}
-                      {status.label}
+                      <span className="pl-status-pill-label">
+                        {status.label}
+                      </span>
                     </span>
                   )}
                   {pr.agentReviews.length > 0 && (
