@@ -101,6 +101,24 @@ export function createRecentlyMergedTracker(
 
 const recentlyMerged = createRecentlyMergedTracker();
 
+/**
+ * Vergelijkt de vorige en nieuwe fetch en geeft de eigen PR's terug waarvan
+ * de CI net naar rood is omgeslagen (was pending/success/none, is nu
+ * failure). Alleen `authoredByMe` telt mee: CI op andermans PR is niet iets
+ * om over te melden.
+ */
+export function detectCiFlippedToRed(
+  previous: PullRequest[],
+  next: PullRequest[],
+): PullRequest[] {
+  const previousById = new Map(previous.map((pr) => [pr.id, pr]));
+  return next.filter((pr) => {
+    if (!pr.authoredByMe || pr.ciStatus.state !== "failure") return false;
+    const prev = previousById.get(pr.id);
+    return prev != null && prev.ciStatus.state !== "failure";
+  });
+}
+
 function initialState(): PrsState {
   if (IS_MOCK) {
     return {
@@ -140,15 +158,29 @@ function initialState(): PrsState {
  * scheduler (settings-gedreven, incl. "handmatig"). `onAuthError` lets the
  * caller (App) log the user out when the stored token is rejected.
  */
-export function usePrs(onAuthError: () => void) {
+export function usePrs(
+  onAuthError: () => void,
+  /** Vuurt bij een refresh (niet de allereerste load) zodra een eigen PR's CI
+   * net naar rood is omgeslagen; zie `detectCiFlippedToRed`. */
+  onCiFlippedRed?: (prs: PullRequest[]) => void,
+) {
   const [state, setState] = useState<PrsState>(initialState);
   const [refreshing, setRefreshing] = useState(false);
   const onAuthErrorRef = useRef(onAuthError);
   onAuthErrorRef.current = onAuthError;
+  const onCiFlippedRedRef = useRef(onCiFlippedRed);
+  onCiFlippedRedRef.current = onCiFlippedRed;
   const prsRef = useRef<PullRequest[]>(IS_MOCK ? MOCK_PRS : []);
   // U4: een nieuwe load() terwijl er al één loopt wacht mee op diezelfde
   // promise i.p.v. een concurrente tweede fetch te starten.
   const inFlightRef = useRef<Promise<void> | null>(null);
+  // Na een koude start staat de gepersisteerde snapshot van de vórige sessie
+  // al in prsRef (via de state-effect hieronder, vóór de eerste echte fetch
+  // resolvet): de eerste echte fetch vergelijkt dan tegen gisteren i.p.v.
+  // tegen "niks", en meldt CI-rood voor failures die er al stonden vóór deze
+  // sessie begon. Skip de melding daarom bij de eerste geslaagde fetch van
+  // de sessie; detectCiFlippedToRed zelf blijft ongemoeid.
+  const firstLoadDoneRef = useRef(false);
 
   const runLoad = useCallback(async () => {
     setRefreshing(true);
@@ -183,6 +215,13 @@ export function usePrs(onAuthError: () => void) {
         } = await fetchAllPrs(token, fetch);
         const prs = recentlyMerged.filter(rawPrs);
         const lastUpdated = new Date();
+        // De omslag-detectie vergelijkt de vorige lijst met de nieuwe, dus
+        // die moet vóór het bijwerken van prsRef gebeuren.
+        const flippedRed = detectCiFlippedToRed(prsRef.current, prs);
+        if (firstLoadDoneRef.current && flippedRed.length > 0) {
+          onCiFlippedRedRef.current?.(flippedRed);
+        }
+        firstLoadDoneRef.current = true;
         // Direct bijwerken (niet pas via het effect op `state` hieronder):
         // stackMerge's refreshPr roept findPr() meteen na `await refresh()`
         // aan en mag niet op een React-rendercyclus hoeven wachten.

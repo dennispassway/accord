@@ -7,6 +7,9 @@
     "core:default",
     "opener:default",
     "updater:default",
-    "process:allow-restart"
+    "process:allow-restart",
+    "notification:default",
+    "core:window:allow-set-focus",
+    "core:window:allow-show"
   ]
 }

@@ -140,6 +140,25 @@ describe("autoRebaseStacks", () => {
   );
 });
 
+describe("notifications", () => {
+  it("staat standaard aan", () => {
+    expect(loadSettings().notifications).toBe(true);
+  });
+
+  it("rondt uit om via save en load", () => {
+    saveSettings({ ...DEFAULT_SETTINGS, notifications: false });
+    expect(loadSettings().notifications).toBe(false);
+  });
+
+  it.each([null, undefined, "", "ja"])("valt bij %j terug op aan", (value) => {
+    localStorage.setItem(
+      "pr-cockpit.settings",
+      JSON.stringify({ ...DEFAULT_SETTINGS, notifications: value }),
+    );
+    expect(loadSettings().notifications).toBe(true);
+  });
+});
+
 describe("modellijsten", () => {
   it("vult de claude-aliassen uit de CLI aan met de fallback", () => {
     expect(claudeModels(["fable", "opus", "sonnet"])).toEqual([
