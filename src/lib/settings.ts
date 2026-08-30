@@ -48,6 +48,9 @@ export interface Settings {
   codex: AgentSettings;
   review: ReviewSettings;
   theme: Theme;
+  /** Rebaset PR's die op een net gemergde PR stapelen automatisch op de
+   * nieuwe base. */
+  autoRebaseStacks: boolean;
 }
 
 const STORAGE_KEY = "pr-cockpit.settings";
@@ -63,12 +66,18 @@ export const DEFAULT_SETTINGS: Settings = {
     timeoutMinutes: 20,
   },
   theme: "system",
+  autoRebaseStacks: true,
 };
 
 /** null, undefined, lege string of een onbekende waarde vallen terug op
  * "system"; een verplicht veld komt bij oudere/corrupte opslag vaak als "" binnen. */
 function normalizeTheme(value: unknown): Theme {
   return value === "light" || value === "dark" ? value : "system";
+}
+
+/** null, undefined of een niet-boolean waarde vallen terug op de default. */
+function normalizeAutoRebaseStacks(value: unknown): boolean {
+  return typeof value === "boolean" ? value : DEFAULT_SETTINGS.autoRebaseStacks;
 }
 
 /** Leest settings uit localStorage; valt terug op de defaults bij ontbrekende
@@ -85,6 +94,7 @@ export function loadSettings(): Settings {
       codex: { ...DEFAULT_SETTINGS.codex, ...parsed.codex },
       review: { ...DEFAULT_SETTINGS.review, ...parsed.review },
       theme: normalizeTheme(parsed.theme),
+      autoRebaseStacks: normalizeAutoRebaseStacks(parsed.autoRebaseStacks),
     };
   } catch {
     return DEFAULT_SETTINGS;

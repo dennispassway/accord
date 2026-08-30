@@ -1,5 +1,11 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  branchesToResolve,
+  planStackRebase,
+  rebaseStackBranch,
+  resolveBranchShas,
+} from "../../lib/github/autoRebase";
 import type { PrNumber, PullRequest, RepoId } from "../../lib/github/domain";
 import type { MergeMethod } from "../../lib/github/merge";
 import { mergeReasons } from "../../lib/github/merge";
@@ -31,6 +37,7 @@ import { PrInspector } from "./PrInspector";
 import { keyOfPr, PrList } from "./PrList";
 import { ShortcutHelp } from "./ShortcutHelp";
 import { Sidebar } from "./Sidebar";
+import type { StackRebaseStatus } from "./StackRail";
 import type { SortCtx, SortMode } from "./sort";
 import { buildSections } from "./sort";
 import { Toast, useToast } from "./Toast";
@@ -186,6 +193,8 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const cockpitRef = useRef<HTMLDivElement>(null);
+  const [stackRebaseStatus, setStackRebaseStatus] =
+    useState<StackRebaseStatus | null>(null);
 
   const prs = state.status === "ready" ? state.prs : [];
   const groups = useMemo(() => groupByRepo(prs), [prs]);
@@ -638,17 +647,102 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       ? "zojuist"
       : `${formatRelative(state.lastUpdated.toISOString())} geleden`;
 
+  // Na een geslaagde merge rebaset dit de stapel erboven: eerst de sha's van
+  // alle betrokken branches ophalen (vóór de merge, zodat "oude base" nog
+  // klopt), dan mergen, dan per stap rebasen. Mislukt het ophalen van de
+  // sha's, dan gaat de merge gewoon door zonder auto-rebase.
+  async function mergeWithAutoRebase(pr: PullRequest, method: MergeMethod) {
+    // Een geslaagde nieuwe run begint schoon; een conflictmelding van een
+    // vorige run blijft anders staan (bewust, tot deze volgende poging).
+    setStackRebaseStatus(null);
+    const repoPathValue = repoPaths[pr.repoId];
+    const repoPath =
+      repoPathValue != null && repoPathValue !== "" ? repoPathValue : null;
+    const steps =
+      settings.autoRebaseStacks && repoPath != null
+        ? planStackRebase(pr, prs)
+        : [];
+    let shas: Record<string, string> | null = null;
+    if (steps.length > 0 && repoPath != null) {
+      try {
+        shas = await resolveBranchShas(repoPath, branchesToResolve(steps));
+      } catch {
+        shas = null;
+      }
+    }
+
+    await mergePr(pr, method);
+    showToast(
+      `${pr.repoId.split("/")[1]} #${pr.number} gemerged (${MERGE_METHOD_LABEL[method]})`,
+      "ok",
+    );
+
+    // De gemergde PR verdwijnt meteen uit de lijst; stond die geselecteerd,
+    // dan valt de selectie anders terug op de eerste zichtbare PR (mogelijk
+    // buiten deze stapel) en verdwijnt de rebase-status uit beeld. Verhuis
+    // de selectie naar de eerste stap, zodat de stapel-sectie in beeld blijft.
+    if (
+      steps.length > 0 &&
+      selectedPr != null &&
+      selectedPr.repoId === pr.repoId &&
+      selectedPr.number === pr.number
+    ) {
+      const firstStep = steps[0];
+      if (firstStep != null)
+        setSelectedKey(`${pr.repoId}#${firstStep.prNumber}`);
+    }
+
+    if (shas == null || steps.length === 0 || repoPath == null) return;
+    const resolvedShas = shas;
+    const resolvedRepoPath = repoPath;
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      if (step == null) continue;
+      setStackRebaseStatus({
+        prNumber: step.prNumber,
+        label: `Stapel rebasen, stap ${i + 1} van ${steps.length}`,
+        isError: false,
+      });
+      try {
+        const result = await rebaseStackBranch(
+          resolvedRepoPath,
+          step.branch,
+          resolvedShas[step.parentBranch] ?? "",
+          resolvedShas[step.branch] ?? "",
+          step.newBase,
+        );
+        if (result === "conflict") {
+          setStackRebaseStatus({
+            prNumber: step.prNumber,
+            label: `Rebase-conflict in #${step.prNumber}, los dit handmatig op`,
+            isError: true,
+          });
+          showToast(
+            `Rebase-conflict in #${step.prNumber}, los dit handmatig op`,
+            "fout",
+          );
+          return;
+        }
+      } catch (error) {
+        setStackRebaseStatus({
+          prNumber: step.prNumber,
+          label: `Rebase van #${step.prNumber} mislukt: ${String(error)}`,
+          isError: true,
+        });
+        showToast(`Rebase van #${step.prNumber} mislukt`, "fout");
+        return;
+      }
+    }
+    setStackRebaseStatus(null);
+    void refresh();
+  }
+
   // U11: een merge-fout heeft met de merge-knop al een zichtbare plek
   // (MergeSection toont 'm inline); die mag hier dus geen toast of banner
   // meer krijgen. De re-throw blijft staan: MergeSection's eigen .catch
   // vangt 'm daarmee op om de inline melding te zetten.
   function handleMergePr(pr: PullRequest, method: MergeMethod) {
-    return mergePr(pr, method).then(() => {
-      showToast(
-        `${pr.repoId.split("/")[1]} #${pr.number} gemerged (${MERGE_METHOD_LABEL[method]})`,
-        "ok",
-      );
-    });
+    return mergeWithAutoRebase(pr, method);
   }
 
   return (
@@ -867,6 +961,13 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                 startBulkRuns(bulkPrs, settings.review.primaryMode)
               }
               selectedCount={selectedKeys.size}
+              onToggleAutoRebase={() =>
+                updateSettings((s) => ({
+                  ...s,
+                  autoRebaseStacks: !s.autoRebaseStacks,
+                }))
+              }
+              stackRebaseStatus={stackRebaseStatus}
             />
           </div>
         </div>
