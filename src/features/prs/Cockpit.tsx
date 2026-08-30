@@ -10,7 +10,13 @@ import type { PrNumber, PullRequest, RepoId } from "../../lib/github/domain";
 import type { MergeMethod } from "../../lib/github/merge";
 import { mergeReasons } from "../../lib/github/merge";
 import { groupByRepo } from "../../lib/github/organize";
+import type {
+  StackMergeProgress,
+  StackMergeStop,
+} from "../../lib/github/stackMerge";
+import { runStackMerge } from "../../lib/github/stackMerge";
 import { computeStackInfo } from "../../lib/github/stacks";
+import { isMockApp, mockMode } from "../../lib/mock/mode";
 import { modKey } from "../../lib/platform";
 import { useSettings } from "../../lib/settings";
 import type { AgentMode, ReviewAgent } from "../agents/crossReview";
@@ -49,6 +55,36 @@ import { useTraySync } from "./useTraySync";
 const MERGE_METHOD_LABEL: Record<MergeMethod, string> = {
   SQUASH: "squash",
   MERGE: "merge commit",
+};
+
+const IS_MOCK = isMockApp(mockMode());
+
+const STACK_MERGE_STOP_LABEL: Record<StackMergeStop, (n: PrNumber) => string> =
+  {
+    rodeCi: (n) => `Stapel-merge gestopt bij #${n}: CI is rood`,
+    changesRequested: (n) =>
+      `Stapel-merge gestopt bij #${n}: changes requested`,
+    conflict: (n) => `Stapel-merge gestopt bij #${n}: merge-conflicten`,
+    nietMergebaar: (n) => `Stapel-merge gestopt bij #${n}: niet mergebaar`,
+    prVerdwenen: (n) =>
+      `Stapel-merge gestopt: #${n} is niet meer gevonden (gemerged of verwijderd)`,
+    rebaseMislukt: (n) => `Stapel-merge gestopt bij #${n}: rebase mislukt`,
+    mergeMislukt: (n) => `Stapel-merge gestopt bij #${n}: merge mislukt`,
+    geannuleerd: (n) => `Stapel-merge geannuleerd bij #${n}`,
+  };
+
+/** Korte kaartvariant zonder "Stapel-merge gestopt bij #N"-prefix, voor de
+ * stack-rail-kaart die op 340px afkapt (NIT 7); de lange versie hierboven
+ * blijft voor de toast. */
+const STACK_MERGE_STOP_SHORT: Record<StackMergeStop, string> = {
+  rodeCi: "CI is rood",
+  changesRequested: "changes requested",
+  conflict: "merge-conflicten",
+  nietMergebaar: "niet mergebaar",
+  prVerdwenen: "niet meer gevonden",
+  rebaseMislukt: "rebase mislukt",
+  mergeMislukt: "merge mislukt",
+  geannuleerd: "geannuleerd",
 };
 
 const SORT_MODES_BY_DIGIT: Record<string, SortMode> = {
@@ -118,6 +154,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     clearWriteError,
     clearRefreshError,
     refreshing,
+    findPr,
   } = usePrs(onAuthError);
   const { toasts, showToast } = useToast();
   const { settings, update: updateSettings } = useSettings();
@@ -195,6 +232,16 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   const cockpitRef = useRef<HTMLDivElement>(null);
   const [stackRebaseStatus, setStackRebaseStatus] =
     useState<StackRebaseStatus | null>(null);
+  const [stackMergeProgress, setStackMergeProgress] =
+    useState<StackMergeProgress | null>(null);
+  const [stackMergeStop, setStackMergeStop] = useState<{
+    prNumber: PrNumber;
+    label: string;
+  } | null>(null);
+  // ponytail: één keten tegelijk in deze app (geen queue), een ref volstaat
+  // om de lopende run te kunnen annuleren zonder een tick te wachten.
+  const stackMergeCancelledRef = useRef(false);
+  const stackMergePollAttemptsRef = useRef(new Map<string, number>());
 
   const prs = state.status === "ready" ? state.prs : [];
   const groups = useMemo(() => groupByRepo(prs), [prs]);
@@ -215,6 +262,17 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     if (groups.some((group) => group.repoId === selectedRepoId)) return;
     setSelectedRepoId("all");
   }, [groups, selectedRepoId, state.status, setSelectedRepoId]);
+
+  // BLOCKER 6: een stopmelding blijft anders staan tot de volgende run,
+  // ook nadat de PR waar hij bij hoort is gemerged of gesloten elders
+  // vandaan (bv. handmatig op GitHub) en dus uit `prs` verdween.
+  useEffect(() => {
+    if (stackMergeStop == null) return;
+    if (state.status !== "ready") return;
+    if (prs.some((candidate) => candidate.number === stackMergeStop.prNumber))
+      return;
+    setStackMergeStop(null);
+  }, [prs, state.status, stackMergeStop]);
 
   // B3: focus de cockpit bij mount en na het sluiten van de settings-sheet
   // of het sortmenu, zodat pijltjes direct werken zonder eerste muisklik.
@@ -647,11 +705,23 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       ? "zojuist"
       : `${formatRelative(state.lastUpdated.toISOString())} geleden`;
 
+  // Merge stapel in volgorde mag alleen als de onderste (nog niet gemergde)
+  // PR van de keten zelf al mergebaar is; de rest volgt via runStackMerge.
+  const stackBottomPr = stackChain[0];
+  const canMergeStackInOrder =
+    stackChain.length > 1 &&
+    stackBottomPr != null &&
+    mergeReasons(stackBottomPr, stackInfoByKey.get(keyOfPr(stackBottomPr)))
+      .length === 0;
+
   // Na een geslaagde merge rebaset dit de stapel erboven: eerst de sha's van
   // alle betrokken branches ophalen (vóór de merge, zodat "oude base" nog
   // klopt), dan mergen, dan per stap rebasen. Mislukt het ophalen van de
   // sha's, dan gaat de merge gewoon door zonder auto-rebase.
-  async function mergeWithAutoRebase(pr: PullRequest, method: MergeMethod) {
+  async function mergeWithAutoRebase(
+    pr: PullRequest,
+    method: MergeMethod,
+  ): Promise<"merged" | "rebase-conflict"> {
     // Een geslaagde nieuwe run begint schoon; een conflictmelding van een
     // vorige run blijft anders staan (bewust, tot deze volgende poging).
     setStackRebaseStatus(null);
@@ -676,6 +746,11 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       `${pr.repoId.split("/")[1]} #${pr.number} gemerged (${MERGE_METHOD_LABEL[method]})`,
       "ok",
     );
+    // BLOCKER 6: een geslaagde losse merge van de PR waar de vorige
+    // stapel-merge op stopte, maakt die stopmelding stale.
+    setStackMergeStop((current) =>
+      current != null && current.prNumber === pr.number ? null : current,
+    );
 
     // De gemergde PR verdwijnt meteen uit de lijst; stond die geselecteerd,
     // dan valt de selectie anders terug op de eerste zichtbare PR (mogelijk
@@ -692,7 +767,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         setSelectedKey(`${pr.repoId}#${firstStep.prNumber}`);
     }
 
-    if (shas == null || steps.length === 0 || repoPath == null) return;
+    if (shas == null || steps.length === 0 || repoPath == null) return "merged";
     const resolvedShas = shas;
     const resolvedRepoPath = repoPath;
     for (let i = 0; i < steps.length; i++) {
@@ -721,7 +796,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
             `Rebase-conflict in #${step.prNumber}, los dit handmatig op`,
             "fout",
           );
-          return;
+          return "rebase-conflict";
         }
       } catch (error) {
         setStackRebaseStatus({
@@ -730,19 +805,84 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           isError: true,
         });
         showToast(`Rebase van #${step.prNumber} mislukt`, "fout");
-        return;
+        return "rebase-conflict";
       }
     }
     setStackRebaseStatus(null);
     void refresh();
+    return "merged";
   }
 
   // U11: een merge-fout heeft met de merge-knop al een zichtbare plek
   // (MergeSection toont 'm inline); die mag hier dus geen toast of banner
   // meer krijgen. De re-throw blijft staan: MergeSection's eigen .catch
   // vangt 'm daarmee op om de inline melding te zetten.
-  function handleMergePr(pr: PullRequest, method: MergeMethod) {
-    return mergeWithAutoRebase(pr, method);
+  async function handleMergePr(pr: PullRequest, method: MergeMethod) {
+    await mergeWithAutoRebase(pr, method);
+  }
+
+  // Vraagt een verse snapshot van één PR op voor stackMerge's CI-poll. In
+  // mock is er geen echte refetch (de fixtures staan vast): na twee polls
+  // wordt de CI van die PR daar zelf op "success" gezet, zodat de demo-
+  // stapel (acme/knowledge-base #186/#188/#191) door blijft lopen.
+  async function stackMergeRefreshPr(
+    prKey: string,
+  ): Promise<PullRequest | null> {
+    if (IS_MOCK) {
+      const attempts = (stackMergePollAttemptsRef.current.get(prKey) ?? 0) + 1;
+      stackMergePollAttemptsRef.current.set(prKey, attempts);
+      const found = prs.find((candidate) => keyOfPr(candidate) === prKey);
+      if (found == null) return null;
+      console.info(`[mock] stackMerge CI-poll ${prKey}: poging ${attempts}`);
+      if (attempts >= 2) {
+        return { ...found, ciStatus: { state: "success" } };
+      }
+      return found;
+    }
+    await refresh();
+    return findPr(prKey);
+  }
+
+  /** Merget de hele stapel van onder naar boven; zie stackMerge.ts voor de
+   * orchestratielogica en stopcondities. */
+  async function runStackMergeInOrder(chain: PullRequest[]) {
+    stackMergeCancelledRef.current = false;
+    stackMergePollAttemptsRef.current = new Map();
+    setStackMergeStop(null);
+    const method = loadMethod();
+    const pollIntervalMs = IS_MOCK ? 2000 : 30_000;
+    try {
+      const result = await runStackMerge(
+        {
+          mergeStep: (pr) => mergeWithAutoRebase(pr, method),
+          refreshPr: stackMergeRefreshPr,
+          delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+          onProgress: setStackMergeProgress,
+          isCancelled: () => stackMergeCancelledRef.current,
+        },
+        chain,
+        pollIntervalMs,
+      );
+      if (result.gestopt != null) {
+        const { reden, prNumber } = result.gestopt;
+        // NIT 8: de deelvoortgang bij het stoplabel, zodat "gestopt bij #7"
+        // ook meteen zegt hoeveel van de stapel al wel gemerged is.
+        const toastLabel = `${STACK_MERGE_STOP_LABEL[reden](prNumber)} (${result.gemerged.length} van ${chain.length} gemerged)`;
+        setStackMergeStop({ prNumber, label: STACK_MERGE_STOP_SHORT[reden] });
+        showToast(toastLabel, reden === "geannuleerd" ? "ok" : "fout");
+      } else if (result.gemerged.length > 0) {
+        showToast(`Stapel gemerged: ${result.gemerged.length} PR's`, "ok");
+      }
+    } catch (error) {
+      // BLOCKER 1: runStackMerge vangt een gooiende mergeStep zelf al op
+      // (reden "mergeMislukt"); dit is het vangnet voor een onverwachte fout
+      // elders in de lus, zodat de run nooit stil kapot blijft hangen.
+      showToast(`Stapel-merge onverwacht mislukt: ${String(error)}`, "fout");
+    } finally {
+      // BLOCKER 1: de voortgangsstatus (en dus de disabled-knop) mag nooit
+      // blijven hangen, ook niet bij een onverwachte fout.
+      setStackMergeProgress(null);
+    }
   }
 
   return (
@@ -968,6 +1108,13 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                 }))
               }
               stackRebaseStatus={stackRebaseStatus}
+              canMergeStackInOrder={canMergeStackInOrder}
+              stackMergeProgress={stackMergeProgress}
+              stackMergeStop={stackMergeStop}
+              onMergeStackInOrder={() => void runStackMergeInOrder(stackChain)}
+              onCancelStackMergeInOrder={() => {
+                stackMergeCancelledRef.current = true;
+              }}
             />
           </div>
         </div>

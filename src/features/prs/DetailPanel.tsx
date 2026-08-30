@@ -7,6 +7,7 @@ import type {
 } from "../../lib/github/domain";
 import { deriveAuthor } from "../../lib/github/domain";
 import type { MergeMethod } from "../../lib/github/merge";
+import type { StackMergeProgress } from "../../lib/github/stackMerge";
 import type { PrStackInfo } from "../../lib/github/stacks";
 import type { Settings } from "../../lib/settings";
 import { AgentLogPanel } from "../agents/AgentLogPanel";
@@ -171,6 +172,14 @@ interface DetailPanelProps {
   onToggleAutoRebase: () => void;
   /** Status van een lopende auto-rebase na een merge, zie StackRail. */
   stackRebaseStatus?: StackRebaseStatus | null;
+  /** Mag "Merge stapel in volgorde" op de onderste ongemergde PR van de keten. */
+  canMergeStackInOrder: boolean;
+  /** Voortgang van een lopende stapel-merge, zie StackRail. */
+  stackMergeProgress: StackMergeProgress | null;
+  /** Bij welke PR de laatste stapel-merge stopte, met reden. */
+  stackMergeStop: { prNumber: PrNumber; label: string } | null;
+  onMergeStackInOrder: () => void;
+  onCancelStackMergeInOrder: () => void;
 }
 
 export function DetailPanel({
@@ -198,6 +207,11 @@ export function DetailPanel({
   selectedCount,
   onToggleAutoRebase,
   stackRebaseStatus,
+  canMergeStackInOrder,
+  stackMergeProgress,
+  stackMergeStop,
+  onMergeStackInOrder,
+  onCancelStackMergeInOrder,
 }: DetailPanelProps) {
   if (!pr) {
     return (
@@ -305,6 +319,11 @@ export function DetailPanel({
           autoRebaseEnabled={settings.autoRebaseStacks}
           onToggleAutoRebase={onToggleAutoRebase}
           rebaseStatus={stackRebaseStatus}
+          canMergeStackInOrder={canMergeStackInOrder}
+          mergeProgress={stackMergeProgress}
+          mergeStop={stackMergeStop}
+          onMergeStackInOrder={onMergeStackInOrder}
+          onCancelStackMergeInOrder={onCancelStackMergeInOrder}
         />
 
         <div className="detail-meta detail-card">

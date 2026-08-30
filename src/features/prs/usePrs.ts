@@ -183,6 +183,10 @@ export function usePrs(onAuthError: () => void) {
         } = await fetchAllPrs(token, fetch);
         const prs = recentlyMerged.filter(rawPrs);
         const lastUpdated = new Date();
+        // Direct bijwerken (niet pas via het effect op `state` hieronder):
+        // stackMerge's refreshPr roept findPr() meteen na `await refresh()`
+        // aan en mag niet op een React-rendercyclus hoeven wachten.
+        prsRef.current = prs;
         setState({
           status: "ready",
           prs,
@@ -330,6 +334,15 @@ export function usePrs(onAuthError: () => void) {
     [],
   );
 
+  /** Zoekt een PR op in de meest recente lijst (na een `await refresh()`),
+   * voor stackMerge's refreshPr. `prKey` in dezelfde vorm als keyOfPr/
+   * prKeyOf elders (`${repoId}#${prNumber}`). */
+  const findPr = useCallback((prKey: string): PullRequest | null => {
+    return (
+      prsRef.current.find((pr) => `${pr.repoId}#${pr.number}` === prKey) ?? null
+    );
+  }, []);
+
   const clearWriteError = useCallback(() => {
     setState((prev) =>
       prev.status === "ready" ? { ...prev, writeError: null } : prev,
@@ -392,5 +405,6 @@ export function usePrs(onAuthError: () => void) {
     clearWriteError,
     clearRefreshError,
     refreshing,
+    findPr,
   };
 }
