@@ -71,14 +71,14 @@ li:first-child > .pl-group-header {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: color-mix(in srgb, currentColor 14%, transparent);
+  background: color-mix(in srgb, currentColor 11%, transparent);
 }
 
 .pl-group-count {
   flex: 0 0 auto;
   padding: 0 7px;
   border-radius: 999px;
-  background: color-mix(in srgb, currentColor 14%, transparent);
+  background: color-mix(in srgb, currentColor 11%, transparent);
   font-weight: 700;
   font-size: 11px;
 }
