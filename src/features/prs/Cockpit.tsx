@@ -11,8 +11,15 @@ import type { MergeMethod } from "../../lib/github/merge";
 import { mergeReasons } from "../../lib/github/merge";
 import { groupByRepo } from "../../lib/github/organize";
 import { computeStackInfo } from "../../lib/github/stacks";
+import { decideNotification } from "../../lib/notifications";
+import {
+  listenForNotificationClicks,
+  logSuppressedNotification,
+  sendAppNotification,
+} from "../../lib/notify";
 import { modKey } from "../../lib/platform";
 import { useSettings } from "../../lib/settings";
+import { useWindowFocused } from "../../lib/windowFocus";
 import type { AgentMode, ReviewAgent } from "../agents/crossReview";
 import { chainsIntoLearnings, preferredReviewer } from "../agents/crossReview";
 import { prKeyOf, useAgentRuns } from "../agents/useAgentRuns";
@@ -110,6 +117,23 @@ interface CockpitProps {
 }
 
 export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
+  const { toasts, showToast } = useToast();
+  const { settings, update: updateSettings } = useSettings();
+  const windowFocused = useWindowFocused();
+  // SHOULD-fix: de decideNotification-check bij een merge draait pas ná de
+  // merge-call, dus ruim na de render waarop de knop geklikt
+  // werd; een direct gesloten `{ enabled: settings.notifications,
+  // windowFocused }` blijft dan vastzitten op de waarden van dat
+  // klik-moment. Eén ref die elke render bijwerkt en die alle drie de
+  // triggers (run, CI, merge) uitlezen, geeft altijd de actuele waarden.
+  const notifyContextRef = useRef({
+    enabled: settings.notifications,
+    windowFocused,
+  });
+  notifyContextRef.current = {
+    enabled: settings.notifications,
+    windowFocused,
+  };
   const {
     state,
     refresh,
@@ -118,9 +142,25 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     clearWriteError,
     clearRefreshError,
     refreshing,
-  } = usePrs(onAuthError);
-  const { toasts, showToast } = useToast();
-  const { settings, update: updateSettings } = useSettings();
+  } = usePrs(onAuthError, (flippedPrs) => {
+    // U: CI-omslag naar rood op een eigen PR, gedetecteerd bij deze refresh
+    // (usePrs' snapshotvergelijking); alleen zichtbaar als het venster niet
+    // gefocust is (zie decideNotification), anders ziet de gebruiker het al
+    // in de lijst zelf.
+    for (const pr of flippedPrs) {
+      const payload = decideNotification(
+        {
+          type: "ciFlippedRed",
+          prKey: keyOfPr(pr),
+          prNumber: pr.number,
+          repoName: pr.repoId,
+        },
+        notifyContextRef.current,
+      );
+      if (payload != null) void sendAppNotification(payload);
+      else logSuppressedNotification(notifyContextRef.current);
+    }
+  });
   const update = useUpdate(settings.review.refreshMinutes);
   const {
     clis,
@@ -142,6 +182,21 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         : `Review mislukt: #${number}`,
       status === "done" ? "ok" : "fout",
     );
+    // Comment-/fix-commit-aantallen komen pas via GitHub binnen (agentReviews
+    // op de PR, ná de refresh hieronder) en zijn hier nog niet bekend: de
+    // tekst laat ze daarom weg (zie decideNotification/runFinishedBody).
+    const notifyPayload = decideNotification(
+      {
+        type: "runFinished",
+        agent,
+        prKey,
+        prNumber: Number(number),
+        status,
+      },
+      notifyContextRef.current,
+    );
+    if (notifyPayload != null) void sendAppNotification(notifyPayload);
+    else logSuppressedNotification(notifyContextRef.current);
     void refresh();
     // Lessen structureel: na een geslaagde run die fixes toepaste destilleert
     // dezelfde agent automatisch de lessen, inline op de PR-branch zelf (een
@@ -291,6 +346,22 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     stackChain,
     moveSelection,
   } = usePrSelection(prs, visiblePrs, search);
+  // Klik op een systeemnotificatie: venster naar voren (notify.ts) en de PR
+  // selecteren, zichtbaar ongeacht het huidige repo-filter of zoekterm.
+  // Eenmalige registratie via een ref, want setSelectedKey/setSearch/
+  // setSelectedRepoId zijn geen memoized functies en zouden anders elke
+  // render opnieuw registreren.
+  const selectFromNotificationRef = useRef((_prKey: string) => {});
+  selectFromNotificationRef.current = (prKey: string) => {
+    setSelectedRepoId("all");
+    setSearch("");
+    setSelectedKey(prKey);
+  };
+  useEffect(() => {
+    return listenForNotificationClicks((prKey) =>
+      selectFromNotificationRef.current(prKey),
+    );
+  }, []);
   // Eén afgeleide waarheid voor "de inspector is echt open": valt de
   // selectie weg terwijl `inspector` nog een tab-object heeft, dan mogen
   // sneltoetsen en de Escape-hiërarchie 'm niet als open behandelen (de
@@ -676,6 +747,17 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       `${pr.repoId.split("/")[1]} #${pr.number} gemerged (${MERGE_METHOD_LABEL[method]})`,
       "ok",
     );
+    const notifyPayload = decideNotification(
+      {
+        type: "mergeCompleted",
+        prKey: keyOfPr(pr),
+        prNumber: pr.number,
+        repoName: pr.repoId,
+      },
+      notifyContextRef.current,
+    );
+    if (notifyPayload != null) void sendAppNotification(notifyPayload);
+    else logSuppressedNotification(notifyContextRef.current);
 
     // De gemergde PR verdwijnt meteen uit de lijst; stond die geselecteerd,
     // dan valt de selectie anders terug op de eerste zichtbare PR (mogelijk

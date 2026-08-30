@@ -51,6 +51,9 @@ export interface Settings {
   /** Rebaset PR's die op een net gemergde PR stapelen automatisch op de
    * nieuwe base. */
   autoRebaseStacks: boolean;
+  /** Systeemnotificaties (agent-run klaar/mislukt, CI-omslag, merge), alleen
+   * als het venster niet gefocust is. */
+  notifications: boolean;
 }
 
 const STORAGE_KEY = "pr-cockpit.settings";
@@ -67,6 +70,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   theme: "system",
   autoRebaseStacks: true,
+  notifications: true,
 };
 
 /** null, undefined, lege string of een onbekende waarde vallen terug op
@@ -78,6 +82,12 @@ function normalizeTheme(value: unknown): Theme {
 /** null, undefined of een niet-boolean waarde vallen terug op de default. */
 function normalizeAutoRebaseStacks(value: unknown): boolean {
   return typeof value === "boolean" ? value : DEFAULT_SETTINGS.autoRebaseStacks;
+}
+
+/** null, undefined, lege string of een ander type vallen terug op de default
+ * (aan): alleen een echte boolean overschrijft 'm. */
+function normalizeNotifications(value: unknown): boolean {
+  return typeof value === "boolean" ? value : DEFAULT_SETTINGS.notifications;
 }
 
 /** Leest settings uit localStorage; valt terug op de defaults bij ontbrekende
@@ -95,6 +105,7 @@ export function loadSettings(): Settings {
       review: { ...DEFAULT_SETTINGS.review, ...parsed.review },
       theme: normalizeTheme(parsed.theme),
       autoRebaseStacks: normalizeAutoRebaseStacks(parsed.autoRebaseStacks),
+      notifications: normalizeNotifications(parsed.notifications),
     };
   } catch {
     return DEFAULT_SETTINGS;
