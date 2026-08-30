@@ -234,6 +234,24 @@ export function SettingsSheet({
                 onChange={(theme) => onUpdate((s) => ({ ...s, theme }))}
               />
             </div>
+            <div className="settings-row">
+              <span className="settings-row-label">
+                <span className="settings-row-k">Notificaties</span>
+                <span className="settings-row-hint">
+                  systeemmelding als het venster niet gefocust is
+                </span>
+              </span>
+              <Segmented
+                value={settings.notifications ? "aan" : "uit"}
+                options={["aan", "uit"] as const}
+                onChange={(value) =>
+                  onUpdate((s) => ({
+                    ...s,
+                    notifications: value === "aan",
+                  }))
+                }
+              />
+            </div>
           </div>
 
           <div className="settings-section">

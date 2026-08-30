@@ -48,6 +48,9 @@ export interface Settings {
   codex: AgentSettings;
   review: ReviewSettings;
   theme: Theme;
+  /** Systeemnotificaties (agent-run klaar/mislukt, CI-omslag, merge), alleen
+   * als het venster niet gefocust is. */
+  notifications: boolean;
 }
 
 const STORAGE_KEY = "pr-cockpit.settings";
@@ -63,12 +66,19 @@ export const DEFAULT_SETTINGS: Settings = {
     timeoutMinutes: 20,
   },
   theme: "system",
+  notifications: true,
 };
 
 /** null, undefined, lege string of een onbekende waarde vallen terug op
  * "system"; een verplicht veld komt bij oudere/corrupte opslag vaak als "" binnen. */
 function normalizeTheme(value: unknown): Theme {
   return value === "light" || value === "dark" ? value : "system";
+}
+
+/** null, undefined, lege string of een ander type vallen terug op de default
+ * (aan): alleen een echte boolean overschrijft 'm. */
+function normalizeNotifications(value: unknown): boolean {
+  return typeof value === "boolean" ? value : DEFAULT_SETTINGS.notifications;
 }
 
 /** Leest settings uit localStorage; valt terug op de defaults bij ontbrekende
@@ -85,6 +95,7 @@ export function loadSettings(): Settings {
       codex: { ...DEFAULT_SETTINGS.codex, ...parsed.codex },
       review: { ...DEFAULT_SETTINGS.review, ...parsed.review },
       theme: normalizeTheme(parsed.theme),
+      notifications: normalizeNotifications(parsed.notifications),
     };
   } catch {
     return DEFAULT_SETTINGS;
