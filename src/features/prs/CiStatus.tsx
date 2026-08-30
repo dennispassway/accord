@@ -22,22 +22,26 @@ export function CiStatus({ ciStatus }: { ciStatus: PullRequest["ciStatus"] }) {
       className={
         ciStatus.state === "failure"
           ? "detail-ci detail-card detail-ci-failure"
-          : "detail-ci detail-card"
+          : ciStatus.state === "success"
+            ? "detail-ci detail-card detail-ci-success"
+            : "detail-ci detail-card"
       }
     >
       <div className="detail-ci-head">
-        {ciStatus.state === "success" && (
-          <CheckIcon size={13} className="detail-ci-icon-ok" />
-        )}
-        {ciStatus.state === "failure" && (
-          <AlertIcon size={13} className="detail-ci-icon-err" />
-        )}
-        {ciStatus.state === "pending" && (
-          <RefreshIcon className="detail-ci-icon-pending" />
-        )}
-        {ciStatus.state === "none" && (
-          <ClockIcon size={13} className="detail-ci-icon-none" />
-        )}
+        <span className="detail-ci-icon-wrap">
+          {ciStatus.state === "success" && (
+            <CheckIcon size={13} className="detail-ci-icon-ok" />
+          )}
+          {ciStatus.state === "failure" && (
+            <AlertIcon size={13} className="detail-ci-icon-err" />
+          )}
+          {ciStatus.state === "pending" && (
+            <RefreshIcon className="detail-ci-icon-pending" />
+          )}
+          {ciStatus.state === "none" && (
+            <ClockIcon size={13} className="detail-ci-icon-none" />
+          )}
+        </span>
         <span className="detail-ci-label">{ciLabel(ciStatus)}</span>
       </div>
       {ciStatus.state === "failure" && (
