@@ -1,23 +1,25 @@
-import type { RefObject } from "react";
-import { useLayoutEffect, useRef, useState } from "react";
+import type { RefCallback } from "react";
+import { useCallback, useState } from "react";
 
 /**
  * Meet de binnenbreedte van een element. Nodig omdat de kolombreedtes van de
  * PR-lijst in JS worden uitgerekend: de lijstkolom kan smaller worden zonder
  * dat het venster verandert, zodra de gebruiker een zijpaneel versleept.
  *
- * useLayoutEffect en niet useEffect: de eerste meting moet er zijn vóór de
- * eerste paint, anders knippert de rij één frame op de verkeerde breedte.
+ * Een ref-callback en geen useLayoutEffect met een ref-object: het element dat
+ * we meten hoort bij een component die soms iets anders rendert (de lege
+ * staat van de lijst). Een effect met een lege deps-array draait één keer, en
+ * als het element op dat moment nog niet bestaat komt er nooit een observer.
+ * React roept de callback aan zodra het element in de DOM komt, elke keer
+ * opnieuw, en nog vóór de eerste paint.
  */
 export function useContainerWidth<T extends HTMLElement>(): [
-  RefObject<T | null>,
+  RefCallback<T>,
   number,
 ] {
-  const ref = useRef<T>(null);
   const [width, setWidth] = useState(0);
 
-  useLayoutEffect(() => {
-    const element = ref.current;
+  const ref = useCallback((element: T | null) => {
     if (element === null) return;
 
     setWidth(element.getBoundingClientRect().width);
