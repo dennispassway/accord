@@ -5,6 +5,7 @@ import {
   DEFAULT_PANELS,
   LIST_MIN,
   PANEL_BOUNDS,
+  panelsAfterDrag,
 } from "./panelLayout";
 
 /** Het venster heeft een harde ondergrens in src-tauri/tauri.conf.json. */
@@ -72,5 +73,43 @@ describe("clampPanels", () => {
 
   it("laat de defaults passen op het smalste toegestane venster", () => {
     expect(clampPanels(DEFAULT_PANELS, MIN_WINDOW)).toEqual(DEFAULT_PANELS);
+  });
+});
+
+describe("panelsAfterDrag", () => {
+  /** Opgeslagen breedtes die samen niet op het smalste venster passen:
+   * 360 + 520 + 384 is 324 meer dan 940, dus clampPanels knijpt ze. */
+  const TOO_WIDE = { sidebar: 360, detail: 520 };
+
+  it("rekent de ruimte na op wat er staat, niet op de opgeslagen keuze", () => {
+    const applied = clampPanels(TOO_WIDE, MIN_WINDOW);
+    const dragged = panelsAfterDrag(
+      TOO_WIDE,
+      null,
+      "sidebar",
+      applied.sidebar + 30,
+      MIN_WINDOW,
+    );
+    // Naar rechts slepen mag de zijbalk nooit smaller maken dan hij stond.
+    expect(dragged.sidebar).toBeGreaterThanOrEqual(applied.sidebar);
+  });
+
+  it("laat het detailpaneel niet terugspringen op een te smal venster", () => {
+    const applied = clampPanels(TOO_WIDE, MIN_WINDOW);
+    const dragged = panelsAfterDrag(
+      TOO_WIDE,
+      null,
+      "detail",
+      applied.detail + 30,
+      MIN_WINDOW,
+    );
+    expect(dragged.detail).toBeGreaterThanOrEqual(applied.detail);
+  });
+
+  it("rekent tijdens het slepen door op de lopende sleep", () => {
+    const draft = { sidebar: 240, detail: 300 };
+    expect(
+      panelsAfterDrag(DEFAULT_PANELS, draft, "sidebar", 260, 1600),
+    ).toEqual({ sidebar: 260, detail: 300 });
   });
 });

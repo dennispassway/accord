@@ -86,3 +86,19 @@ function clampToBounds(panel: keyof PanelWidths, value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_PANELS[panel];
   return Math.max(bounds.min, Math.min(value, bounds.max));
 }
+
+/**
+ * De breedtes na één sleepstap. `stored` is de vastgelegde keuze, `draft` de
+ * lopende sleep (null bij de eerste beweging).
+ */
+export function panelsAfterDrag(
+  stored: PanelWidths,
+  draft: PanelWidths | null,
+  panel: keyof PanelWidths,
+  value: number,
+  windowWidth: number,
+): PanelWidths {
+  const base = draft ?? stored;
+  const other = panel === "sidebar" ? base.detail : base.sidebar;
+  return { ...base, [panel]: clampPanel(panel, value, other, windowWidth) };
+}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadPanels, savePanels } from "./cockpitPrefs";
 import type { PanelWidths } from "./panelLayout";
-import { clampPanel, clampPanels, DEFAULT_PANELS } from "./panelLayout";
+import { clampPanels, DEFAULT_PANELS, panelsAfterDrag } from "./panelLayout";
 
 export interface PanelWidthControls {
   /** De breedtes zoals ze nu gelden, passend gemaakt op het huidige venster. */
@@ -51,7 +51,7 @@ export function usePanelWidths(): PanelWidthControls {
   const resize = useCallback(
     (panel: keyof PanelWidths, value: number) => {
       setDraft((current) =>
-        withPanel(current ?? committed, panel, value, windowWidth),
+        panelsAfterDrag(committed, current, panel, value, windowWidth),
       );
     },
     [committed, windowWidth],
@@ -60,7 +60,9 @@ export function usePanelWidths(): PanelWidthControls {
   const commit = useCallback(
     (panel: keyof PanelWidths, value: number) => {
       setDraft(null);
-      setCommitted((current) => withPanel(current, panel, value, windowWidth));
+      setCommitted((current) =>
+        panelsAfterDrag(current, null, panel, value, windowWidth),
+      );
     },
     [windowWidth],
   );
@@ -71,14 +73,4 @@ export function usePanelWidths(): PanelWidthControls {
   }, []);
 
   return { panels, resize, commit, reset };
-}
-
-function withPanel(
-  from: PanelWidths,
-  panel: keyof PanelWidths,
-  value: number,
-  windowWidth: number,
-): PanelWidths {
-  const other = panel === "sidebar" ? from.detail : from.sidebar;
-  return { ...from, [panel]: clampPanel(panel, value, other, windowWidth) };
 }
