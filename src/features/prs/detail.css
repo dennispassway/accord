@@ -1,9 +1,11 @@
 /* DetailPanel v2 (design-v2, regels ~300-525): 340px, drie zones - vaste
    kop, scrollende body, vaste voet met de acties. */
 
+/* --detail-width komt als inline waarde van .cockpit-columns (Cockpit.tsx);
+   de fallback hoort gelijk te blijven aan DEFAULT_PANELS.detail. */
 .detail-panel {
-  width: 340px;
-  flex: 0 0 340px;
+  width: var(--detail-width, 340px);
+  flex: 0 0 var(--detail-width, 340px);
   display: flex;
   flex-direction: column;
   min-height: 0;

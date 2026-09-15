@@ -1,0 +1,61 @@
+/* Sleepgreep tussen twee panelen. Neemt zelf geen breedte in de flexregel:
+   de greep ligt met een negatieve offset over de rand van het paneel ernaast,
+   zodat de panelen hun opgegeven breedte exact houden. */
+
+.resize-handle {
+  flex: 0 0 0;
+  position: relative;
+  z-index: 5;
+  align-self: stretch;
+  touch-action: none;
+}
+
+/* Het aanraakgebied is breder dan de zichtbare lijn, anders is de rand op
+   muishoogte nauwelijks te pakken. */
+.resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 9px;
+  cursor: col-resize;
+}
+
+/* De lijn valt samen met de paneelrand. Een greep die achter zijn paneel
+   staat (zijbalk) dekt de border-right op -1px; een greep die voor zijn
+   paneel staat (detailpaneel) dekt de border-left op 0. */
+.resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 2px;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.resize-handle[data-direction="-1"]::after {
+  left: 0;
+}
+
+.resize-handle:hover::after,
+.resize-handle.dragging::after {
+  background: var(--accent);
+}
+
+.resize-handle:focus-visible {
+  outline: none;
+}
+
+.resize-handle:focus-visible::after {
+  background: var(--focus);
+}
+
+/* Tijdens het slepen blijft de cursor overal col-resize, ook als de muis
+   buiten de strook komt, en selecteert een snelle beweging geen tekst. */
+.cockpit-columns:has(.resize-handle.dragging) {
+  cursor: col-resize;
+  user-select: none;
+}

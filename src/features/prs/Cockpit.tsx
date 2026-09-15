@@ -1,4 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   branchesToResolve,
@@ -42,6 +43,8 @@ import { isAnyMenuOverlayOpen } from "./menuOverlay";
 import { PrContextMenu } from "./PrContextMenu";
 import { PrInspector } from "./PrInspector";
 import { keyOfPr, PrList } from "./PrList";
+import { PANEL_BOUNDS } from "./panelLayout";
+import { ResizeHandle } from "./ResizeHandle";
 import { ShortcutHelp } from "./ShortcutHelp";
 import { Sidebar } from "./Sidebar";
 import type { StackRebaseStatus } from "./StackRail";
@@ -49,6 +52,7 @@ import type { SortCtx, SortMode } from "./sort";
 import { buildSections } from "./sort";
 import { Toast, useToast } from "./Toast";
 import { Toolbar } from "./Toolbar";
+import { usePanelWidths } from "./usePanelWidths";
 import { usePrSelection } from "./usePrSelection";
 import { shouldRefreshOnVisible, usePrs } from "./usePrs";
 import { useTraySync } from "./useTraySync";
@@ -250,6 +254,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   const cockpitRef = useRef<HTMLDivElement>(null);
   const [stackRebaseStatus, setStackRebaseStatus] =
     useState<StackRebaseStatus | null>(null);
+  const { panels, resize, commit, reset } = usePanelWidths();
 
   const prs = state.status === "ready" ? state.prs : [];
   const groups = useMemo(() => groupByRepo(prs), [prs]);
@@ -887,7 +892,15 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         }
       }}
     >
-      <div className="cockpit-columns">
+      <div
+        className="cockpit-columns"
+        style={
+          {
+            "--sidebar-width": `${panels.sidebar}px`,
+            "--detail-width": `${panels.detail}px`,
+          } as CSSProperties
+        }
+      >
         <Sidebar
           groups={groups}
           totalCount={prs.length}
@@ -895,6 +908,16 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           onSelect={setSelectedRepoId}
           login={meLogin}
           clis={clis}
+        />
+        <ResizeHandle
+          label="Breedte van de zijbalk"
+          direction={1}
+          width={panels.sidebar}
+          min={PANEL_BOUNDS.sidebar.min}
+          max={PANEL_BOUNDS.sidebar.max}
+          onResize={(next) => resize("sidebar", next)}
+          onCommit={(next) => commit("sidebar", next)}
+          onReset={() => reset("sidebar")}
         />
         <div className="cockpit-main">
           <Toolbar
@@ -1008,6 +1031,16 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                 hasActiveSearch={search.trim() !== ""}
               />
             </div>
+            <ResizeHandle
+              label="Breedte van het detailpaneel"
+              direction={-1}
+              width={panels.detail}
+              min={PANEL_BOUNDS.detail.min}
+              max={PANEL_BOUNDS.detail.max}
+              onResize={(next) => resize("detail", next)}
+              onCommit={(next) => commit("detail", next)}
+              onReset={() => reset("detail")}
+            />
             <DetailPanel
               pr={selectedPr}
               stackInfo={stackInfo}

@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   loadFavorites,
+  loadPanels,
   loadRepoFilter,
   loadSortMode,
   saveFavorites,
+  savePanels,
   saveRepoFilter,
   saveSortMode,
 } from "./cockpitPrefs";
+import { DEFAULT_PANELS, PANEL_BOUNDS } from "./panelLayout";
 
 /** vitest draait in een node-omgeving zonder DOM: cockpitPrefs.ts gebruikt
  * localStorage direct, dus hier een minimale in-memory mock (patroon uit
@@ -91,6 +94,44 @@ describe("loadFavorites", () => {
   });
 });
 
+describe("loadPanels", () => {
+  it("geeft de opgeslagen breedtes terug", () => {
+    localStorage.setItem(
+      "pr-cockpit.panels",
+      JSON.stringify({ sidebar: 240, detail: 400 }),
+    );
+    expect(loadPanels()).toEqual({ sidebar: 240, detail: 400 });
+  });
+
+  it("geeft de defaults bij lege storage", () => {
+    expect(loadPanels()).toEqual(DEFAULT_PANELS);
+  });
+
+  it("geeft de defaults bij corrupte JSON", () => {
+    localStorage.setItem("pr-cockpit.panels", "{niet json");
+    expect(loadPanels()).toEqual(DEFAULT_PANELS);
+  });
+
+  it("geeft de defaults als een veld ontbreekt of geen getal is", () => {
+    localStorage.setItem(
+      "pr-cockpit.panels",
+      JSON.stringify({ sidebar: "240" }),
+    );
+    expect(loadPanels()).toEqual(DEFAULT_PANELS);
+  });
+
+  it("trekt een opgeslagen waarde buiten de grenzen terug", () => {
+    localStorage.setItem(
+      "pr-cockpit.panels",
+      JSON.stringify({ sidebar: 4000, detail: 10 }),
+    );
+    expect(loadPanels()).toEqual({
+      sidebar: PANEL_BOUNDS.sidebar.max,
+      detail: PANEL_BOUNDS.detail.min,
+    });
+  });
+});
+
 describe("saveSortMode/saveRepoFilter", () => {
   it("schrijft de sortmode weg zodat loadSortMode 'm teruggeeft", () => {
     saveSortMode("project");
@@ -105,5 +146,10 @@ describe("saveSortMode/saveRepoFilter", () => {
   it("schrijft favorieten weg zodat loadFavorites ze teruggeeft", () => {
     saveFavorites(["acme/api"]);
     expect(loadFavorites()).toEqual(["acme/api"]);
+  });
+
+  it("schrijft paneelbreedtes weg zodat loadPanels ze teruggeeft", () => {
+    savePanels({ sidebar: 260, detail: 300 });
+    expect(loadPanels()).toEqual({ sidebar: 260, detail: 300 });
   });
 });
