@@ -142,10 +142,19 @@ describe("maxColumnWidth", () => {
     );
   });
 
-  it("valt terug op de ondergrens als er niets te verdelen is", () => {
+  it("houdt de huidige breedte aan als er niets te verdelen is", () => {
+    // Elke greep legt bij loslaten de breedte opnieuw vast, ook zonder
+    // beweging. Gaf de grens hier de ondergrens terug, dan sprong de kolom
+    // bij die ene klik naar zijn smalste stand en was de opgeslagen keuze
+    // weg.
     expect(maxColumnWidth("project", DEFAULT_COLUMNS, NARROW, MET_PRIO)).toBe(
-      COLUMN_BOUNDS.project.min,
+      DEFAULT_COLUMNS.project,
     );
+  });
+
+  it("knijpt een versleepte kolom op een smalle lijst niet terug", () => {
+    const breed = { ...DEFAULT_COLUMNS, wie: 90 };
+    expect(maxColumnWidth("wie", breed, NARROW, MET_PRIO)).toBe(90);
   });
 });
 
