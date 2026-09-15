@@ -1,7 +1,38 @@
-/* Lijstrij v2, volgens docs/design-v2/pr-cockpit-v2.dc.html. */
+/* Lijstrij v2, volgens docs/design-v2/pr-cockpit-v2.dc.html.
+
+   De lijst is een tabel: de kopregel en alle rijen lezen dezelfde tracks uit
+   de custom properties op .pl-table, die PrList.tsx per render zet. Verander
+   je een track, doe dat daar; hier staan alleen de vormgeving en de fallbacks
+   voor de kolommen die geen eigen variabele hebben. */
+
+/* Breedte van de scrollbar, zodat de kopregel dezelfde ruimte rechts
+   overslaat als de rijen eronder (zie ::-webkit-scrollbar in App.css). */
+.pl-table {
+  --scrollbar-width: 9px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.pl-thead {
+  display: flex;
+  align-items: center;
+  gap: var(--col-gap, 10px);
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 calc(12px + var(--scrollbar-width)) 0 12px;
+  border-bottom: 1px solid var(--line);
+  font: 800 9px / 1 var(--mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
 
 /* De lijst is de enige scroll-container in de schil: sidebar en detailpaneel
-   houden vensterhoogte en scrollen alleen intern als hun inhoud niet past. */
+   houden vensterhoogte en scrollen alleen intern als hun inhoud niet past.
+   scrollbar-gutter houdt de breedte gelijk of er nu gescrold wordt of niet,
+   anders schuiven de rijen 9px weg onder de kopregel zodra de lijst groeit. */
 .pl-list {
   list-style: none;
   margin: 0;
@@ -9,6 +40,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .pl-group-header {
@@ -85,7 +117,7 @@ li:first-child > .pl-group-header {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--col-gap, 10px);
   width: 100%;
   height: 32px;
   padding: 0 12px;
@@ -135,18 +167,96 @@ li:first-child > .pl-group-header {
   background: color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
-.pl-number {
-  flex: 0 0 34px;
-  text-align: right;
+/* Elke cel staat vast op zijn track; alleen de titel vangt wat overblijft op.
+   Daardoor staat elke kolom in elke rij op dezelfde x. */
+.pl-cell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* Een koplabel is breder dan zijn smalste kolom (TIJD past net in 44px, de
+   volle naam niet). Zonder dit knippen de labels niet af maar lopen ze over
+   de buurcel heen, en dan lezen twee koppen als één woord. */
+.pl-thead .pl-cell {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.pl-cell-project {
+  flex: 0 0 var(--col-project, 118px);
+  gap: 6px;
+}
+
+.pl-repo-dot {
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.pl-repo-naam {
+  min-width: 0;
+  font: 400 11px / 1 var(--mono);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pl-cell-nr {
+  flex: 0 0 var(--col-nr, 38px);
+  justify-content: flex-end;
   font: 400 11px / 1 var(--mono);
   color: var(--text-3);
 }
 
+.pl-cell-prio {
+  flex: 0 0 22px;
+}
+
+.pl-cell-title {
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 8px;
+}
+
+.pl-cell-status {
+  flex: 0 0 var(--col-status, 88px);
+}
+
+.pl-cell-wie {
+  flex: 0 0 var(--col-wie, 44px);
+  justify-content: flex-end;
+}
+
+.pl-cell-omvang {
+  flex: 0 0 26px;
+  justify-content: flex-end;
+}
+
+.pl-cell-reacties {
+  flex: 0 0 34px;
+  justify-content: flex-end;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.pl-cell-reacties .mono {
+  font: 400 10px / 1 var(--mono);
+}
+
+.pl-cell-tijd {
+  flex: 0 0 var(--col-tijd, 44px);
+  justify-content: flex-end;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
 .pl-title {
-  /* Basis > 0 zodat de titel meedeelt in het krimpen (met basis 0 ging hij op
-     het minimumvenster als eerste naar 0px); een hogere basis geeft hem een
-     groter krimpaandeel, zodat .pl-row-end niet buiten de rij wordt geknipt. */
-  flex: 1 1 200px;
+  flex: 1 1 auto;
   min-width: 0;
   font: 500 13px / 1 var(--font);
   letter-spacing: -0.01em;
@@ -175,36 +285,12 @@ li:first-child > .pl-group-header {
   padding: 2px 3px;
 }
 
-.pl-draft-chip {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font: 500 10px / 1 var(--font);
-  color: var(--text-3);
-  padding: 2px 5px 2px 4px;
-  border-radius: 4px;
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-
 .pl-stack-chip {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 3px;
   font: 400 10px / 1 var(--mono);
-  color: var(--text-3);
-}
-
-.pl-row-end {
-  /* Krimpt mee zodat .pl-repo kan ellipsen; anders loopt de rij op smalle
-     vensters horizontaal over in plaats van de reponaam af te kappen. */
-  flex: 0 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 11px;
   color: var(--text-3);
 }
 
@@ -220,10 +306,16 @@ li:first-child > .pl-group-header {
   background: color-mix(in srgb, currentColor 11%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent);
   white-space: nowrap;
-  /* Krimpt met ellipsis i.p.v. te wrappen, maar houdt een leesbare kern. */
-  flex: 0 1 auto;
-  min-width: 40px;
+  /* De statuscel bepaalt de breedte; de pill vult hem en kapt af als een
+     versleepte kolom smaller is dan zijn label. */
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
+}
+
+/* Alleen het icoon: een rond knopje in plaats van een pill. */
+.pl-status-pill:not(:has(.pl-status-pill-label)) {
+  padding: 3px;
 }
 
 .pl-status-pill-label {
@@ -248,44 +340,22 @@ li:first-child > .pl-group-header {
   color: var(--accent);
 }
 
+/* Sinds de statuskolom vast staat krijgen ook "wachten" en "concept" een
+   pill; ze hadden er geen omdat ze de rij te breed maakten. */
+.pl-status-pill-wachten {
+  color: var(--warn);
+}
+
+.pl-status-pill-concept {
+  color: var(--text-3);
+}
+
 .pl-running-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: currentColor;
   animation: pl-pulse 1.1s ease-in-out infinite;
-}
-
-.pl-repo {
-  /* Basis is de contentbreedte (een vaste 150px reserveerde ruimte die de
-     titel en pill op 1280px al liet krimpen); krimpt 3x sneller dan titel en
-     pill zodat op smalle vensters eerst de reponaam wijkt. */
-  flex: 0 3 auto;
-  max-width: 150px;
-  min-width: 0;
-  text-align: right;
-  font: 400 11px / 1 var(--mono);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.pl-comments {
-  flex: 0 0 34px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
-}
-
-.pl-comments .mono {
-  font: 400 10px / 1 var(--mono);
-}
-
-.pl-time {
-  flex: 0 0 30px;
-  text-align: right;
-  white-space: nowrap;
 }
 
 @keyframes pl-pulse {
@@ -344,20 +414,16 @@ li:first-child > .pl-group-header {
 
 /* Agent-review badge in de avatar-cluster */
 
-.pl-agent-cluster {
-  flex: 0 0 auto;
-  display: flex;
-  margin-left: auto;
-  padding-left: 8px;
-}
-
 .pl-agent-badge {
   position: relative;
+  flex: 0 0 auto;
   display: grid;
   place-items: center;
   width: 15px;
   height: 15px;
-  margin-left: -4px;
+  /* Overlapt de avatar rechts ervan, zodat het cluster in de vaste
+     Wie-kolom past. */
+  margin-right: -4px;
   border-radius: 5px;
   color: #fff;
   box-shadow: 0 0 0 1.5px var(--list);
@@ -382,6 +448,6 @@ li:first-child > .pl-group-header {
   font-weight: 600;
 }
 
-.pl-row-selected .pl-number {
+.pl-row-selected .pl-cell-nr {
   color: var(--accent);
 }

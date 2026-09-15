@@ -1,35 +1,34 @@
----
-name: css-flex-rijen
-description: Krimpgedrag van flex-rijen in de CSS van Accord, geldt voor src/**/*.css
-globs: src/**/*.css
----
+# De PR-lijst is een tabel, geen krimpende flexrij
 
-# Flex-rijen die moeten kunnen krimpen
+Geldt voor: `src/**/*.css`, `src/features/prs/columnLayout.ts`
 
-Geldt voor: `src/**/*.css`
+De lijstrij verdeelde zijn ruimte met flex-shrink: elk element gaf naar rato toe,
+en wie het hardst kromp verdween het eerst. Dat las als chaos, want de statuspill,
+de avatar en de reponaam stonden per rij op een andere x. Sinds de kolomlayout
+staat elke cel vast op zijn track en vangt alleen de titel op wat overblijft.
 
-Accord draait in een venster met een harde ondergrens (`minWidth: 940` in
-`src-tauri/tauri.conf.json`). Met de sidebar (216px) en het detailpaneel (340px) open
-houdt de lijstkolom daar ongeveer 384px over. Dat is de breedte waarop je een rij moet
-narekenen, niet de breedte van je eigen scherm.
+Wat dat betekent als je de rij aanraakt:
 
-Regels voor een rij waarin één element mag afkappen (`text-overflow: ellipsis`):
+- **Breedtes staan in `columnLayout.ts`, niet in de CSS.** `DEFAULT_COLUMNS` en
+  `COLUMN_BOUNDS` zijn de bron; `prlist.css` leest ze als `var(--col-*)` met een
+  fallback. Verander je een getal alleen in de CSS, dan rekent `effectiveColumns`
+  met de oude waarde en klopt het inklappen niet meer.
+- **Een nieuwe kolom hoort in `effectiveColumns`.** Die functie telt de cellen en
+  de gaps op en bepaalt daarmee wat de titel overhoudt. Een cel die je alleen in
+  de JSX toevoegt telt niet mee, en dan loopt de rij op een smalle lijstkolom
+  over de rand zonder dat een test afgaat.
+- **Kop en rij delen dezelfde tracks.** `.pl-thead` en `.pl-row` lezen allebei de
+  custom properties op `.pl-table`. Zet een breedte nooit rechtstreeks op een
+  cel: dan lopen kop en rijen uit elkaar en is precies de uitlijning weg waar dit
+  model voor bestaat.
+- **Reken de smalste stand na.** De lijstkolom kan 384px worden (`LIST_MIN` in
+  `panelLayout.ts`, de ruimte die overblijft op een venster van 940px met beide
+  panelen open). `columnLayout.test.ts` toetst dat de rij daar past met alle
+  optionele kolommen zichtbaar: het project, de prioriteit, de stapelchip.
+- **Inklappen gebeurt in JS, niet met een container query.** De breedtes komen
+  als inline custom properties uit React en een inline waarde wint altijd van
+  een stylesheet-regel, dus een `@container`-override zou stil niets doen.
 
-- Geef het belangrijkste afkappende element een `flex-basis` groter dan 0. Met
-  `flex-basis: 0` draagt het niets bij aan het krimp-algoritme: het absorbeert alle
-  negatieve ruimte en verdwijnt op het minimumvenster volledig, terwijl de rest van de
-  rij op volle breedte blijft staan. Zo verdween de PR-titel op 940px.
-- Verdeel het krimpen daarna met de shrink-factor, niet door elementen vast te zetten:
-  wat als eerste mag wijken krijgt een hogere factor (`.pl-repo` staat op `flex: 0 3 auto`
-  en wijkt dus voor de titel en de statuspill). Elk krimpend element heeft `min-width: 0`
-  nodig, anders krimpt het niet onder zijn content-breedte en loopt de rij alsnog over.
-- Alles wat je op `flex: 0 0 ...` zet moet samen binnen de beschikbare breedte passen,
-  ook in de breedste variant van de rij. Een element dat kan wrappen telt daarbij niet
-  als "past": zet zulke tekst op `nowrap` met ellipsis, anders duwt de wrap de hoogte in
-  en het krimpbudget verder omlaag.
-- Elke conditionele kolom (iets dat alleen bij een bepaalde instelling of filter
-  verschijnt) telt mee in die som. Reken de rij door met alle optionele elementen
-  zichtbaar.
-
-Zie `.pl-title`, `.pl-status-pill`, `.pl-row-end` en `.pl-repo` in
-`src/features/prs/prlist.css` als voorbeeld van het patroon dat werkt.
+De volgorde van inklappen staat in `effectiveColumns`: eerst het project terug
+naar zijn stip, dan de status naar zijn icoon, dan de reactiekolom weg, dan de
+omvangkolom, en als laatste de versleepbare kolommen terug naar hun ondergrens.

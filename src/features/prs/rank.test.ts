@@ -51,7 +51,7 @@ describe("prStatus", () => {
       rank: 2,
       key: "review",
       label: "jouw review nodig",
-      short: "jouw review",
+      short: "review",
     });
   });
 
@@ -61,7 +61,7 @@ describe("prStatus", () => {
       rank: 3,
       key: "actie",
       label: "conflicten oplossen",
-      short: "conflicten",
+      short: "conflict",
     });
   });
 
@@ -155,5 +155,37 @@ describe("prStatus", () => {
       label: "concept",
       short: "concept",
     });
+  });
+});
+
+/** Elke toestand die prStatus kan opleveren, elk via zijn eigen PR. */
+const ALLE_TOESTANDEN: Array<
+  [PullRequest, { agentBezig: boolean; stackBlocked: boolean }]
+> = [
+  [makePr(), idleCtx],
+  [makePr(), { agentBezig: true, stackBlocked: false }],
+  [makePr({ isDraft: true }), idleCtx],
+  [makePr({ mergeable: "CONFLICTING" }), idleCtx],
+  [
+    makePr({ ciStatus: { state: "failure", failedChecks: ["build"] } }),
+    idleCtx,
+  ],
+  [makePr({ reviewState: { state: "changesRequested" } }), idleCtx],
+  [makePr({ reviewRequestedFromMe: true }), idleCtx],
+  [makePr({ ciStatus: { state: "pending" } }), idleCtx],
+  [makePr(), { agentBezig: false, stackBlocked: true }],
+];
+
+describe("short past in de statuskolom", () => {
+  it("houdt elk kort label op hoogstens acht tekens", () => {
+    // Boven de acht kapt de pill af in de standaardbreedte van de kolom
+    // (COLUMN_BOUNDS.status); zie de toelichting bij PrStatus.short.
+    for (const [pr, ctx] of ALLE_TOESTANDEN) {
+      const { short } = prStatus(pr, ctx);
+      expect(
+        short.length,
+        `"${short}" is te lang voor de statuskolom`,
+      ).toBeLessThanOrEqual(8);
+    }
   });
 });

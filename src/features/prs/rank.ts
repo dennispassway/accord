@@ -13,7 +13,12 @@ export interface PrStatus {
   key: PrStatusKey;
   /** Volledige tekst voor het detailpaneel en tooltips. */
   label: string;
-  /** Korte variant voor de pill in de lijstrij (1-2 woorden). */
+  /**
+   * Korte variant voor de pill in de statuskolom van de lijstrij. Eén woord
+   * van hooguit acht tekens: dat is wat past in de standaardbreedte van die
+   * kolom (COLUMN_BOUNDS.status in columnLayout.ts). Wordt hij langer, dan
+   * kapt de pill af en lees je "CONFLICT..." in plaats van een status.
+   */
   short: string;
 }
 
@@ -37,7 +42,7 @@ export function prStatus(
       rank: 3,
       key: "actie",
       label: "conflicten oplossen",
-      short: "conflicten",
+      short: "conflict",
     };
   }
   if (pr.ciStatus.state === "failure") {
@@ -61,7 +66,7 @@ export function prStatus(
       rank: 2,
       key: "review",
       label: "jouw review nodig",
-      short: "jouw review",
+      short: "review",
     };
   }
   if (
