@@ -90,6 +90,13 @@ function clampToBounds(panel: keyof PanelWidths, value: number): number {
 /**
  * De breedtes na één sleepstap. `stored` is de vastgelegde keuze, `draft` de
  * lopende sleep (null bij de eerste beweging).
+ *
+ * De eerste beweging rekent tegen de breedtes zoals ze nu op het scherm staan,
+ * dus tegen de opslag mét clampPanels erover. Tegen de rauwe opslag rekenen
+ * gaat mis zodra die op dit venster niet past: het andere paneel neemt dan
+ * volgens de opslag meer ruimte in dan het echt heeft, blijft er geen ruimte
+ * over, en springt het gesleepte paneel naar zijn ondergrens terwijl je het
+ * juist breder sleept.
  */
 export function panelsAfterDrag(
   stored: PanelWidths,
@@ -98,7 +105,7 @@ export function panelsAfterDrag(
   value: number,
   windowWidth: number,
 ): PanelWidths {
-  const base = draft ?? stored;
+  const base = draft ?? clampPanels(stored, windowWidth);
   const other = panel === "sidebar" ? base.detail : base.sidebar;
   return { ...base, [panel]: clampPanel(panel, value, other, windowWidth) };
 }

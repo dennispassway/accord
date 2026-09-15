@@ -19,6 +19,11 @@ export interface PanelWidthControls {
  * De vastgelegde keuze en de toegepaste breedte zijn bewust gescheiden: een
  * smaller venster knijpt de panelen tijdelijk, maar overschrijft de keuze
  * niet, zodat ze terugveren zodra het venster weer ruimte heeft.
+ *
+ * Slepen en terugzetten zijn de uitzondering: die leggen vast wat er op dat
+ * moment staat, dus inclusief de knijping van het andere paneel. Anders zou
+ * een losgelaten greep meteen terugveren naar een verdeling die op dit
+ * venster nooit gehaald wordt.
  */
 export function usePanelWidths(): PanelWidthControls {
   const [committed, setCommitted] = useState<PanelWidths>(loadPanels);
@@ -67,10 +72,16 @@ export function usePanelWidths(): PanelWidthControls {
     [windowWidth],
   );
 
-  const reset = useCallback((panel: keyof PanelWidths) => {
-    setDraft(null);
-    setCommitted((current) => ({ ...current, [panel]: DEFAULT_PANELS[panel] }));
-  }, []);
+  const reset = useCallback(
+    (panel: keyof PanelWidths) => {
+      setDraft(null);
+      setCommitted((current) => ({
+        ...clampPanels(current, windowWidth),
+        [panel]: DEFAULT_PANELS[panel],
+      }));
+    },
+    [windowWidth],
+  );
 
   return { panels, resize, commit, reset };
 }
