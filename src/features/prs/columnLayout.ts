@@ -85,6 +85,11 @@ export function clampColumn(key: ColumnKey, value: number): number {
  * breder en hij klapt in tot een stip. Inklappen hoort te gebeuren als het
  * VENSTER krimpt, niet als de gebruiker zelf een kolom verbreedt; daar stopt
  * de greep gewoon.
+ *
+ * De grens zakt nooit onder de breedte die de kolom nu heeft. Is er niets te
+ * verdelen, dan mag de greep niet verbreden, maar hij mag de kolom ook niet
+ * ongevraagd terugzetten: de aanroeper clampt hier ook elke commit mee, en
+ * een greep commit ook bij een klik zonder beweging.
  */
 export function maxColumnWidth(
   column: ColumnKey,
@@ -92,11 +97,11 @@ export function maxColumnWidth(
   containerWidth: number,
   shows: ColumnVisibility,
 ): number {
+  const current = clampColumn(column, widths[column]);
   const slack = fullTitleRoom(widths, containerWidth, shows) - TITLE_MIN;
-  const bounds = COLUMN_BOUNDS[column];
   return Math.max(
-    bounds.min,
-    Math.min(bounds.max, clampColumn(column, widths[column]) + slack),
+    current,
+    Math.min(COLUMN_BOUNDS[column].max, current + slack),
   );
 }
 
