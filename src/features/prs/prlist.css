@@ -346,8 +346,10 @@ li:first-child > .pl-group-header {
   color: var(--warn);
 }
 
+/* --text-2 en niet --text-3: op zijn eigen 11%-tint haalt --text-3 maar
+   3,47:1, en dit is 10,5px tekst. Zie themeContrast.test.ts. */
 .pl-status-pill-concept {
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 .pl-running-dot {
