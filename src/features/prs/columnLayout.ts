@@ -77,6 +77,50 @@ export function clampColumn(key: ColumnKey, value: number): number {
 }
 
 /**
+ * Hoe breed een kolom hoogstens mag worden bij het slepen, zodat de titel
+ * TITLE_MIN houdt.
+ *
+ * Zonder deze grens haalt effectiveColumns de ruimte terug via zijn
+ * inklap-ladder, en die begint bij het project: je sleept de projectkolom
+ * breder en hij klapt in tot een stip. Inklappen hoort te gebeuren als het
+ * VENSTER krimpt, niet als de gebruiker zelf een kolom verbreedt; daar stopt
+ * de greep gewoon.
+ */
+export function maxColumnWidth(
+  column: ColumnKey,
+  widths: ColumnWidths,
+  containerWidth: number,
+  shows: ColumnVisibility,
+): number {
+  const slack = fullTitleRoom(widths, containerWidth, shows) - TITLE_MIN;
+  const bounds = COLUMN_BOUNDS[column];
+  return Math.max(
+    bounds.min,
+    Math.min(bounds.max, clampColumn(column, widths[column]) + slack),
+  );
+}
+
+/** De titelruimte met alles uitgeklapt, dus vóór welke inklapstap dan ook. */
+function fullTitleRoom(
+  widths: ColumnWidths,
+  containerWidth: number,
+  shows: ColumnVisibility,
+): number {
+  const cells: number[] = [];
+  if (shows.project) cells.push(clampColumn("project", widths.project));
+  cells.push(clampColumn("nr", widths.nr));
+  if (shows.prio) cells.push(FIXED_COLUMNS.prio);
+  cells.push(clampColumn("status", widths.status));
+  cells.push(clampColumn("wie", widths.wie));
+  cells.push(FIXED_COLUMNS.omvang);
+  cells.push(FIXED_COLUMNS.reacties);
+  cells.push(clampColumn("tijd", widths.tijd));
+
+  const sum = cells.reduce((total, width) => total + width, 0);
+  return containerWidth - ROW_PADDING - sum - cells.length * GAP;
+}
+
+/**
  * Wat er van de opgegeven breedtes overblijft op een lijstkolom van
  * `containerWidth`. Krimpt in vaste stappen, van de kolom die het minst
  * kost tot de kolom die het meest kost, en pas als laatste door de

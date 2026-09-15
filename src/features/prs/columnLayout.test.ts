@@ -6,6 +6,7 @@ import {
   DEFAULT_COLUMNS,
   effectiveColumns,
   FIXED_COLUMNS,
+  maxColumnWidth,
   ROW_PADDING,
   TITLE_MIN,
 } from "./columnLayout";
@@ -109,6 +110,42 @@ describe("effectiveColumns op de smalste lijstkolom", () => {
     const een = effectiveColumns(DEFAULT_COLUMNS, NARROW, EEN_REPO);
     expect(een.titleWidth).toBeGreaterThan(alles.titleWidth);
     expect(rowWidth(een, EEN_REPO)).toBeLessThanOrEqual(NARROW);
+  });
+});
+
+describe("maxColumnWidth", () => {
+  it("stopt de greep vóór de titel onder TITLE_MIN zakt", () => {
+    const max = maxColumnWidth("project", DEFAULT_COLUMNS, WIDE, MET_PRIO);
+    const applied = effectiveColumns(
+      { ...DEFAULT_COLUMNS, project: max },
+      WIDE,
+      MET_PRIO,
+    );
+    // Op die breedte klapt er nog niets in: het project houdt zijn naam.
+    expect(applied.projectLabel).toBe(true);
+    expect(applied.titleWidth).toBeGreaterThanOrEqual(TITLE_MIN);
+  });
+
+  it("laat één pixel meer wél inklappen, dus de grens ligt precies goed", () => {
+    const max = maxColumnWidth("project", DEFAULT_COLUMNS, WIDE, MET_PRIO);
+    const applied = effectiveColumns(
+      { ...DEFAULT_COLUMNS, project: max + 1 },
+      WIDE,
+      MET_PRIO,
+    );
+    expect(applied.projectLabel).toBe(false);
+  });
+
+  it("gaat nooit boven de eigen bovengrens van de kolom", () => {
+    expect(maxColumnWidth("nr", DEFAULT_COLUMNS, 4000, EEN_REPO)).toBe(
+      COLUMN_BOUNDS.nr.max,
+    );
+  });
+
+  it("valt terug op de ondergrens als er niets te verdelen is", () => {
+    expect(maxColumnWidth("project", DEFAULT_COLUMNS, NARROW, MET_PRIO)).toBe(
+      COLUMN_BOUNDS.project.min,
+    );
   });
 });
 

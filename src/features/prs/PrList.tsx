@@ -5,7 +5,11 @@ import type { PrStackInfo } from "../../lib/github/stacks";
 import { modKey } from "../../lib/platform";
 import { Avatar, avatarBg, repoDotBg } from "./Avatar";
 import type { AppliedColumns, ColumnKey } from "./columnLayout";
-import { COLUMN_BOUNDS, effectiveColumns } from "./columnLayout";
+import {
+  COLUMN_BOUNDS,
+  effectiveColumns,
+  maxColumnWidth,
+} from "./columnLayout";
 import { formatAmsterdam, formatRelative } from "./format";
 import {
   AgentIcon,
@@ -140,6 +144,15 @@ export function PrList({
 
   /** Sleepgreep op de rand van een kopcel. */
   function grip(column: ColumnKey, label: string, direction: 1 | -1 = 1) {
+    // De greep stopt waar de titel zijn ondergrens raakt. Zonder die grens
+    // haalt effectiveColumns de ruimte terug door in te klappen, en dan
+    // wordt een kolom smaller terwijl je hem breder sleept.
+    const max = maxColumnWidth(column, columns, tableWidth || ASSUMED_WIDTH, {
+      project: showRepoMeta,
+      prio: showPrio,
+    });
+    const limit = (next: number) => Math.min(next, max);
+
     return (
       <ResizeHandle
         variant="column"
@@ -147,9 +160,9 @@ export function PrList({
         direction={direction}
         width={columns[column]}
         min={COLUMN_BOUNDS[column].min}
-        max={COLUMN_BOUNDS[column].max}
-        onResize={(next) => resizeColumn(column, next)}
-        onCommit={(next) => commitColumn(column, next)}
+        max={max}
+        onResize={(next) => resizeColumn(column, limit(next))}
+        onCommit={(next) => commitColumn(column, limit(next))}
         onReset={() => resetColumn(column)}
       />
     );
