@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthError } from "../../lib/github/queries";
+import { tauriFetch } from "../../lib/github/tauriFetch";
 import { fetchViewer } from "../../lib/github/user";
 import { MOCK_ME } from "../../lib/mock/fixtures";
 import { type MockMode, mockMode } from "../../lib/mock/mode";
@@ -175,7 +176,7 @@ export function useAuth() {
         switch (result.status) {
           case "success": {
             try {
-              const viewer = await fetchViewer(result.token, fetch);
+              const viewer = await fetchViewer(result.token, tauriFetch);
               setState({
                 status: "loggedIn",
                 login: viewer.login,

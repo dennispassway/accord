@@ -4,6 +4,7 @@ import type { PullRequest } from "../../lib/github/domain";
 import type { PrDetail } from "../../lib/github/prDetail";
 import { fetchPrDetail } from "../../lib/github/prDetail";
 import { AuthError } from "../../lib/github/queries";
+import { tauriFetch } from "../../lib/github/tauriFetch";
 import {
   MOCK_PR_DETAIL_FALLBACK,
   MOCK_PR_DETAILS,
@@ -114,7 +115,12 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
         return;
       }
       try {
-        const detail = await fetchPrDetail(token, pr.repoId, pr.number, fetch);
+        const detail = await fetchPrDetail(
+          token,
+          pr.repoId,
+          pr.number,
+          tauriFetch,
+        );
         // Een afgeronde fetch mag nooit weggegooid worden: de cache-entry
         // wordt altijd gezet, ook als deze effect-run inmiddels vervangen is.
         cacheRef.current.set(prKey, detail);

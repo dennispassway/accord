@@ -7,6 +7,7 @@ import type { MergeMethod } from "../../lib/github/merge";
 import { mergePullRequest } from "../../lib/github/merge";
 import { isTransientKind, NetworkError } from "../../lib/github/networkError";
 import { AuthError, fetchAllPrs } from "../../lib/github/queries";
+import { tauriFetch } from "../../lib/github/tauriFetch";
 import { MOCK_ME, MOCK_PRS } from "../../lib/mock/fixtures";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
 import { loadPrsSnapshot, savePrsSnapshot } from "../../lib/prsSnapshot";
@@ -235,7 +236,7 @@ export function usePrs(
           prs: rawPrs,
           viewerLogin,
           truncated,
-        } = await withRetry(() => fetchAllPrs(token, fetch), {
+        } = await withRetry(() => fetchAllPrs(token, tauriFetch), {
           attempts: REFRESH_ATTEMPTS,
           delaysMs: REFRESH_DELAYS_MS,
           shouldRetry: shouldRetryRefresh,
@@ -368,7 +369,7 @@ export function usePrs(
           prNumber,
           priority,
           previousPriority,
-          fetch,
+          tauriFetch,
         );
       } catch (error) {
         if (error instanceof AuthError) {
@@ -421,7 +422,7 @@ export function usePrs(
         throw new Error("Niet ingelogd");
       }
       try {
-        await mergePullRequest(token, pr.id, method, fetch);
+        await mergePullRequest(token, pr.id, method, tauriFetch);
       } catch (error) {
         if (error instanceof AuthError) {
           onAuthErrorRef.current();

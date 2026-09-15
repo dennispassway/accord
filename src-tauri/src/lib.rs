@@ -1,6 +1,7 @@
 mod agents;
 mod auth;
 mod claude_stream;
+mod github;
 mod repos;
 mod stacks;
 mod tray;
@@ -22,6 +23,7 @@ pub fn run() {
             auth::poll_device_login,
             auth::get_token,
             auth::logout,
+            github::github_request,
             repos::scan_projects,
             repos::get_repo_paths,
             repos::set_repo_path,
