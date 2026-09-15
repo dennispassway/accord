@@ -22,6 +22,11 @@ interface ResizeHandleProps {
   onCommit: (next: number) => void;
   /** Dubbelklik: terug naar de standaardbreedte. */
   onReset: () => void;
+  /**
+   * "panel" ligt als nulbrede flexitem tussen twee panelen, "column" ligt
+   * absoluut op de rechterrand van een kopcel in de lijst.
+   */
+  variant?: "panel" | "column";
 }
 
 /**
@@ -38,6 +43,7 @@ export function ResizeHandle({
   onResize,
   onCommit,
   onReset,
+  variant = "panel",
 }: ResizeHandleProps) {
   const start = useRef<{ x: number; width: number } | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -88,7 +94,7 @@ export function ResizeHandle({
   return (
     // biome-ignore lint/a11y/useSemanticElements: een focusbare separator is het ARIA-window-splitter-patroon; een button krijgt de globale knopstyling en het verkeerde voorleesgedrag
     <div
-      className={dragging ? "resize-handle dragging" : "resize-handle"}
+      className={`resize-handle resize-handle-${variant}${dragging ? " dragging" : ""}`}
       data-direction={direction}
       role="separator"
       aria-orientation="vertical"

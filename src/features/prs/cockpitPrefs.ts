@@ -1,3 +1,5 @@
+import type { ColumnKey, ColumnWidths } from "./columnLayout";
+import { clampColumn, DEFAULT_COLUMNS } from "./columnLayout";
 import type { PanelWidths } from "./panelLayout";
 import { DEFAULT_PANELS, PANEL_BOUNDS } from "./panelLayout";
 import type { SortMode } from "./sort";
@@ -6,6 +8,9 @@ const SORT_MODE_KEY = "pr-cockpit.sortMode";
 const REPO_FILTER_KEY = "pr-cockpit.repoFilter";
 const FAVORITES_KEY = "pr-cockpit.favorites";
 const PANELS_KEY = "pr-cockpit.panels";
+const COLUMNS_KEY = "pr-cockpit.columns";
+
+const COLUMN_KEYS: ColumnKey[] = ["project", "nr", "status", "wie", "tijd"];
 
 const SORT_MODES: SortMode[] = [
   "triage",
@@ -89,4 +94,29 @@ export function savePanels(panels: PanelWidths): void {
 function withinBounds(panel: keyof PanelWidths, value: number): number {
   const bounds = PANEL_BOUNDS[panel];
   return Math.max(bounds.min, Math.min(value, bounds.max));
+}
+
+/** Versleepte kolombreedtes van de lijst. Elke kolom valt los terug op zijn
+ * default, zodat één rare waarde niet de hele indeling weggooit; het passend
+ * maken op de echte lijstbreedte gebeurt in effectiveColumns. */
+export function loadColumns(): ColumnWidths {
+  const stored = localStorage.getItem(COLUMNS_KEY);
+  if (stored === null) return DEFAULT_COLUMNS;
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (parsed === null || typeof parsed !== "object") return DEFAULT_COLUMNS;
+    const values = parsed as Record<string, unknown>;
+    const columns = { ...DEFAULT_COLUMNS };
+    for (const key of COLUMN_KEYS) {
+      const value = values[key];
+      if (typeof value === "number") columns[key] = clampColumn(key, value);
+    }
+    return columns;
+  } catch {
+    return DEFAULT_COLUMNS;
+  }
+}
+
+export function saveColumns(columns: ColumnWidths): void {
+  localStorage.setItem(COLUMNS_KEY, JSON.stringify(columns));
 }

@@ -175,10 +175,15 @@ li:first-child > .pl-group-header {
   min-width: 0;
 }
 
-/* Een koplabel is breder dan zijn smalste kolom (TIJD past net in 44px, de
-   volle naam niet). Zonder dit knippen de labels niet af maar lopen ze over
-   de buurcel heen, en dan lezen twee koppen als één woord. */
+/* De cel zelf mag niet clippen: de sleepgreep steekt bewust buiten zijn rand
+   uit. Het label clipt in een eigen span, anders lopen twee koppen over
+   elkaar heen en lezen ze als één woord. */
 .pl-thead .pl-cell {
+  position: relative;
+}
+
+.pl-thead-label {
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
 }

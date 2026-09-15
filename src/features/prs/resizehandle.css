@@ -1,18 +1,22 @@
-/* Sleepgreep tussen twee panelen. Neemt zelf geen breedte in de flexregel:
-   de greep ligt met een negatieve offset over de rand van het paneel ernaast,
-   zodat de panelen hun opgegeven breedte exact houden. */
+/* Sleepgreep. Twee varianten: tussen twee panelen (nulbreed flexitem dat met
+   een negatieve offset over de paneelrand ligt) en op de rechterrand van een
+   kopcel in de PR-lijst. Beide nemen geen ruimte in de layout in, zodat de
+   breedtes die JS uitrekent exact kloppen. */
 
 .resize-handle {
-  flex: 0 0 0;
   position: relative;
   z-index: 5;
-  align-self: stretch;
   touch-action: none;
+}
+
+.resize-handle-panel {
+  flex: 0 0 0;
+  align-self: stretch;
 }
 
 /* Het aanraakgebied is breder dan de zichtbare lijn, anders is de rand op
    muishoogte nauwelijks te pakken. */
-.resize-handle::before {
+.resize-handle-panel::before {
   content: "";
   position: absolute;
   top: 0;
@@ -25,7 +29,7 @@
 /* De lijn valt samen met de paneelrand. Een greep die achter zijn paneel
    staat (zijbalk) dekt de border-right op -1px; een greep die voor zijn
    paneel staat (detailpaneel) dekt de border-left op 0. */
-.resize-handle::after {
+.resize-handle-panel::after {
   content: "";
   position: absolute;
   top: 0;
@@ -36,8 +40,37 @@
   transition: background-color 120ms ease;
 }
 
-.resize-handle[data-direction="-1"]::after {
+.resize-handle-panel[data-direction="-1"]::after {
   left: 0;
+}
+
+/* Kolomgreep: ligt midden in de gap rechts van zijn kopcel, over de volle
+   hoogte van de kopregel. */
+.resize-handle-column {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(var(--col-gap, 10px) / -2 - 4px);
+  width: 9px;
+  cursor: col-resize;
+}
+
+/* De laatste kolom heeft rechts geen gap meer; die greep ligt links. */
+.resize-handle-column[data-direction="-1"] {
+  right: auto;
+  left: calc(var(--col-gap, 10px) / -2 - 4px);
+}
+
+.resize-handle-column::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 3px;
+  width: 2px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background-color 120ms ease;
 }
 
 .resize-handle:hover::after,
