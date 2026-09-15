@@ -68,7 +68,12 @@ export function ResizeHandle({
     const next = widthAt(event.clientX);
     start.current = null;
     setDragging(false);
-    event.currentTarget.releasePointerCapture(event.pointerId);
+    // Bij pointercancel is de capture al vanzelf losgelaten en telt de pointer
+    // niet meer als actief; releasePointerCapture gooit dan NotFoundError en
+    // de onCommit hieronder zou niet meer draaien - de sleep raakt dan zoek.
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
     onCommit(next);
   }
 
