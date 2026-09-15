@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  loadColumns,
   loadFavorites,
   loadPanels,
   loadRepoFilter,
   loadSortMode,
+  saveColumns,
   saveFavorites,
   savePanels,
   saveRepoFilter,
   saveSortMode,
 } from "./cockpitPrefs";
+import { COLUMN_BOUNDS, DEFAULT_COLUMNS } from "./columnLayout";
 import { DEFAULT_PANELS, PANEL_BOUNDS } from "./panelLayout";
 
 /** vitest draait in een node-omgeving zonder DOM: cockpitPrefs.ts gebruikt
@@ -132,6 +135,57 @@ describe("loadPanels", () => {
   });
 });
 
+describe("loadColumns", () => {
+  it("geeft de opgeslagen breedtes terug", () => {
+    localStorage.setItem(
+      "pr-cockpit.columns",
+      JSON.stringify({ ...DEFAULT_COLUMNS, project: 150 }),
+    );
+    expect(loadColumns().project).toBe(150);
+  });
+
+  it("geeft de defaults bij lege storage", () => {
+    expect(loadColumns()).toEqual(DEFAULT_COLUMNS);
+  });
+
+  it("geeft de defaults bij corrupte JSON", () => {
+    localStorage.setItem("pr-cockpit.columns", "{niet json");
+    expect(loadColumns()).toEqual(DEFAULT_COLUMNS);
+  });
+
+  it("vult een ontbrekende kolom aan met zijn default", () => {
+    localStorage.setItem("pr-cockpit.columns", JSON.stringify({ nr: 60 }));
+    expect(loadColumns()).toEqual({ ...DEFAULT_COLUMNS, nr: 60 });
+  });
+
+  it("trekt een kolom buiten zijn grenzen terug", () => {
+    localStorage.setItem(
+      "pr-cockpit.columns",
+      JSON.stringify({ status: 4000 }),
+    );
+    expect(loadColumns().status).toBe(COLUMN_BOUNDS.status.max);
+  });
+
+  it("negeert een veld dat geen getal is", () => {
+    localStorage.setItem("pr-cockpit.columns", JSON.stringify({ wie: "44" }));
+    expect(loadColumns().wie).toBe(DEFAULT_COLUMNS.wie);
+  });
+
+  it("leest elke kolom uit DEFAULT_COLUMNS terug, ook een nieuwe", () => {
+    // Vangt de kolom die wel in ColumnWidths staat maar niet in de lijst die
+    // loadColumns afloopt: die valt stil terug op zijn default en de
+    // versleepte breedte is na een herstart weg.
+    const versleept = Object.fromEntries(
+      Object.entries(DEFAULT_COLUMNS).map(([key, breedte]) => [
+        key,
+        breedte + 2,
+      ]),
+    );
+    localStorage.setItem("pr-cockpit.columns", JSON.stringify(versleept));
+    expect(loadColumns()).toEqual(versleept);
+  });
+});
+
 describe("saveSortMode/saveRepoFilter", () => {
   it("schrijft de sortmode weg zodat loadSortMode 'm teruggeeft", () => {
     saveSortMode("project");
@@ -151,5 +205,11 @@ describe("saveSortMode/saveRepoFilter", () => {
   it("schrijft paneelbreedtes weg zodat loadPanels ze teruggeeft", () => {
     savePanels({ sidebar: 260, detail: 300 });
     expect(loadPanels()).toEqual({ sidebar: 260, detail: 300 });
+  });
+
+  it("schrijft kolombreedtes weg zodat loadColumns ze teruggeeft", () => {
+    const columns = { ...DEFAULT_COLUMNS, tijd: 70 };
+    saveColumns(columns);
+    expect(loadColumns()).toEqual(columns);
   });
 });

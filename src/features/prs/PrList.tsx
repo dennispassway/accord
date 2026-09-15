@@ -4,8 +4,12 @@ import type { AgentReview, PullRequest } from "../../lib/github/domain";
 import type { PrStackInfo } from "../../lib/github/stacks";
 import { modKey } from "../../lib/platform";
 import { Avatar, avatarBg, repoDotBg } from "./Avatar";
-import type { AppliedColumns, ColumnWidths } from "./columnLayout";
-import { DEFAULT_COLUMNS, effectiveColumns } from "./columnLayout";
+import type { AppliedColumns, ColumnKey } from "./columnLayout";
+import {
+  COLUMN_BOUNDS,
+  effectiveColumns,
+  maxColumnWidth,
+} from "./columnLayout";
 import { formatAmsterdam, formatRelative } from "./format";
 import {
   AgentIcon,
@@ -18,10 +22,12 @@ import {
   StackIcon,
 } from "./icons";
 import "./prlist.css";
+import { ResizeHandle } from "./ResizeHandle";
 import { RowMetrics } from "./RowMetrics";
 import type { PrStatusKey } from "./rank";
 import { prStatus } from "./rank";
 import type { PrSection } from "./sort";
+import { useColumnWidths } from "./useColumnWidths";
 import { useContainerWidth } from "./useContainerWidth";
 
 /** Icoon per status, zowel in de sectiekop als in de statuskolom. */
@@ -53,8 +59,6 @@ interface PrListProps {
   runningPrKeys: Set<string>;
   /** Er staat een zoekopdracht in het toolbar-veld: andere lege staat. */
   hasActiveSearch: boolean;
-  /** Versleepte kolombreedtes; ontbreekt hij, dan gelden de defaults. */
-  columns?: ColumnWidths;
 }
 
 export function keyOfPr(pr: PullRequest): string {
@@ -102,10 +106,15 @@ export function PrList({
   showRepoMeta,
   runningPrKeys,
   hasActiveSearch,
-  columns = DEFAULT_COLUMNS,
 }: PrListProps) {
   const selectedRowRef = useRef<HTMLButtonElement>(null);
   const [tableRef, tableWidth] = useContainerWidth<HTMLDivElement>();
+  const {
+    columns,
+    resize: resizeColumn,
+    commit: commitColumn,
+    reset: resetColumn,
+  } = useColumnWidths();
 
   // B6: pijltjesnavigatie hield de selectie niet in beeld; scroll de
   // geselecteerde rij minimaal in het zicht bij elke selectiewijziging.
@@ -133,6 +142,32 @@ export function PrList({
     [columns, tableWidth, showRepoMeta, showPrio],
   );
 
+  /** Sleepgreep op de rand van een kopcel. */
+  function grip(column: ColumnKey, label: string, direction: 1 | -1 = 1) {
+    // De greep stopt waar de titel zijn ondergrens raakt. Zonder die grens
+    // haalt effectiveColumns de ruimte terug door in te klappen, en dan
+    // wordt een kolom smaller terwijl je hem breder sleept.
+    const max = maxColumnWidth(column, columns, tableWidth || ASSUMED_WIDTH, {
+      project: showRepoMeta,
+      prio: showPrio,
+    });
+    const limit = (next: number) => Math.min(next, max);
+
+    return (
+      <ResizeHandle
+        variant="column"
+        label={label}
+        direction={direction}
+        width={columns[column]}
+        min={COLUMN_BOUNDS[column].min}
+        max={max}
+        onResize={(next) => resizeColumn(column, limit(next))}
+        onCommit={(next) => commitColumn(column, limit(next))}
+        onReset={() => resetColumn(column)}
+      />
+    );
+  }
+
   const isEmpty = sections.every((section) => section.prs.length === 0);
   if (isEmpty) {
     return (
@@ -149,21 +184,43 @@ export function PrList({
       <div className="pl-thead mono" role="presentation">
         {showRepoMeta && (
           <span className="pl-cell pl-cell-project">
-            {applied.projectLabel && "Project"}
+            <span className="pl-thead-label">
+              {applied.projectLabel && "Project"}
+            </span>
+            {applied.projectLabel &&
+              grip("project", "Breedte van de kolom Project")}
           </span>
         )}
-        <span className="pl-cell pl-cell-nr">PR</span>
-        {showPrio && <span className="pl-cell pl-cell-prio" />}
-        <span className="pl-cell pl-cell-title">Titel</span>
-        <span className="pl-cell pl-cell-status">
-          {applied.statusLabel && "Status"}
+        <span className="pl-cell pl-cell-nr">
+          <span className="pl-thead-label">PR</span>
+          {grip("nr", "Breedte van de kolom PR")}
         </span>
-        <span className="pl-cell pl-cell-wie">Wie</span>
+        {showPrio && <span className="pl-cell pl-cell-prio" />}
+        <span className="pl-cell pl-cell-title">
+          <span className="pl-thead-label">Titel</span>
+        </span>
+        <span className="pl-cell pl-cell-status">
+          <span className="pl-thead-label">
+            {applied.statusLabel && "Status"}
+          </span>
+          {applied.statusLabel && grip("status", "Breedte van de kolom Status")}
+        </span>
+        <span className="pl-cell pl-cell-wie">
+          <span className="pl-thead-label">Wie</span>
+          {grip("wie", "Breedte van de kolom Wie")}
+        </span>
         {applied.showMetrics && (
-          <span className="pl-cell pl-cell-omvang">Omv.</span>
+          <span className="pl-cell pl-cell-omvang">
+            <span className="pl-thead-label">Omv.</span>
+          </span>
         )}
         {applied.showComments && <span className="pl-cell pl-cell-reacties" />}
-        <span className="pl-cell pl-cell-tijd">Tijd</span>
+        <span className="pl-cell pl-cell-tijd">
+          {/* Laatste kolom: de greep ligt aan de linkerkant, want rechts van
+              deze cel zit geen gap meer. */}
+          {grip("tijd", "Breedte van de kolom Tijd", -1)}
+          <span className="pl-thead-label">Tijd</span>
+        </span>
       </div>
 
       {/* biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: role="listbox" met li[role="presentation"] en per-rij button[role="option"] is de valide ARIA-listbox-pattern */}
