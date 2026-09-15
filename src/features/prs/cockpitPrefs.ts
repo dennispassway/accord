@@ -10,7 +10,9 @@ const FAVORITES_KEY = "pr-cockpit.favorites";
 const PANELS_KEY = "pr-cockpit.panels";
 const COLUMNS_KEY = "pr-cockpit.columns";
 
-const COLUMN_KEYS: ColumnKey[] = ["project", "nr", "status", "wie", "tijd"];
+/** Afgeleid van de defaults, niet los opgeschreven: een kolom die er later
+ * bijkomt wordt anders stil overgeslagen bij het inlezen. */
+const COLUMN_KEYS = Object.keys(DEFAULT_COLUMNS) as ColumnKey[];
 
 const SORT_MODES: SortMode[] = [
   "triage",

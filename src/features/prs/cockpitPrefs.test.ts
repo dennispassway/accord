@@ -170,6 +170,20 @@ describe("loadColumns", () => {
     localStorage.setItem("pr-cockpit.columns", JSON.stringify({ wie: "44" }));
     expect(loadColumns().wie).toBe(DEFAULT_COLUMNS.wie);
   });
+
+  it("leest elke kolom uit DEFAULT_COLUMNS terug, ook een nieuwe", () => {
+    // Vangt de kolom die wel in ColumnWidths staat maar niet in de lijst die
+    // loadColumns afloopt: die valt stil terug op zijn default en de
+    // versleepte breedte is na een herstart weg.
+    const versleept = Object.fromEntries(
+      Object.entries(DEFAULT_COLUMNS).map(([key, breedte]) => [
+        key,
+        breedte + 2,
+      ]),
+    );
+    localStorage.setItem("pr-cockpit.columns", JSON.stringify(versleept));
+    expect(loadColumns()).toEqual(versleept);
+  });
 });
 
 describe("saveSortMode/saveRepoFilter", () => {
