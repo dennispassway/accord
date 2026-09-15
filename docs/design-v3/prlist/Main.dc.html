@@ -1,0 +1,234 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root{
+      --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,sans-serif;
+      --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
+      --text-1:#0d0d10;--text-2:rgba(20,20,24,.74);--text-3:rgba(20,20,24,.54);
+      --accent:#1f5fe0;--ok:#0d7139;--err:#b42318;--agent:#5636bd;
+      --line:rgba(0,0,0,.1);--line-2:rgba(0,0,0,.2);--fill-1:rgba(0,0,0,.055);--list:#fdfdfe;
+    }
+    body{margin:0;background:#f0f0f3;font-family:var(--font);color:var(--text-1)}
+    a{color:var(--accent)}a:hover{color:#1a51c4}
+    .wrap{display:flex;flex-direction:column;gap:14px;padding:22px 20px 24px}
+    .kop{display:flex;flex-direction:column;gap:5px}
+    .eyebrow{font:700 9.5px/1 var(--mono);letter-spacing:.11em;text-transform:uppercase;color:var(--accent)}
+    .kop h1{margin:0;font:700 15px/1.2 var(--font);letter-spacing:-.01em}
+    .kop p{margin:0;font:400 11.5px/1.55 var(--font);color:var(--text-2);max-width:640px;text-wrap:pretty}
+    .kop p.tradeoff{color:var(--text-3)}
+    .label{font:700 9.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--text-3)}
+    .paneel{background:var(--list);border:1px solid var(--line);border-radius:10px;padding:6px 0 10px}
+    .gh{display:flex;align-items:center;gap:6px;height:28px;padding:0 12px;margin-top:12px;font:700 10px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase}
+    .gh:first-child{margin-top:4px}
+    .gh-icon{flex:0 0 auto;display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:color-mix(in srgb,currentColor 11%,transparent)}
+    .gh-icon svg{display:block}
+    .gh-count{flex:0 0 auto;padding:0 7px;border-radius:999px;background:color-mix(in srgb,currentColor 11%,transparent);font-weight:700;font-size:11px}
+    .c-review{color:var(--accent)}.c-klaar{color:var(--ok)}.c-actie{color:var(--err)}.c-agent{color:var(--agent)}
+
+    .row{position:relative;display:flex;align-items:center;gap:10px;width:100%;height:32px;padding:0 12px;border-radius:7px}
+    .row.sel{background:color-mix(in srgb,var(--accent) 9%,transparent)}
+    .row.sel::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:3px;background:var(--accent)}
+    .row.sel .title{font-weight:600}
+    .row.sel .num{color:var(--accent)}
+    .num{flex:0 0 34px;text-align:right;font:400 11px/1 var(--mono);color:var(--text-3)}
+    .title{flex:1 1 120px;min-width:0;font:500 13px/1 var(--font);letter-spacing:-.01em;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    /* Vaste rail: elke kolom een eigen breedte, dus elke rij dezelfde x-posities. */
+    .rail{flex:0 0 auto;display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-3)}
+    .k-status{flex:0 0 86px;display:flex;justify-content:flex-start}
+    .k-wie{flex:0 0 38px;display:flex;align-items:center;justify-content:flex-end}
+    .k-repo{flex:0 0 100px;min-width:0;font:400 10.5px/1 var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .k-omvang{flex:0 0 22px;display:flex;align-items:flex-end;justify-content:flex-end;gap:2px;height:8px}
+    .k-omvang i{width:3px;height:8px;border-radius:1px;background:var(--line-2)}
+    .k-omvang i.on{background:var(--text-2)}
+    .k-reacties{flex:0 0 30px;display:flex;align-items:center;justify-content:flex-end;gap:3px}
+    .k-reacties b{font:400 10px/1 var(--mono);font-weight:400}
+    .k-tijd{flex:0 0 34px;text-align:right;white-space:nowrap}
+
+    .pill{display:flex;align-items:center;gap:4px;font:700 10px/1 var(--font);padding:2.5px 7px;border-radius:20px;background:color-mix(in srgb,currentColor 11%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,currentColor 28%,transparent);white-space:nowrap}
+    .dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+    .av{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;color:#fff;font:600 8.5px/1 var(--font)}
+    .agentbadge{position:relative;display:grid;place-items:center;width:15px;height:15px;margin-right:-4px;border-radius:5px;color:#fff;box-shadow:0 0 0 1.5px var(--list)}
+    .agentbadge i{position:absolute;right:-2px;bottom:-1px;width:6px;height:6px;border-radius:50%;background:var(--agent);box-shadow:0 0 0 1.5px var(--list)}
+
+    .smal{width:384px;border:1px solid var(--line);border-radius:10px;background:var(--list);padding:6px 0 8px}
+    .smal .k-repo{display:none}
+    .smal .k-status{flex:0 0 20px;justify-content:center}
+    .smal .pill{padding:0;background:none;box-shadow:none;gap:0}
+    .smal .pill span{display:none}
+    .smal .pill svg{display:block}
+    .pill svg{display:none}
+  </style>
+</helmet>
+<div class="wrap">
+  <div class="kop">
+    <div class="eyebrow">Voorstel A</div>
+    <h1>Vaste rail</h1>
+    <p>Alles rechts van de titel krijgt een eigen kolombreedte, dus status, avatar, repo, omvang, reacties en tijd staan in elke rij op dezelfde x. De titel is het enige dat nog krimpt. Statuslabels worden één woord, de volledige zin staat in het detailpaneel en in de tooltip.</p>
+    <p class="tradeoff">Kost 360px vaste ruimte, dus de titel kapt eerder af. Op een smal venster valt de repokolom weg en wordt de status een icoon.</p>
+  </div>
+
+  <div class="label">Breed venster</div>
+  <div class="paneel">
+    <div class="gh c-review">
+      <span class="gh-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.4-6.5 9.5-6.5S21.5 12 21.5 12s-3.4 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg></span>
+      <span>Jouw review nodig</span><span class="gh-count">3</span>
+    </div>
+    <div class="row sel">
+      <span class="num">#412</span>
+      <span class="title">feat(portaal): loginType per portaal in GET /portals</span>
+      <span class="rail">
+        <span class="k-status"><span class="pill c-review"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.4-6.5 9.5-6.5S21.5 12 21.5 12s-3.4 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg><span>review</span></span></span>
+        <span class="k-wie"><span class="av" style="background:oklch(.58 .11 262)">D</span></span>
+        <span class="k-repo">portaal-admin</span>
+        <span class="k-omvang"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>
+        <span class="k-reacties"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6.6L6.5 19v-3.5a2 2 0 0 1-2-2v-7z"/></svg><b>1</b></span>
+        <span class="k-tijd">2 u</span>
+      </span>
+    </div>
+    <div class="row">
+      <span class="num">#88</span>
+      <span class="title">fix(checkout): voorkom dubbele betaalpoging bij retry</span>
+      <span class="rail">
+        <span class="k-status"><span class="pill c-review"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.4-6.5 9.5-6.5S21.5 12 21.5 12s-3.4 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg><span>review</span></span></span>
+        <span class="k-wie"><span class="agentbadge" style="background:oklch(.58 .11 44)"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="4.5" width="17.6" height="15" rx="3.2"/><path d="M7.6 10.2l2.6 2.3-2.6 2.3"/><path d="M13 14.8h3.6"/></svg><i></i></span><span class="av" style="background:oklch(.58 .11 155)">M</span></span>
+        <span class="k-repo">betaal-api</span>
+        <span class="k-omvang"><i class="on"></i><i class="on"></i><i></i><i></i></span>
+        <span class="k-reacties"></span>
+        <span class="k-tijd">5 u</span>
+      </span>
+    </div>
+    <div class="row">
+      <span class="num">#207</span>
+      <span class="title">refactor: arbitraire spacing-waarden naar tokens</span>
+      <span class="rail">
+        <span class="k-status"><span class="pill c-review"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.4-6.5 9.5-6.5S21.5 12 21.5 12s-3.4 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg><span>review</span></span></span>
+        <span class="k-wie"><span class="av" style="background:oklch(.58 .11 318)">S</span></span>
+        <span class="k-repo">winkel-web</span>
+        <span class="k-omvang"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>
+        <span class="k-reacties"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6.6L6.5 19v-3.5a2 2 0 0 1-2-2v-7z"/></svg><b>12</b></span>
+        <span class="k-tijd">1 d</span>
+      </span>
+    </div>
+
+    <div class="gh c-klaar">
+      <span class="gh-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.5" cy="5.5" r="2.5"/><circle cx="6.5" cy="18.5" r="2.5"/><circle cx="17.5" cy="12" r="2.5"/><path d="M6.5 8v8"/><path d="M9 6.4c1.4 3.3 3.2 5.1 6 5.5"/></svg></span>
+      <span>Klaar om te mergen</span><span class="gh-count">2</span>
+    </div>
+    <div class="row">
+      <span class="num">#391</span>
+      <span class="title">chore(deps): bump vite naar 6.3</span>
+      <span class="rail">
+        <span class="k-status"><span class="pill c-klaar"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l4.8 4.8L19.5 7"/></svg><span>klaar</span></span></span>
+        <span class="k-wie"><span class="av" style="background:oklch(.58 .11 262)">D</span></span>
+        <span class="k-repo">nieuwsbrief</span>
+        <span class="k-omvang"><i class="on"></i><i></i><i></i><i></i></span>
+        <span class="k-reacties"></span>
+        <span class="k-tijd">3 u</span>
+      </span>
+    </div>
+    <div class="row">
+      <span class="num">#145</span>
+      <span class="title">TIK-114: negeer meldingen van ongeldige tokens</span>
+      <span class="rail">
+        <span class="k-status"><span class="pill c-klaar"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l4.8 4.8L19.5 7"/></svg><span>klaar</span></span></span>
+        <span class="k-wie"><span class="av" style="background:oklch(.58 .11 155)">M</span></span>
+        <span class="k-repo">ritten-app</span>
+        <span class="k-omvang"><i class="on"></i><i class="on"></i><i></i><i></i></span>
+        <span class="k-reacties"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6.6L6.5 19v-3.5a2 2 0 0 1-2-2v-7z"/></svg><b>1</b></span>
+        <span class="k-tijd">8 u</span>
+      </span>
+    </div>
+
+    <div class="gh c-actie">
+      <span class="gh-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.2l8.8 15.6H3.2L12 4.2z"/><path d="M12 9.8v4.1"/><path d="M12 17.2h.01"/></svg></span>
+      <span>Actie nodig</span><span class="gh-count">3</span>
+    </div>
+    <div class="row">
+      <span class="num">#56</span>
+      <span class="title">fix(kaart): val terug op 2D bij onbruikbare WebGL-context</span>
+      <span class="rail">
+        <span class="k-status"><span class="pill c-actie"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.2l8.8 15.6H3.2L12 4.2z"/><path d="M12 9.8v4.1"/><path d="M12 17.2h.01"/></svg><span>conflict</span></span></span>
+        <span class="k-wie"><span class="av" style="background:oklch(.58 .11 318)">S</span></span>
+        <span class="k-repo">ritten-app</span>
+        <span class="k-omvang"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>
+        <span class="k-reacties"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6.6L6.5 19v-3.5a2 2 0 0 1-2-2v-7z"/></svg><b>4</b></span>
+        <span class="k-tijd">1 d</span>
+      </span>
+    </div>
+    <div class="row">
+      <span class="num">#302</span>
+      <span class="title">feat(matching): fase 2 kandidatenbank</span>
+      <span class="rail">
+        <span class="k-status"><span class="pill c-actie"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.2l8.8 15.6H3.2L12 4.2z"/><path d="M12 9.8v4.1"/><path d="M12 17.2h.01"/></svg><span>checks</span></span></span>
+        <span class="k-wie"><span class="agentbadge" style="background:oklch(.58 .11 44)"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="4.5" width="17.6" height="15" rx="3.2"/><path d="M7.6 10.2l2.6 2.3-2.6 2.3"/><path d="M13 14.8h3.6"/></svg><i></i></span><span class="av" style="background:oklch(.58 .11 262)">D</span></span>
+        <span class="k-repo">portaal-admin</span>
+        <span class="k-omvang"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>
+        <span class="k-reacties"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6.6L6.5 19v-3.5a2 2 0 0 1-2-2v-7z"/></svg><b>17</b></span>
+        <span class="k-tijd">2 d</span>
+      </span>
+    </div>
+    <div class="row">
+      <span class="num">#33</span>
+      <span class="title">fix(vacatures): strikte ISO-datumparser bij samengestelde niveaus</span>
+      <span class="rail">
+        <span class="k-status"><span class="pill c-agent"><span class="dot"></span><span>agent</span></span></span>
+        <span class="k-wie"><span class="av" style="background:oklch(.58 .11 155)">M</span></span>
+        <span class="k-repo">winkel-web</span>
+        <span class="k-omvang"><i class="on"></i><i class="on"></i><i></i><i></i></span>
+        <span class="k-reacties"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6.6L6.5 19v-3.5a2 2 0 0 1-2-2v-7z"/></svg><b>1</b></span>
+        <span class="k-tijd">2 u</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="label">Smal venster, lijstkolom 384px: repokolom weg, status als icoon</div>
+  <div class="smal">
+    <div class="row sel">
+      <span class="num">#412</span>
+      <span class="title">feat(portaal): loginType per portaal in GET /portals</span>
+      <span class="rail">
+        <span class="k-status"><span class="pill c-review"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.4-6.5 9.5-6.5S21.5 12 21.5 12s-3.4 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg><span>review</span></span></span>
+        <span class="k-wie"><span class="av" style="background:oklch(.58 .11 262)">D</span></span>
+        <span class="k-repo">portaal-admin</span>
+        <span class="k-omvang"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>
+        <span class="k-reacties"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6.6L6.5 19v-3.5a2 2 0 0 1-2-2v-7z"/></svg><b>1</b></span>
+        <span class="k-tijd">2 u</span>
+      </span>
+    </div>
+    <div class="row">
+      <span class="num">#391</span>
+      <span class="title">chore(deps): bump vite naar 6.3</span>
+      <span class="rail">
+        <span class="k-status"><span class="pill c-klaar"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l4.8 4.8L19.5 7"/></svg><span>klaar</span></span></span>
+        <span class="k-wie"><span class="av" style="background:oklch(.58 .11 262)">D</span></span>
+        <span class="k-repo">nieuwsbrief</span>
+        <span class="k-omvang"><i class="on"></i><i></i><i></i><i></i></span>
+        <span class="k-reacties"></span>
+        <span class="k-tijd">3 u</span>
+      </span>
+    </div>
+    <div class="row">
+      <span class="num">#56</span>
+      <span class="title">fix(kaart): val terug op 2D bij onbruikbare WebGL-context</span>
+      <span class="rail">
+        <span class="k-status"><span class="pill c-actie"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.2l8.8 15.6H3.2L12 4.2z"/><path d="M12 9.8v4.1"/><path d="M12 17.2h.01"/></svg><span>conflict</span></span></span>
+        <span class="k-wie"><span class="av" style="background:oklch(.58 .11 318)">S</span></span>
+        <span class="k-repo">ritten-app</span>
+        <span class="k-omvang"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>
+        <span class="k-reacties"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6.6L6.5 19v-3.5a2 2 0 0 1-2-2v-7z"/></svg><b>4</b></span>
+        <span class="k-tijd">1 d</span>
+      </span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

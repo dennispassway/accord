@@ -13,6 +13,7 @@
       "!dist",
       "!public",
       "!docs/design-v2",
+      "!docs/design-v3",
       "!.claude"
     ]
   },

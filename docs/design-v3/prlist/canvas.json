@@ -1,0 +1,18 @@
+{
+  "artboards": [
+    { "file": "Nu.dc.html", "x": 0, "y": 0, "w": 940, "h": 660, "title": "Nu" },
+    { "file": "Main.dc.html", "x": 0, "y": 820, "w": 940, "h": 770, "title": "A - Vaste rail" },
+    { "file": "VoorstelB.dc.html", "x": 1040, "y": 820, "w": 940, "h": 770, "title": "B - Status voorop" },
+    { "file": "VoorstelC.dc.html", "x": 2080, "y": 820, "w": 940, "h": 790, "title": "C - Kolommen met kopregel" }
+  ],
+  "annotations": [
+    {
+      "id": "vergelijk",
+      "x": 1040,
+      "y": 0,
+      "w": 340,
+      "text": "Waar je op let bij het vergelijken:\n\n1. Loopt er een rechte lijn door de statussen, avatars, repo's en tijden?\n2. Hoeveel ruimte houdt de titel over?\n3. Wat gebeurt er op 384px, de breedte van de lijstkolom op een venster van 940px met beide panelen open?\n\nAlle rijen zijn 32px, met de tokens en maten uit App.css en prlist.css. De PR's en projecten zijn verzonnen."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}
