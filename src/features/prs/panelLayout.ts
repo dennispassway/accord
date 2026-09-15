@@ -17,10 +17,11 @@ export const PANEL_BOUNDS: Record<
 
 /**
  * Wat de lijstkolom minimaal overhoudt. 384px is de breedte die overbleef op
- * het smalste venster (940px) met de oude vaste panelen, en dus de smalste
- * rij die ooit is nagerekend: daaronder loopt .pl-row-end over en knipt
- * .cockpit-panes hem af. Zodra de rij op vaste kolommen staat en aantoonbaar
- * smaller kan, mag dit getal omlaag.
+ * het smalste venster (940px) met de oude vaste panelen. Sinds de rij op
+ * vaste kolommen staat is dit ook de smalste stand die columnLayout.test.ts
+ * narekent: daar klapt effectiveColumns het project terug naar zijn stip en
+ * de status naar zijn icoon, en houdt de titel nog TITLE_MIN over. Wil je
+ * dit getal omlaag, breid die test dan in dezelfde wijziging uit.
  */
 export const LIST_MIN = 384;
 
