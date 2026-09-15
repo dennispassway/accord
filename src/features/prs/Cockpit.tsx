@@ -585,7 +585,11 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   useEffect(() => {
     function handleVisibilityChange() {
       if (document.hidden) return;
-      if (!shouldRefreshOnVisible(lastVisibilityRefreshRef.current, Date.now()))
+      if (
+        !shouldRefreshOnVisible(lastVisibilityRefreshRef.current, Date.now(), {
+          online: navigator.onLine,
+        })
+      )
         return;
       lastVisibilityRefreshRef.current = Date.now();
       void refresh();

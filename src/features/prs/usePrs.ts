@@ -5,10 +5,12 @@ import { toPrNumber, toRepoId } from "../../lib/github/domain";
 import { setPriority } from "../../lib/github/labels";
 import type { MergeMethod } from "../../lib/github/merge";
 import { mergePullRequest } from "../../lib/github/merge";
+import { isTransientKind, NetworkError } from "../../lib/github/networkError";
 import { AuthError, fetchAllPrs } from "../../lib/github/queries";
 import { MOCK_ME, MOCK_PRS } from "../../lib/mock/fixtures";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
 import { loadPrsSnapshot, savePrsSnapshot } from "../../lib/prsSnapshot";
+import { withRetry } from "../../lib/retry";
 
 const IS_MOCK = isMockApp(mockMode());
 
@@ -59,14 +61,35 @@ export function nextStateOnLoadError(
   return { status: "error", message };
 }
 
+/**
+ * Retry-beleid voor de refresh. Drie pogingen van maximaal 15 seconden plus
+ * 2,5 seconden wachten blijft onder het kortste instelbare interval van één
+ * minuut, en `inFlightRef` houdt een intervaltik tegen zolang er nog een
+ * poging loopt.
+ */
+const REFRESH_ATTEMPTS = 3;
+const REFRESH_DELAYS_MS = [500, 2000];
+
+/** Alleen transportfouten die van een tweede poging beter worden. Een
+ * afgewezen token, een rate limit of welk ander GitHub-antwoord dan ook
+ * herhalen kost alleen tijd en houdt de lijst langer oud. */
+export function shouldRetryRefresh(error: unknown): boolean {
+  return error instanceof NetworkError && isTransientKind(error.kind);
+}
+
 /** Guard voor de U1 visibilitychange-refresh: niet vaker dan om de
  * `minIntervalMs` (default 30s), ongeacht hoe vaak het venster zichtbaar
  * wordt. */
 export function shouldRefreshOnVisible(
   lastRefreshAt: number,
   now: number,
-  minIntervalMs = 30_000,
+  options: { online?: boolean; minIntervalMs?: number } = {},
 ): boolean {
+  const { online = true, minIntervalMs = 30_000 } = options;
+  // Het venster wordt onder meer zichtbaar na wake uit sleep en na unlock.
+  // Daar staat het netwerk vaak nog niet, en een poging levert dan alleen
+  // een foutbanner op; het interval en cmd+R blijven over.
+  if (!online) return false;
   return now - lastRefreshAt >= minIntervalMs;
 }
 
@@ -212,7 +235,11 @@ export function usePrs(
           prs: rawPrs,
           viewerLogin,
           truncated,
-        } = await fetchAllPrs(token, fetch);
+        } = await withRetry(() => fetchAllPrs(token, fetch), {
+          attempts: REFRESH_ATTEMPTS,
+          delaysMs: REFRESH_DELAYS_MS,
+          shouldRetry: shouldRetryRefresh,
+        });
         const prs = recentlyMerged.filter(rawPrs);
         const lastUpdated = new Date();
         const flippedRed = detectCiFlippedToRed(prsRef.current, prs);

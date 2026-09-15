@@ -1,12 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PullRequest } from "../../lib/github/domain";
 import { toPrNumber, toRepoId } from "../../lib/github/domain";
+import { NetworkError } from "../../lib/github/networkError";
+import { AuthError, GithubApiError } from "../../lib/github/queries";
+import { withRetry } from "../../lib/retry";
 import type { PrsState } from "./usePrs";
 import {
   createRecentlyMergedTracker,
   detectCiFlippedToRed,
   nextStateOnLoadError,
   shouldRefreshOnVisible,
+  shouldRetryRefresh,
 } from "./usePrs";
 
 function pr(overrides: Partial<PullRequest> = {}): PullRequest {
@@ -72,6 +76,85 @@ describe("shouldRefreshOnVisible", () => {
   it("blokkeert een refresh binnen 30s na de vorige", () => {
     expect(shouldRefreshOnVisible(0, 29_999)).toBe(false);
     expect(shouldRefreshOnVisible(1000, 1000)).toBe(false);
+  });
+
+  it("blokkeert een refresh zonder verbinding, hoe lang de vorige ook geleden is", () => {
+    // Het venster wordt zichtbaar na wake uit sleep: het netwerk staat dan
+    // vaak nog niet, en een poging levert alleen een foutbanner op.
+    expect(shouldRefreshOnVisible(0, 60_000, { online: false })).toBe(false);
+  });
+
+  it("staat een refresh toe zodra er weer verbinding is", () => {
+    expect(shouldRefreshOnVisible(0, 60_000, { online: true })).toBe(true);
+  });
+});
+
+describe("shouldRetryRefresh", () => {
+  it("herhaalt een transiënte transportfout", () => {
+    expect(shouldRetryRefresh(new NetworkError("connectionLost"))).toBe(true);
+    expect(shouldRetryRefresh(new NetworkError("timeout"))).toBe(true);
+    expect(shouldRetryRefresh(new NetworkError("offline"))).toBe(true);
+  });
+
+  it("herhaalt een TLS-fout en een onbekende netwerkfout niet", () => {
+    expect(shouldRetryRefresh(new NetworkError("tls"))).toBe(false);
+    expect(shouldRetryRefresh(new NetworkError("unknown"))).toBe(false);
+  });
+
+  it("herhaalt een antwoord van GitHub zelf niet", () => {
+    expect(shouldRetryRefresh(new AuthError())).toBe(false);
+    expect(shouldRetryRefresh(new GithubApiError("rate limit"))).toBe(false);
+  });
+});
+
+describe("refresh met retry-beleid", () => {
+  const options = {
+    attempts: 3,
+    delaysMs: [1, 1],
+    shouldRetry: shouldRetryRefresh,
+    sleep: () => Promise.resolve(),
+  };
+
+  it("laat twee blips niet doorkomen als fout", async () => {
+    const fetchPrs = vi
+      .fn()
+      .mockRejectedValueOnce(new NetworkError("connectionLost"))
+      .mockRejectedValueOnce(new NetworkError("connectionLost"))
+      .mockResolvedValue({ prs: [], viewerLogin: "octocat", truncated: false });
+
+    await expect(withRetry(fetchPrs, options)).resolves.toMatchObject({
+      viewerLogin: "octocat",
+    });
+    expect(fetchPrs).toHaveBeenCalledTimes(3);
+  });
+
+  it("laat een afgewezen token direct door zonder tweede poging", async () => {
+    const fetchPrs = vi.fn().mockRejectedValue(new AuthError());
+
+    await expect(withRetry(fetchPrs, options)).rejects.toBeInstanceOf(
+      AuthError,
+    );
+    expect(fetchPrs).toHaveBeenCalledTimes(1);
+  });
+
+  it("toont na drie mislukte pogingen de Nederlandse melding, niet de engine-tekst", async () => {
+    const fetchPrs = vi
+      .fn()
+      .mockRejectedValue(
+        new NetworkError("connectionLost", new TypeError("Load failed")),
+      );
+
+    const error = await withRetry(fetchPrs, options).catch((e: unknown) => e);
+    const next = nextStateOnLoadError(
+      { status: "loading" },
+      (error as Error).message,
+    );
+
+    expect(fetchPrs).toHaveBeenCalledTimes(3);
+    expect(next).toEqual({
+      status: "error",
+      message: "Geen verbinding met GitHub.",
+    });
   });
 });
 
