@@ -1,19 +1,17 @@
-/* Sidebar: 216px, onder 1000px vensterbreedte 196px (design v2). */
+/* Sidebar: 216px als standaard, daarna wat de gebruiker heeft gesleept.
+   --sidebar-width komt als inline waarde van .cockpit-columns (Cockpit.tsx);
+   de fallback hier is de enige plek waar het getal nog letterlijk staat en
+   hoort gelijk te blijven aan DEFAULT_PANELS.sidebar in panelLayout.ts.
+   Er is bewust geen media query meer: die overschreef een handmatig
+   ingestelde breedte zodra het venster onder 1000px kwam. */
 .sidebar {
-  width: 216px;
-  flex: 0 0 216px;
+  width: var(--sidebar-width, 216px);
+  flex: 0 0 var(--sidebar-width, 216px);
   display: flex;
   flex-direction: column;
   min-height: 0;
   background: var(--side);
   border-right: 1px solid var(--line);
-}
-
-@media (max-width: 1000px) {
-  .sidebar {
-    width: 196px;
-    flex-basis: 196px;
-  }
 }
 
 .sidebar-top {

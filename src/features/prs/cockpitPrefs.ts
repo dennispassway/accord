@@ -1,8 +1,11 @@
+import type { PanelWidths } from "./panelLayout";
+import { DEFAULT_PANELS, PANEL_BOUNDS } from "./panelLayout";
 import type { SortMode } from "./sort";
 
 const SORT_MODE_KEY = "pr-cockpit.sortMode";
 const REPO_FILTER_KEY = "pr-cockpit.repoFilter";
 const FAVORITES_KEY = "pr-cockpit.favorites";
+const PANELS_KEY = "pr-cockpit.panels";
 
 const SORT_MODES: SortMode[] = [
   "triage",
@@ -53,4 +56,37 @@ export function loadFavorites(): string[] {
 
 export function saveFavorites(repoIds: string[]): void {
   localStorage.setItem(FAVORITES_KEY, JSON.stringify(repoIds));
+}
+
+/** Versleepte breedtes van de twee zijpanelen. Alles wat geen paar getallen
+ * is valt terug op de defaults; een waarde buiten de grenzen wordt
+ * teruggetrokken, zodat een oude of met de hand aangepaste opslag de lijst
+ * nooit wegdrukt. De vensterbreedte telt hier niet mee: die kent alleen de
+ * Cockpit, die er clampPanels overheen haalt. */
+export function loadPanels(): PanelWidths {
+  const stored = localStorage.getItem(PANELS_KEY);
+  if (stored === null) return DEFAULT_PANELS;
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (parsed === null || typeof parsed !== "object") return DEFAULT_PANELS;
+    const { sidebar, detail } = parsed as Record<string, unknown>;
+    if (!Number.isFinite(sidebar) || !Number.isFinite(detail)) {
+      return DEFAULT_PANELS;
+    }
+    return {
+      sidebar: withinBounds("sidebar", sidebar as number),
+      detail: withinBounds("detail", detail as number),
+    };
+  } catch {
+    return DEFAULT_PANELS;
+  }
+}
+
+export function savePanels(panels: PanelWidths): void {
+  localStorage.setItem(PANELS_KEY, JSON.stringify(panels));
+}
+
+function withinBounds(panel: keyof PanelWidths, value: number): number {
+  const bounds = PANEL_BOUNDS[panel];
+  return Math.max(bounds.min, Math.min(value, bounds.max));
 }
