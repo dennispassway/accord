@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.11.0](https://github.com/dennispassway/accord/compare/v0.10.0...v0.11.0) (2026-09-15)
+
+
+### Nieuw
+
+* **github:** doe de HTTP-aanvragen in Rust in plaats van in de webview ([6156ea2](https://github.com/dennispassway/accord/commit/6156ea2e65f698be4f9f47b9502de5e8e98e2134))
+
+
+### Opgelost
+
+* **github:** vertaal netwerkfouten naar een leesbare melding ([6e1f1ef](https://github.com/dennispassway/accord/commit/6e1f1ef75d0b86857f5ae24395de0c024a537727))
+* **prs:** probeer een mislukte refresh opnieuw voor je een banner toont ([49e6b7c](https://github.com/dennispassway/accord/commit/49e6b7c49336042c78e477fd101a81bd32777596))
+
 ## [0.10.0](https://github.com/dennispassway/accord/compare/v0.9.0...v0.10.0) (2026-09-15)
 
 
