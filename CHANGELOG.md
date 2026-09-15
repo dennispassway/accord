@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.10.0](https://github.com/dennispassway/accord/compare/v0.9.0...v0.10.0) (2026-09-15)
+
+
+### Nieuw
+
+* **prs:** kolombreedtes van de PR-lijst versleepbaar maken ([80c71bd](https://github.com/dennispassway/accord/commit/80c71bde34a0732ff3a3fceb92841e2814cf78e8))
+* **prs:** PR-lijst als tabel met vaste kolommen en kopregel ([a2b4635](https://github.com/dennispassway/accord/commit/a2b46356b9e403777715c1d945d295c7315f5cd0))
+* **prs:** zijbalk en detailpaneel versleepbaar maken ([befd8c8](https://github.com/dennispassway/accord/commit/befd8c8de6e7c16ac7a4a77c54167b7488c821cc))
+
+
+### Opgelost
+
+* **prs:** conceptpill op --text-2 zodat hij zijn eigen tint haalt ([0c1452d](https://github.com/dennispassway/accord/commit/0c1452dcc820fae5d019fb63fbbffaca1e3f7eb8))
+* **prs:** één klik op een sleepgreep zette de kolom op zijn ondergrens ([4e2dab1](https://github.com/dennispassway/accord/commit/4e2dab1c132da710c848bd84b3c8e33b14f3aa8b))
+* **prs:** meet de lijstbreedte met een ref-callback ([6eb2292](https://github.com/dennispassway/accord/commit/6eb2292e5c8ac8f1c1842a1ea19c60cc3b365717))
+* **prs:** reken een sleepgreep na op de zichtbare breedtes ([e1024cb](https://github.com/dennispassway/accord/commit/e1024cbd673c1d38e30e736f0fc44eaff7830596))
+* **prs:** sleepgreep stopt waar de titel zijn ondergrens raakt ([4dcfe73](https://github.com/dennispassway/accord/commit/4dcfe731d32cba8e3b2049ffb165d59d030e8de6))
+* **prs:** verlies een sleep niet bij een afgebroken pointer ([7bb8beb](https://github.com/dennispassway/accord/commit/7bb8beba05d04453fc760e68505657118c1f8392))
+
+
+### Onder de motorkap
+
+* **prs:** leid de kolomsleutels van loadColumns af uit de defaults ([3e77203](https://github.com/dennispassway/accord/commit/3e772035846f83aab6db215e53b9c7056a6a8064))
+
 ## [0.9.0](https://github.com/dennispassway/accord/compare/v0.8.0...v0.9.0) (2026-08-30)
 
 
