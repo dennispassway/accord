@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { searchResponse } from "./fixtures/search-response";
+import { NetworkError } from "./networkError";
 import { AuthError, fetchAllPrs, GithubApiError } from "./queries";
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -137,6 +138,46 @@ describe("fetchAllPrs", () => {
 
     await expect(fetchAllPrs("token", fetchImpl)).rejects.toThrow(
       /15 seconden/,
+    );
+  });
+
+  it("geeft dezelfde timeout-tekst bij de AbortError die WKWebView echt gooit", async () => {
+    // AbortSignal.timeout() breekt in WebKit af met AbortError, niet met de
+    // TimeoutError uit de spec; op die naam alleen toetsen liet de melding
+    // in de echte app nooit zien.
+    const fetchImpl = vi
+      .fn()
+      .mockRejectedValue(new DOMException("Fetch is aborted", "AbortError"));
+
+    await expect(fetchAllPrs("token", fetchImpl)).rejects.toThrow(
+      /15 seconden/,
+    );
+  });
+
+  it("vertaalt een netwerkfout naar een Nederlandse melding in plaats van de engine-tekst", async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new TypeError("Load failed"));
+
+    await expect(fetchAllPrs("token", fetchImpl)).rejects.toBeInstanceOf(
+      NetworkError,
+    );
+    await expect(fetchAllPrs("token", fetchImpl)).rejects.not.toThrow(
+      /Load failed/,
+    );
+  });
+
+  it("vertaalt ook een verbinding die pas tijdens het lezen van de body wegvalt", async () => {
+    // Het antwoord komt binnen, maar de body loopt over dezelfde verbinding:
+    // breekt die, dan gooit response.json() en niet de fetch.
+    const broken = {
+      status: 200,
+      ok: true,
+      headers: new Headers(),
+      json: () => Promise.reject(new TypeError("Load failed")),
+    } as unknown as Response;
+    const fetchImpl = vi.fn().mockResolvedValue(broken);
+
+    await expect(fetchAllPrs("token", fetchImpl)).rejects.toBeInstanceOf(
+      NetworkError,
     );
   });
 });

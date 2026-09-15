@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { toPrNumber, toRepoId } from "./domain";
+import { NetworkError } from "./networkError";
 import { fetchPrDetail } from "./prDetail";
 import { AuthError, GithubApiError } from "./queries";
 
@@ -245,7 +246,7 @@ describe("fetchPrDetail", () => {
     ).rejects.toThrow(/rate limit bereikt \(retry-after: 30s\)/);
   });
 
-  it("een TimeoutError op de diff-call geeft een GithubApiError met de Nederlandse timeout-tekst", async () => {
+  it("een TimeoutError op de diff-call geeft de Nederlandse timeout-tekst", async () => {
     const timeoutError = new Error("timed out");
     timeoutError.name = "TimeoutError";
     const fetchImpl = vi
@@ -256,5 +257,38 @@ describe("fetchPrDetail", () => {
     await expect(
       fetchPrDetail("token-123", repoId, prNumber, fetchImpl),
     ).rejects.toThrow(/GitHub reageerde niet binnen 15 seconden/);
+  });
+
+  it("de AbortError die WKWebView gooit geeft diezelfde timeout-tekst", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockRejectedValueOnce(new DOMException("Fetch is aborted", "AbortError"))
+      .mockResolvedValueOnce(jsonResponse(200, graphqlBody));
+
+    await expect(
+      fetchPrDetail("token-123", repoId, prNumber, fetchImpl),
+    ).rejects.toThrow(/GitHub reageerde niet binnen 15 seconden/);
+  });
+
+  it("een diff-body die halverwege afbreekt geeft een NetworkError, niet 'Load failed'", async () => {
+    const brokenDiff = {
+      status: 200,
+      ok: true,
+      headers: new Headers(),
+      text: () => Promise.reject(new TypeError("Load failed")),
+    } as unknown as Response;
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(brokenDiff)
+      .mockResolvedValueOnce(jsonResponse(200, graphqlBody));
+
+    const error = await fetchPrDetail(
+      "token-123",
+      repoId,
+      prNumber,
+      fetchImpl,
+    ).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NetworkError);
+    expect((error as Error).message).not.toContain("Load failed");
   });
 });

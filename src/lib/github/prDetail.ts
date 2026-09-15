@@ -6,6 +6,7 @@
  */
 import type { Author, PrNumber, RepoId } from "./domain";
 import { deriveAuthor } from "./domain";
+import { withNetworkError } from "./networkError";
 import {
   AuthError,
   type FetchImpl,
@@ -59,19 +60,6 @@ query PrDetail($owner: String!, $name: String!, $number: Int!) {
 `;
 
 const FETCH_TIMEOUT_MS = 15_000;
-
-async function withTimeoutError<T>(promise: Promise<T>): Promise<T> {
-  try {
-    return await promise;
-  } catch (error) {
-    if ((error as { name?: string }).name === "TimeoutError") {
-      throw new GithubApiError(
-        "GitHub reageerde niet binnen 15 seconden, probeer het opnieuw.",
-      );
-    }
-    throw error;
-  }
-}
 
 interface RawCommentNode {
   author?: { login?: string } | null;
@@ -131,7 +119,7 @@ async function fetchDiff(
   prNumber: PrNumber,
   fetchImpl: FetchImpl,
 ): Promise<{ diff: string; diffTooLarge: boolean }> {
-  const response = await withTimeoutError(
+  const response = await withNetworkError(() =>
     fetchImpl(`https://api.github.com/repos/${repoId}/pulls/${prNumber}`, {
       method: "GET",
       headers: {
@@ -150,7 +138,7 @@ async function fetchDiff(
     throw new AuthError();
   }
   if (response.status === 403 || response.status === 429) {
-    const detail = await responseErrorDetail(response);
+    const detail = await withNetworkError(() => responseErrorDetail(response));
     throw new GithubApiError(
       `GitHub rate limit bereikt${rateLimitNote(response)}: ${detail}`,
     );
@@ -159,7 +147,10 @@ async function fetchDiff(
     throw new GithubApiError(`GitHub API responded with ${response.status}`);
   }
 
-  return { diff: await response.text(), diffTooLarge: false };
+  // Een diff is de grootste body die de app leest: juist hier valt een
+  // verbinding na de headers nog weg.
+  const diff = await withNetworkError(() => response.text());
+  return { diff, diffTooLarge: false };
 }
 
 async function fetchComments(
@@ -170,7 +161,7 @@ async function fetchComments(
 ): Promise<{ issueComments: PrComment[]; reviewThreads: ReviewThread[] }> {
   const [owner, name] = repoId.split("/");
 
-  const response = await withTimeoutError(
+  const response = await withNetworkError(() =>
     fetchImpl("https://api.github.com/graphql", {
       method: "POST",
       headers: {
@@ -189,7 +180,7 @@ async function fetchComments(
     throw new AuthError();
   }
   if (response.status === 403 || response.status === 429) {
-    const detail = await responseErrorDetail(response);
+    const detail = await withNetworkError(() => responseErrorDetail(response));
     throw new GithubApiError(
       `GitHub rate limit bereikt${rateLimitNote(response)}: ${detail}`,
     );
@@ -198,7 +189,7 @@ async function fetchComments(
     throw new GithubApiError(`GitHub API responded with ${response.status}`);
   }
 
-  const json: unknown = await response.json();
+  const json: unknown = await withNetworkError(() => response.json());
   const body = json as {
     data?: {
       repository?: {

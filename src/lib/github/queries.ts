@@ -1,4 +1,5 @@
 import type { PullRequest } from "./domain";
+import { withNetworkError } from "./networkError";
 import {
   isSearchTruncated,
   mergePrSources,
@@ -153,9 +154,8 @@ export async function fetchAllPrs(
   token: string,
   fetchImpl: FetchImpl,
 ): Promise<FetchAllPrsResult> {
-  let response: Response;
-  try {
-    response = await fetchImpl("https://api.github.com/graphql", {
+  const response = await withNetworkError(() =>
+    fetchImpl("https://api.github.com/graphql", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -166,21 +166,14 @@ export async function fetchAllPrs(
         variables: buildSearchQueries(),
       }),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-  } catch (error) {
-    if ((error as { name?: string }).name === "TimeoutError") {
-      throw new GithubApiError(
-        "GitHub reageerde niet binnen 15 seconden, probeer het opnieuw.",
-      );
-    }
-    throw error;
-  }
+    }),
+  );
 
   if (response.status === 401) {
     throw new AuthError();
   }
   if (response.status === 403 || response.status === 429) {
-    const detail = await responseErrorDetail(response);
+    const detail = await withNetworkError(() => responseErrorDetail(response));
     throw new GithubApiError(
       `GitHub rate limit bereikt${rateLimitNote(response)}: ${detail}`,
     );
@@ -189,7 +182,9 @@ export async function fetchAllPrs(
     throw new GithubApiError(`GitHub API responded with ${response.status}`);
   }
 
-  const json: unknown = await response.json();
+  // De body loopt over dezelfde verbinding als de headers: valt die na het
+  // antwoord weg, dan gooit dit en niet de fetch hierboven.
+  const json: unknown = await withNetworkError(() => response.json());
   const body = json as {
     data?: Record<string, unknown>;
     errors?: { message: string }[];
