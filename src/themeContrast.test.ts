@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import appCss from "./App.css?raw";
+import prlistCss from "./features/prs/prlist.css?raw";
 
 /** De statuskleuren staan als tekst op hun eigen tint (sectiekop-icoon en
  * -count, statuspill, statuschip: `color-mix(currentColor 11%, transparent)`).
@@ -41,6 +42,40 @@ function lightToken(name: string): Rgb {
   return hexToRgb(hex);
 }
 
+/**
+ * Als lightToken, maar ook voor tokens die als rgba staan (--text-2/--text-3).
+ * Een half-transparant token is pas een kleur nadat het over de
+ * lijstachtergrond is gelegd; dat is de kleur die de pill draagt.
+ */
+function lightTokenAnyForm(name: string): Rgb {
+  const block = appCss.slice(appCss.indexOf('[data-theme="light"]'));
+  const rgba = block.match(
+    new RegExp(
+      `--${name}:\\s*rgba\\((\\d+),\\s*(\\d+),\\s*(\\d+),\\s*([\\d.]+)\\)`,
+    ),
+  );
+  if (rgba == null) return lightToken(name);
+  const channels: Rgb = [Number(rgba[1]), Number(rgba[2]), Number(rgba[3])];
+  return mix(channels, Number(rgba[4]), LIST_BG);
+}
+
+/**
+ * De tokens die als tekstkleur op een statuspill staan, gelezen uit
+ * prlist.css. Zo valt een nieuwe pill niet buiten deze gate doordat iemand
+ * vergat hem hier bij te schrijven.
+ */
+function pillTokens(): string[] {
+  const found = new Set<string>();
+  for (const rule of prlistCss.matchAll(
+    /\.pl-status-pill-[a-z]+\s*\{[^}]*?color:\s*var\(--([a-z0-9-]+)\)/g,
+  )) {
+    const token = rule[1];
+    if (token !== undefined) found.add(token);
+  }
+  if (found.size === 0) throw new Error("geen statuspill-kleuren gevonden");
+  return [...found];
+}
+
 describe("lichte statuskleuren", () => {
   for (const name of ["ok", "err", "warn", "accent", "agent"]) {
     it(`--${name} haalt 4,5:1 als tekst op de lijstachtergrond`, () => {
@@ -49,6 +84,17 @@ describe("lichte statuskleuren", () => {
 
     it(`--${name} haalt 4,5:1 als tekst op zijn eigen tint`, () => {
       const color = lightToken(name);
+      expect(contrast(color, mix(color, TINT, LIST_BG))).toBeGreaterThanOrEqual(
+        4.5,
+      );
+    });
+  }
+});
+
+describe("statuspill-kleuren uit prlist.css", () => {
+  for (const name of pillTokens()) {
+    it(`--${name} haalt 4,5:1 als pill-tekst op zijn eigen tint`, () => {
+      const color = lightTokenAnyForm(name);
       expect(contrast(color, mix(color, TINT, LIST_BG))).toBeGreaterThanOrEqual(
         4.5,
       );
