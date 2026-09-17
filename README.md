@@ -6,14 +6,14 @@
 
 **Every pull request that is waiting on you, in one native window.**
 
-Grouped by project. Stacks made visible. Review, prioritise and merge without
-opening a browser tab.
+Grouped by what each one needs from you. Stacks made visible. Review, prioritise
+and merge without opening a browser tab.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform: macOS and Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)
 ![Built with Tauri 2 and React 19](https://img.shields.io/badge/built%20with-Tauri%202%20%2B%20React%2019-24C8DB)
 
-<img src="docs/screenshots/overview.png" alt="Accord grouping pull requests by project, with the detail panel on the right" width="900">
+<img src="docs/screenshots/overview.png" alt="Accord's pull request list grouped by what it needs from you, with the project sidebar on the left and the detail panel on the right" width="900">
 
 </div>
 
@@ -26,9 +26,10 @@ your menu bar and keeps the count in front of you.
 
 ## What it does
 
-- **Grouped by project, not by status.** A sidebar with your repositories and
-  their counts, plus an "All" view with project headers. The unit of attention is
-  the project you are actually working in.
+- **Grouped by what it needs from you.** The list opens in sections: your review,
+  ready to merge, needs action, agent running, waiting, draft. The sidebar lists
+  your repositories with their counts and filters the list to one of them, and
+  grouping by project is one of the sort modes if you prefer that view.
 - **Stacks made visible.** If PR B branches off PR A, Accord shows the chain and
   tells you to merge #A first, instead of letting you merge into a branch that is
   about to disappear.
@@ -38,16 +39,35 @@ your menu bar and keeps the count in front of you.
   comments only or comments plus pushed fixes. The agent runs in a throwaway git
   worktree of your local clone, so your own working tree is never touched. The
   other agent is preselected by default: if Claude wrote the PR, Codex reviews it.
+  Next to a review, the same menu offers the fix actions that apply to this PR:
+  resolve the open comments, fix the failing checks, fix a merge conflict, or
+  distil the lessons from the review into the repository's own instructions.
 - **Diff and conversation in the app.** A split-view diff and the review threads
   in an inspector overlay, so triage does not need a browser.
-- **Merge from the app** — and when you cannot, the exact reason why: red CI,
+- **Merge from the app**, and when you cannot, the exact reason why: red CI,
   conflicts, draft, changes requested, or a stack base that has to go first.
+- **Stacks rebase themselves.** Merge a PR and the PRs stacked on top of it are
+  rebased onto their new base, so the chain does not rot while you work through
+  it. One switch in the settings turns it off.
+- **Sort, search, favourites.** Six sort modes (triage, priority, updated,
+  oldest, size, project), a search box that matches title, repository name and
+  number, and repositories you star pinned to the top of the sidebar. Every
+  choice is remembered per machine.
+- **System notifications** when an agent run finishes or fails, when CI on one of
+  your own PRs turns red, and when a merge completes. Only while the window is
+  not focused: with the app in front of you, the list already says it. The first
+  one asks the OS for permission; refuse it and Accord stays quiet for the rest of
+  the session while the setting itself stays on.
+- **A window you can shape.** Sidebar and detail panel drag to any width, and so
+  do the list columns. Narrow the window and the list folds columns back in a
+  fixed order instead of letting rows run over the edge.
 - **Menu bar counter** with the number of PRs awaiting your review. Closing the
   window keeps the app running in the menu bar.
-- **Keyboard first**, with an in-app shortcut sheet, and it updates itself from
-  the latest GitHub release.
+- **Keyboard first**, with an in-app shortcut sheet, a light, dark or system
+  theme applied before the first paint, and it updates itself from the latest
+  GitHub release.
 
-<img src="docs/screenshots/inspector.png" alt="The inspector overlay showing a split-view diff and the review conversation" width="900">
+<img src="docs/screenshots/inspector.png" alt="The inspector overlay with the split-view diff open; a second tab holds the review conversation" width="900">
 
 The interface is in Dutch; there is no localisation layer yet.
 
@@ -115,7 +135,8 @@ VITE_GITHUB_CLIENT_ID=Ov23li...
 - **macOS** with Xcode Command Line Tools (`xcode-select --install`), or **Linux**
   with the system dependencies listed in `.github/workflows/release.yml`
   (`libwebkit2gtk-4.1-dev` and friends). Tauri links against the system webview.
-- **Node** (tested with 20) and **pnpm** (tested with 10). The repo ships a
+- **Node** and **pnpm**. CI builds on Node 22 and pnpm 10; there is no `engines`
+  field or `.nvmrc`, so nothing enforces this locally. The repo ships a
   `pnpm-lock.yaml`; use pnpm, not npm or yarn.
 - **Rust**, with `cargo` on your `PATH`.
 
@@ -148,18 +169,18 @@ comments. If a CLI is missing, that button is disabled with an explanation; the
 overview and merging always work.
 
 Accord also needs to know where each repository lives locally. The detail panel has
-a button that scans `~/Projects` and matches clones on their origin remote; you can
-also type a path by hand.
+a button that scans `~/Projects` and `~/Code` and matches clones on their origin
+remote; you can also type a path by hand.
 
 ## Development
 
 Two loops, pick the one that matches what you are doing.
 
-**The real app** — `pnpm tauri dev`. Compiles the Rust side and opens the window
+**The real app** - `pnpm tauri dev`. Compiles the Rust side and opens the window
 with the menu bar icon. Required for anything touching Tauri: login, Keychain,
 agent runs and the tray.
 
-**UI only** — `pnpm dev`, then `http://localhost:1420/?mock=app` in a normal
+**UI only** - `pnpm dev`, then `http://localhost:1420/?mock=app` in a normal
 browser. Renders the full app from fixtures: no Rust compile, no GitHub, no login.
 By far the fastest loop for CSS and component work.
 
@@ -169,6 +190,7 @@ Mock mode is dev-only (`src/lib/mock/mode.ts`) and has these variants:
 | --- | --- |
 | `?mock=app` (or bare `?mock`) | The app with fixture PRs |
 | `?mock=app&truncated` | Same, with the search-limit truncation banner |
+| `?mock=app&detailfout` | Same, with the inspector forced into its error state |
 | `?mock=login-client` | Login screen without a client ID configured |
 | `?mock=login-uit` | Signed-out state |
 | `?mock=login-device` | Device flow screen with a code |
@@ -176,7 +198,7 @@ Mock mode is dev-only (`src/lib/mock/mode.ts`) and has these variants:
 
 One thing worth knowing: **port 1420 is fixed** (`strictPort` in `vite.config.ts`;
 Tauri requires a fixed port). If a dev server is already running, the second one
-fails with "Port 1420 is already in use" — reuse the running one.
+fails with "Port 1420 is already in use"; reuse the running one.
 
 ### Scripts
 
@@ -186,6 +208,7 @@ fails with "Port 1420 is already in use" — reuse the running one.
 | `pnpm tauri build` | Build the app bundle and installer |
 | `pnpm dev` | Frontend only on port 1420, for mock mode |
 | `pnpm build` | Typecheck plus production build of the frontend into `dist/` |
+| `pnpm preview` | Serve the built `dist/` locally, without Tauri |
 | `pnpm lint` / `pnpm lint:fix` | Biome check |
 | `pnpm format` | Biome formatter |
 | `pnpm typecheck` | TypeScript strict, no emit |
@@ -200,17 +223,32 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 ### Layout
 
-- `src/lib/github/` — pure data layer: domain model, GraphQL queries and parsing,
-  stack detection, sorting, labels and merge. Everything here is tested and has no
-  React or Tauri dependencies.
-- `src/lib/mock/` — fixtures and mode detection for the mock mode above.
-- `src/features/auth/` — device flow login and session state.
-- `src/features/prs/` — the main UI (sidebar, list, detail panel, inspector).
-- `src/features/agents/` — starting, following and cancelling agent runs.
-- `src/features/update/` — update check and the update card.
-- `src-tauri/src/` — `auth.rs` (device flow plus Keychain), `repos.rs` (project
-  paths), `agents.rs` (worktree plus agent process), `tray.rs` (menu bar).
-- `docs/` — design documents and handoffs from earlier sessions (in Dutch).
+- `src/lib/github/` - the data layer: domain model, GraphQL queries and parsing,
+  stack detection, labels, merge and the auto-rebase of stacked branches. No React
+  anywhere in here, and almost all of it is pure and tested. Two files are the
+  exception and call into Rust through `invoke`: `tauriFetch.ts` and
+  `autoRebase.ts`.
+- `src/lib/` (top level) - settings and theme storage, the notification rules, the
+  PR snapshot that fills the list on a cold start, retry and platform helpers.
+- `src/lib/mock/` - fixtures and mode detection for the mock mode above.
+- `src/features/auth/` - device flow login and session state.
+- `src/features/prs/` - the main UI (sidebar, list, detail panel, inspector).
+- `src/features/agents/` - starting, following and cancelling agent runs.
+- `src/features/update/` - update check and the update card.
+- `src/features/settings/` - the settings sheet and the logout confirmation.
+- `src-tauri/src/` - `auth.rs` (device flow plus Keychain), `github.rs` (every HTTP
+  request to GitHub), `repos.rs` (project paths), `agents.rs` (worktree plus agent
+  process), `claude_stream.rs` (parsing the Claude CLI output stream), `stacks.rs`
+  (rebasing stacked branches), `tray.rs` (menu bar).
+- `docs/` - design documents, handoffs from earlier sessions and the screenshots
+  above (in Dutch).
+- `.claude/rules/` - per-path notes on the things that break silently here: GitHub
+  over Rust, the column layout, pointer drags, stored preferences. Each file opens
+  with the paths it applies to.
+
+GitHub traffic deliberately skips the webview's `fetch`: the frontend calls
+`src/lib/github/tauriFetch.ts`, which hands the request to `github.rs` and gets a
+typed error kind back. The reasons are in `.claude/rules/github-http-via-rust.md`.
 
 ## Building and releasing
 
@@ -233,6 +271,11 @@ Releases run through release-please and need no manual version bumps:
 The version lives in one place: `package.json`. `src-tauri/tauri.conf.json` points
 at it (`"version": "../package.json"`) and release-please bumps
 `src-tauri/Cargo.toml` along with it (`extra-files` in `release-please-config.json`).
+
+`src-tauri/Cargo.lock` is not in that `extra-files` list, so it keeps the previous
+version after a release. The next cargo command in `src-tauri/` rewrites the one
+line; commit that as a follow-up chore. Nothing fails on the mismatch, which is
+why it has slipped through three times already.
 
 Tauri cannot cross-compile, so `.github/workflows/release.yml` builds on both
 macOS and Ubuntu runners. A manual `workflow_dispatch` run builds without
@@ -269,7 +312,7 @@ macOS. A dependable update flow on macOS needs an Apple Developer ID certificate
 
 Linux works, with the expected divergences: shortcuts use Ctrl instead of ⌘, the
 window has a regular title bar, and the token goes into the Secret Service (GNOME Keyring/KWallet) instead of the Keychain.
-Windows is not supported yet — the process handling for agent runs is unix-only.
+Windows is not supported yet: the process handling for agent runs is unix-only.
 
 ## License
 
