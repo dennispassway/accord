@@ -274,6 +274,22 @@ export function SettingsSheet({
             </div>
             <div className="settings-row">
               <span className="settings-row-label">
+                <span className="settings-row-k">Leesmodel</span>
+                <span className="settings-row-hint">reviews zonder fixes</span>
+              </span>
+              <ModelSelect
+                known={claudeModels(cliModels.claude)}
+                value={settings.claude.commentsOnlyModel}
+                onChange={(commentsOnlyModel) =>
+                  onUpdate((s) => ({
+                    ...s,
+                    claude: { ...s.claude, commentsOnlyModel },
+                  }))
+                }
+              />
+            </div>
+            <div className="settings-row">
+              <span className="settings-row-label">
                 <span className="settings-row-k">Effort</span>
                 <span className="settings-row-hint">denkbudget per review</span>
               </span>
@@ -302,6 +318,22 @@ export function SettingsSheet({
                 value={settings.codex.model}
                 onChange={(model) =>
                   onUpdate((s) => ({ ...s, codex: { ...s.codex, model } }))
+                }
+              />
+            </div>
+            <div className="settings-row">
+              <span className="settings-row-label">
+                <span className="settings-row-k">Leesmodel</span>
+                <span className="settings-row-hint">reviews zonder fixes</span>
+              </span>
+              <ModelSelect
+                known={codexModels(cliModels.codex)}
+                value={settings.codex.commentsOnlyModel}
+                onChange={(commentsOnlyModel) =>
+                  onUpdate((s) => ({
+                    ...s,
+                    codex: { ...s.codex, commentsOnlyModel },
+                  }))
                 }
               />
             </div>
