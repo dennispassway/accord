@@ -521,7 +521,7 @@ fn prompt_for_mode(
     // refspec die hij zelf bouwt. Zo kan een agent de bestemming niet meer
     // beïnvloeden en is force-pushen onmogelijk in plaats van afgesproken.
     let hand_off = format!(
-        "Push zelf niets en gebruik geen git push. Draai de tests en de linter. Is alles groen en mogen je commits naar de PR, maak dan als laatste stap het bestand {} aan (leeg is goed); Accord pusht ze daarna naar {head_ref}. Faalt er iets, ga dan niet op de uitkomst af maar bepaal of jouw wijziging de oorzaak is: draai datzelfde falen opnieuw zonder jouw commits (git stash, of de basisbranch {base_ref} uitchecken in een los pad). Faalt het daar aantoonbaar ook en staat het los van wat je aanraakte, maak het bestand dan wel aan en benoem dat bestaande falen in je PR-comment. Veroorzaak je het falen zelf, kom je er niet uit, of kun je niet bewijzen dat het al bestond, maak dat bestand dan NIET aan: je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom.",
+        "Push zelf niets en gebruik geen git push. Lees vóór je iets draait gh pr checks {pr_number}: staan alle required checks daar groen op de head-sha van deze PR, draai dan alleen de tests die jouw eigen wijziging raakt, sla mutation- en coveragegates over (infection, mutation testing, coverage-drempels) en neem die groene checks als bewijs over in je PR-comment in plaats van de suite over te doen. Is ook maar één required check rood of pending, of zijn er geen checks, dan draai je zelf de volledige tests en de linter. Is alles groen en mogen je commits naar de PR, maak dan als laatste stap het bestand {} aan (leeg is goed); Accord pusht ze daarna naar {head_ref}. Faalt er iets, ga dan niet op de uitkomst af maar bepaal of jouw wijziging de oorzaak is: draai datzelfde falen opnieuw zonder jouw commits (git stash, of de basisbranch {base_ref} uitchecken in een los pad). Faalt het daar aantoonbaar ook en staat het los van wat je aanraakte, maak het bestand dan wel aan en benoem dat bestaande falen in je PR-comment. Veroorzaak je het falen zelf, kom je er niet uit, of kun je niet bewijzen dat het al bestond, maak dat bestand dan NIET aan: je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom.",
         push_marker.to_string_lossy()
     );
     // Gedeelde kern van beide lessen-modes. De anti-bloat-regels (cap op twee
@@ -1431,6 +1431,32 @@ mod tests {
             );
             assert!(
                 prompt.contains("kun je niet bewijzen dat het al bestond"),
+                "mode {mode}"
+            );
+        }
+    }
+
+    #[test]
+    /// De suite overdoen die CI net groen draaide kostte in de meting van
+    /// 2026-09-17 het leeuwendeel van de runtijd. De prompt kijkt daarom eerst
+    /// naar de checks, en hangt de volledige suite aan een rode, pending of
+    /// ontbrekende check.
+    fn fix_modes_lean_on_green_ci_before_running_the_suite() {
+        for mode in ["withFixes", "fixComments", "fixChecks", "fixConflicts"] {
+            let prompt = prompt_for_mode("claude", mode, 42, "feature/x", "main").expect("prompt");
+            assert!(prompt.contains("gh pr checks 42"), "mode {mode}");
+            assert!(
+                prompt.contains("alleen de tests die jouw eigen wijziging raakt"),
+                "mode {mode}"
+            );
+            assert!(
+                prompt.contains("mutation- en coveragegates over"),
+                "mode {mode}"
+            );
+            assert!(
+                prompt.contains(
+                    "rood of pending, of zijn er geen checks, dan draai je zelf de volledige tests en de linter"
+                ),
                 "mode {mode}"
             );
         }
