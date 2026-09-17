@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # diff-cover vergelijkt met origin/main; zonder volledige historie
+          # heeft het geen merge-base.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test met coverage
+        run: pnpm test:coverage
+
+      - name: Dead code en ongebruikte dependencies
+        run: pnpm knip
+
+      - name: Diff-coverage
+        # Alleen op een PR: op een push naar main is er geen diff om tegen af
+        # te zetten. Gate op gewijzigde regels, nooit op een totaalpercentage.
+        if: github.event_name == 'pull_request'
+        run: |
+          pipx install diff-cover
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          diff-cover coverage/cobertura-coverage.xml \
+            --compare-branch=origin/main \
+            --fail-under=80
+
+  rust:
+    name: Rust
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux systeemdependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Formattering
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
+      - name: Test
+        # Het build-script van tauri toetst de feature-lijst in Cargo.toml tegen
+        # tauri.conf.json en struikelt over macos-private-api, dat daar niet
+        # staat. Zonder deze override faalt elke cargo-aanroep die geen
+        # `tauri dev` of `tauri build` is.
+        env:
+          TAURI_CONFIG: '{"app":{"macOSPrivateApi":true}}'
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
