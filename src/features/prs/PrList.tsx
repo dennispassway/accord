@@ -123,23 +123,12 @@ export function PrList({
     selectedRowRef.current?.scrollIntoView({ block: "nearest" });
   }, [selectedKey]);
 
-  // De prioriteitkolom kost ruimte in elke rij, dus hij verschijnt alleen als
-  // er in beeld ook echt een PR met prioriteit staat.
-  const showPrio = useMemo(
-    () =>
-      sections.some((section) =>
-        section.prs.some((pr) => pr.priority === 1 || pr.priority === 2),
-      ),
-    [sections],
-  );
-
   const applied = useMemo(
     () =>
       effectiveColumns(columns, tableWidth || ASSUMED_WIDTH, {
         project: showRepoMeta,
-        prio: showPrio,
       }),
-    [columns, tableWidth, showRepoMeta, showPrio],
+    [columns, tableWidth, showRepoMeta],
   );
 
   /** Sleepgreep op de rand van een kopcel. */
@@ -149,7 +138,6 @@ export function PrList({
     // wordt een kolom smaller terwijl je hem breder sleept.
     const max = maxColumnWidth(column, columns, tableWidth || ASSUMED_WIDTH, {
       project: showRepoMeta,
-      prio: showPrio,
     });
     const limit = (next: number) => Math.min(next, max);
 
@@ -195,7 +183,6 @@ export function PrList({
           <span className="pl-thead-label">PR</span>
           {grip("nr", "Breedte van de kolom PR")}
         </span>
-        {showPrio && <span className="pl-cell pl-cell-prio" />}
         <span className="pl-cell pl-cell-title">
           <span className="pl-thead-label">Titel</span>
         </span>
@@ -306,16 +293,6 @@ export function PrList({
                     </span>
                   )}
                   <span className="pl-cell pl-cell-nr mono">#{pr.number}</span>
-                  {showPrio && (
-                    <span className="pl-cell pl-cell-prio">
-                      {pr.priority === 1 && (
-                        <span className="priority-chip priority-p1">P1</span>
-                      )}
-                      {pr.priority === 2 && (
-                        <span className="priority-chip priority-p2">P2</span>
-                      )}
-                    </span>
-                  )}
                   <span className="pl-cell pl-cell-title">
                     <span className="pl-title">{pr.title}</span>
                     {stackInfo && stackInfo.stackSize > 1 && (

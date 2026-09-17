@@ -18,7 +18,6 @@ interface PrContextMenuProps {
     mode: AgentMode,
     agent: ReviewAgent,
   ) => void;
-  onSetPriority: (prs: PullRequest[], priority: 1 | 2 | null) => void;
   /** Reden(en) waarom de enkelvoudig geselecteerde PR niet mergebaar is; leeg
    * betekent mergen mag. */
   mergeReasonsFor: (pr: PullRequest) => string[];
@@ -68,7 +67,6 @@ export function PrContextMenu({
   onClose,
   onOpenOnGitHub,
   onStartReview,
-  onSetPriority,
   mergeReasonsFor,
   onMergeSingle,
   runningPrKeys,
@@ -156,21 +154,6 @@ export function PrContextMenu({
           },
         ]
       : []),
-    {
-      key: "prio-1",
-      label: "Prioriteit P1",
-      onSelect: () => onSetPriority(prs, 1),
-    },
-    {
-      key: "prio-2",
-      label: "Prioriteit P2",
-      onSelect: () => onSetPriority(prs, 2),
-    },
-    {
-      key: "prio-none",
-      label: "Prioriteit weghalen",
-      onSelect: () => onSetPriority(prs, null),
-    },
   ];
   const sepAfter = new Set([
     "open",
@@ -221,7 +204,12 @@ export function PrContextMenu({
             >
               {action.label}
             </button>
-            {sepAfter.has(action.key) && <div className="ctx-menu-sep" />}
+            {/* Nooit achter het laatste item: dat geeft een hangende lijn
+                onderaan het menu, want welke groep als laatste overblijft
+                hangt af van de PR (merge, fixes, stop review). */}
+            {sepAfter.has(action.key) && index < actions.length - 1 && (
+              <div className="ctx-menu-sep" />
+            )}
           </div>
         ))}
       </div>

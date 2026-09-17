@@ -24,7 +24,7 @@ Wat dat betekent als je de rij aanraakt:
 - **Reken de smalste stand na.** De lijstkolom kan 384px worden (`LIST_MIN` in
   `panelLayout.ts`, de ruimte die overblijft op een venster van 940px met beide
   panelen open). `columnLayout.test.ts` toetst dat de rij daar past met alle
-  optionele kolommen zichtbaar: het project, de prioriteit, de stapelchip.
+  optionele kolommen zichtbaar: het project en de stapelchip.
 - **Inklappen gebeurt in JS, niet met een container query.** De breedtes komen
   als inline custom properties uit React en een inline waarde wint altijd van
   een stylesheet-regel, dus een `@container`-override zou stil niets doen.

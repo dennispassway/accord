@@ -32,7 +32,7 @@ export const COLUMN_BOUNDS: Record<ColumnKey, { min: number; max: number }> = {
 };
 
 /** Kolommen met inhoud van vaste maat; die zijn niet te verslepen. */
-export const FIXED_COLUMNS = { prio: 22, omvang: 26, reacties: 34 };
+export const FIXED_COLUMNS = { omvang: 26, reacties: 34 };
 
 /** Onder deze breedte zegt een PR-titel niets meer. */
 export const TITLE_MIN = 120;
@@ -54,8 +54,6 @@ const SHRINK_ORDER: ColumnKey[] = ["wie", "tijd", "nr", "status"];
 export interface ColumnVisibility {
   /** De "Alles"-weergave toont het project; een enkele repo niet. */
   project: boolean;
-  /** Alleen tonen als er in beeld een PR met prioriteit staat. */
-  prio: boolean;
 }
 
 export interface AppliedColumns {
@@ -114,7 +112,6 @@ function fullTitleRoom(
   const cells: number[] = [];
   if (shows.project) cells.push(clampColumn("project", widths.project));
   cells.push(clampColumn("nr", widths.nr));
-  if (shows.prio) cells.push(FIXED_COLUMNS.prio);
   cells.push(clampColumn("status", widths.status));
   cells.push(clampColumn("wie", widths.wie));
   cells.push(FIXED_COLUMNS.omvang);
@@ -156,7 +153,6 @@ export function effectiveColumns(
       cells.push(projectLabel ? applied.project : PROJECT_DOT);
     }
     cells.push(applied.nr);
-    if (shows.prio) cells.push(FIXED_COLUMNS.prio);
     cells.push(statusLabel ? applied.status : STATUS_ICON);
     cells.push(applied.wie);
     if (showMetrics) cells.push(FIXED_COLUMNS.omvang);

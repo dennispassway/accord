@@ -216,10 +216,6 @@ li:first-child > .pl-group-header {
   color: var(--text-3);
 }
 
-.pl-cell-prio {
-  flex: 0 0 22px;
-}
-
 .pl-cell-title {
   flex: 1 1 0;
   min-width: 0;
@@ -269,25 +265,6 @@ li:first-child > .pl-group-header {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.priority-chip {
-  flex: 0 0 auto;
-  font: 590 9.5px / 1 var(--mono);
-  letter-spacing: 0.03em;
-  padding: 3px 4px;
-  border-radius: 4px;
-}
-
-.priority-p1 {
-  color: var(--err);
-  background: color-mix(in srgb, var(--err) 14%, transparent);
-}
-
-.priority-p2 {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  padding: 2px 3px;
 }
 
 .pl-stack-chip {

@@ -7,7 +7,7 @@ import {
   rebaseStackBranch,
   resolveBranchShas,
 } from "../../lib/github/autoRebase";
-import type { PrNumber, PullRequest, RepoId } from "../../lib/github/domain";
+import type { PullRequest, RepoId } from "../../lib/github/domain";
 import type { MergeMethod } from "../../lib/github/merge";
 import { mergeReasons } from "../../lib/github/merge";
 import { groupByRepo } from "../../lib/github/organize";
@@ -64,16 +64,14 @@ const MERGE_METHOD_LABEL: Record<MergeMethod, string> = {
 
 const SORT_MODES_BY_DIGIT: Record<string, SortMode> = {
   "1": "triage",
-  "2": "prioriteit",
-  "3": "bijgewerkt",
-  "4": "oudste",
-  "5": "omvang",
-  "6": "project",
+  "2": "bijgewerkt",
+  "3": "oudste",
+  "4": "omvang",
+  "5": "project",
 };
 
 const SORT_LABELS: Record<SortMode, string> = {
   triage: "Triage",
-  prioriteit: "Prioriteit",
   bijgewerkt: "Bijgewerkt",
   oudste: "Aangemaakt",
   omvang: "Omvang",
@@ -138,33 +136,28 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     enabled: settings.notifications,
     windowFocused,
   };
-  const {
-    state,
-    refresh,
-    updatePriority,
-    mergePr,
-    clearWriteError,
-    clearRefreshError,
-    refreshing,
-  } = usePrs(onAuthError, (flippedPrs) => {
-    // U: CI-omslag naar rood op een eigen PR, gedetecteerd bij deze refresh
-    // (usePrs' snapshotvergelijking); alleen zichtbaar als het venster niet
-    // gefocust is (zie decideNotification), anders ziet de gebruiker het al
-    // in de lijst zelf.
-    for (const pr of flippedPrs) {
-      const payload = decideNotification(
-        {
-          type: "ciFlippedRed",
-          prKey: keyOfPr(pr),
-          prNumber: pr.number,
-          repoName: pr.repoId,
-        },
-        notifyContextRef.current,
-      );
-      if (payload != null) void sendAppNotification(payload);
-      else logSuppressedNotification(notifyContextRef.current);
-    }
-  });
+  const { state, refresh, mergePr, clearRefreshError, refreshing } = usePrs(
+    onAuthError,
+    (flippedPrs) => {
+      // U: CI-omslag naar rood op een eigen PR, gedetecteerd bij deze refresh
+      // (usePrs' snapshotvergelijking); alleen zichtbaar als het venster niet
+      // gefocust is (zie decideNotification), anders ziet de gebruiker het al
+      // in de lijst zelf.
+      for (const pr of flippedPrs) {
+        const payload = decideNotification(
+          {
+            type: "ciFlippedRed",
+            prKey: keyOfPr(pr),
+            prNumber: pr.number,
+            repoName: pr.repoId,
+          },
+          notifyContextRef.current,
+        );
+        if (payload != null) void sendAppNotification(payload);
+        else logSuppressedNotification(notifyContextRef.current);
+      }
+    },
+  );
   const update = useUpdate(settings.review.refreshMinutes);
   const {
     clis,
@@ -614,69 +607,6 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     );
   }
 
-  // Optimistisch schrijven; bij een fout blijft de oude waarde staan en
-  // verschijnt de reden onder de segmented control (alleen voor de PR die
-  // de mislukte write betrof).
-  const priorityError =
-    state.writeError?.scope === "priority" &&
-    selectedPr != null &&
-    state.writeError.prKey === keyOfPr(selectedPr)
-      ? state.writeError.text
-      : null;
-
-  function handleSetPriority(
-    repoId: RepoId,
-    prNumber: PrNumber,
-    priority: 1 | 2 | null,
-  ) {
-    void updatePriority(repoId, prNumber, priority)
-      .then(() => {
-        showToast(
-          priority != null
-            ? `Prioriteit ${priority === 1 ? "P1" : "P2"} gezet op #${prNumber}`
-            : "Prioriteit verwijderd",
-          "ok",
-        );
-      })
-      .catch((error: unknown) => {
-        showToast((error as Error).message, "fout");
-      });
-  }
-
-  /** Prioriteit zetten op 1 of meerdere PR's: bij 1 dezelfde melding als
-   * handleSetPriority, bij N>1 één samenvattende melding over de geslaagde
-   * writes (fouten per PR blijven apart een toast tonen). */
-  function handleSetPriorityBulk(
-    targets: PullRequest[],
-    priority: 1 | 2 | null,
-  ) {
-    if (targets.length === 1) {
-      const [pr] = targets as [PullRequest];
-      handleSetPriority(pr.repoId, pr.number, priority);
-      return;
-    }
-    let succeeded = 0;
-    void Promise.allSettled(
-      targets.map((pr) =>
-        updatePriority(pr.repoId, pr.number, priority)
-          .then(() => {
-            succeeded += 1;
-          })
-          .catch((error: unknown) => {
-            showToast((error as Error).message, "fout");
-          }),
-      ),
-    ).then(() => {
-      if (succeeded === 0) return;
-      showToast(
-        priority != null
-          ? `Prioriteit ${priority === 1 ? "P1" : "P2"} gezet op ${succeeded} PR's`
-          : `Prioriteit verwijderd op ${succeeded} PR's`,
-        "ok",
-      );
-    });
-  }
-
   /** Gedeelde bulk-reviewlogica: filtert PR's zonder gekoppelde map of met
    * een lopende run, meldt hoeveel er gestart zijn én hoeveel overgeslagen
    * (U12: eerder meldde dit alleen de overgeslagen PR's). */
@@ -946,30 +876,6 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           />
           <div className="cockpit-panes">
             <div className="cockpit-list-column">
-              {/* U11, foutkanaal-regel: een actie met een zichtbare plek
-                  (de merge-knop, MergeSection) toont haar fout uitsluitend
-                  inline daar; deze banner is voor de rest van writeError
-                  (bv. de prioriteit-segmented control), zodat één fout nooit
-                  op twee plekken tegelijk verschijnt. Agent-runfouten (start/
-                  cancel) hebben hun eigen zichtbare knop en gaan daarom
-                  uitsluitend via een toast (zie showToast-aanroepen verderop),
-                  niet via deze banner. */}
-              {state.writeError != null &&
-                state.writeError.scope !== "merge" && (
-                  <div className="cockpit-banner">
-                    <AlertIcon size={13} className="cockpit-banner-icon" />
-                    <div className="cockpit-banner-text">
-                      {state.writeError.text}
-                    </div>
-                    <button
-                      type="button"
-                      className="cockpit-banner-dismiss"
-                      onClick={clearWriteError}
-                    >
-                      <CloseIcon />
-                    </button>
-                  </div>
-                )}
               {state.refreshError != null && (
                 <div className="cockpit-banner">
                   <AlertIcon size={13} className="cockpit-banner-icon" />
@@ -1055,8 +961,6 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                 if (selectedPr == null) return;
                 setInspector({ tab, key: keyOfPr(selectedPr) });
               }}
-              onSetPriority={handleSetPriority}
-              priorityError={priorityError}
               onMergePr={handleMergePr}
               clis={clis}
               repoPath={selectedPr ? repoPaths[selectedPr.repoId] : undefined}
@@ -1143,7 +1047,6 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           onStartReview={(prsToReview, mode, agent) =>
             startBulkRuns(prsToReview, mode, agent)
           }
-          onSetPriority={handleSetPriorityBulk}
           mergeReasonsFor={(pr) =>
             mergeReasons(pr, stackInfoByKey.get(keyOfPr(pr)))
           }

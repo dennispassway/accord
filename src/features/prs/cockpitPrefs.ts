@@ -16,7 +16,6 @@ const COLUMN_KEYS = Object.keys(DEFAULT_COLUMNS) as ColumnKey[];
 
 const SORT_MODES: SortMode[] = [
   "triage",
-  "prioriteit",
   "bijgewerkt",
   "oudste",
   "omvang",

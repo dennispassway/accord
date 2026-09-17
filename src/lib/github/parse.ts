@@ -92,23 +92,6 @@ function parseCiStatus(node: Record<string, unknown>): CiStatus {
   }
 }
 
-function parsePriority(node: Record<string, unknown>): 1 | 2 | null {
-  const labelNodes =
-    isRecord(node.labels) && Array.isArray(node.labels.nodes)
-      ? node.labels.nodes
-      : [];
-  const names = new Set(
-    labelNodes
-      .filter(isRecord)
-      .map((label) => label.name)
-      .filter(isNonEmptyString)
-      .map((name) => name.toUpperCase()),
-  );
-  if (names.has("P1")) return 1;
-  if (names.has("P2")) return 2;
-  return null;
-}
-
 function nodesOf(field: unknown): unknown[] {
   return isRecord(field) && Array.isArray(field.nodes) ? field.nodes : [];
 }
@@ -307,7 +290,6 @@ function parseNode(node: unknown): PullRequest | undefined {
     reviewState: parseReviewState(node.reviewDecision),
     isDraft: node.isDraft === true,
     mergeable: parseMergeable(node.mergeable),
-    priority: parsePriority(node),
     createdAt: node.createdAt,
     updatedAt: node.updatedAt,
     additions: isFiniteNumber(node.additions) ? node.additions : 0,

@@ -51,7 +51,6 @@ fragment PrFields on PullRequest {
   headRefName
   baseRefName
   author { login }
-  labels(first: 10) { nodes { name } }
   isDraft
   mergeable
   reviewDecision

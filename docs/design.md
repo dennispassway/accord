@@ -29,8 +29,8 @@ verzorgd. Beide themes via `prefers-color-scheme` plus `:root[data-theme=...]`.
 | `--accent` | `#F0A020` | merk-accent (amber), selectie en primaire actie |
 | `--accent-ink` | `#1A1206` | tekst op accent-vlakken |
 | `--green` | `#46C48B` | CI groen |
-| `--red` | `#FF6B6B` | CI rood, P1 |
-| `--amber` | `#F5B942` | CI pending, P2 |
+| `--red` | `#FF6B6B` | CI rood |
+| `--amber` | `#F5B942` | CI pending |
 | `--purple` | `#A78BFA` | agent-activiteit |
 
 Tints voor pills: `color-mix(in srgb, <kleur> 16%, transparent)`.
@@ -64,8 +64,7 @@ Tints voor pills: `color-mix(in srgb, <kleur> 16%, transparent)`.
 2. **Sidebar**: item = 6px statusdot, naam, aantal in een pill met `tabular-nums`.
    Actief item: `--bg-elevated`, tekst in `--accent`, dot gevuld. Bovenaan "Alles",
    daaronder de repo's; de projectnaam zonder owner-prefix (owner in de tooltip).
-3. **PR-rij**, regel 1: prioriteitschip (P1 gevuld rood, P2 amber met rand), `#nummer`
-   mono in `--text-3`, titel (ellipsis). Regel 2: projectnaam (alleen in "Alles"),
+3. **PR-rij**, regel 1: `#nummer` mono in `--text-3`, titel (ellipsis). Regel 2: projectnaam (alleen in "Alles"),
    auteur, agentchip bij een agent-auteur, stackchip `2/3`, CI als gekleurde dot met
    woord ("groen", "rood", "bezig"), en bij een lopende run een pulserende paarse chip.
    Geselecteerd: `--bg-elevated` plus 1px ring in `--line-strong`; hover: 6% wit.
@@ -78,7 +77,6 @@ Tints voor pills: `color-mix(in srgb, <kleur> 16%, transparent)`.
    blokkeert.
 6. **Knoppen**: primair (accent-vlak, `--accent-ink` tekst), secundair
    (`--bg-elevated` plus `--line-strong` rand), ghost (transparant, hover-vlak).
-   Prioriteit als segmented control (P1 / P2 / Geen) met de actieve segment gevuld.
    Per agent een regel: agentnaam als chip, dan twee ghost-knoppen ("Alleen comments",
    "Comments + fixes"); de voorgestelde agent krijgt een accent-rand.
 7. **Agent-log**: `--bg-sunken`, radius 10, 11px mono, max-hoogte 200px, kopregel met

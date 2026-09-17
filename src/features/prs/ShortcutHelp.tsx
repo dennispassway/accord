@@ -15,7 +15,7 @@ const SHORTCUTS: ShortcutEntry[] = [
   { keys: "dubbelklik", label: "Diff en reacties bekijken" },
   { keys: mod("F"), label: "Zoeken" },
   { keys: mod("A"), label: "Alles selecteren" },
-  { keys: `${mod("1")} … ${mod("6")}`, label: "Sorteren" },
+  { keys: `${mod("1")} … ${mod("5")}`, label: "Sorteren" },
   { keys: mod("R"), label: "Verversen" },
   { keys: "Esc", label: "Sluiten / zoekveld leegmaken" },
   { keys: "?", label: "Deze hulp" },

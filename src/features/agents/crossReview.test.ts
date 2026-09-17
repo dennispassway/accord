@@ -21,7 +21,6 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     reviewState: { state: "none" },
     isDraft: false,
     mergeable: "MERGEABLE",
-    priority: null,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     additions: 1,

@@ -98,7 +98,6 @@ export interface PullRequest {
   reviewState: ReviewState;
   isDraft: boolean;
   mergeable: Mergeable;
-  priority: 1 | 2 | null;
   createdAt: string;
   updatedAt: string;
   additions: number;

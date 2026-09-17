@@ -17,7 +17,6 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     reviewState: { state: "none" },
     isDraft: false,
     mergeable: "MERGEABLE",
-    priority: null,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     additions: 1,
@@ -98,16 +97,6 @@ describe("buildSections", () => {
     expect(sections.map((s) => s.titel)).toEqual(["Agent bezig", "Wachten"]);
   });
 
-  it("prioriteit: P1 voor P2 voor geen prioriteit", () => {
-    const p1 = makePr({ id: "p1", number: toPrNumber(1), priority: 1 });
-    const p2 = makePr({ id: "p2", number: toPrNumber(2), priority: 2 });
-    const none = makePr({ id: "none", number: toPrNumber(3), priority: null });
-    const sections = buildSections([none, p2, p1], "prioriteit", idleCtx);
-    expect(sections).toHaveLength(1);
-    expect(sections[0]?.titel).toBe("");
-    expect(sections[0]?.prs.map((pr) => pr.id)).toEqual(["p1", "p2", "none"]);
-  });
-
   it("bijgewerkt: meest recent bijgewerkt eerst", () => {
     const oud = makePr({
       id: "oud",
@@ -177,7 +166,6 @@ describe("buildSections", () => {
 
   it("lege lijst geeft lege secties", () => {
     expect(buildSections([], "triage", idleCtx)).toEqual([]);
-    expect(buildSections([], "prioriteit", idleCtx)).toEqual([]);
     expect(buildSections([], "project", idleCtx)).toEqual([]);
   });
 });

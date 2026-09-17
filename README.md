@@ -6,8 +6,8 @@
 
 **Every pull request that is waiting on you, in one native window.**
 
-Grouped by what each one needs from you. Stacks made visible. Review, prioritise
-and merge without opening a browser tab.
+Grouped by what each one needs from you. Stacks made visible. Review and merge
+without opening a browser tab.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform: macOS and Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)
@@ -33,8 +33,6 @@ your menu bar and keeps the count in front of you.
 - **Stacks made visible.** If PR B branches off PR A, Accord shows the chain and
   tells you to merge #A first, instead of letting you merge into a branch that is
   about to disappear.
-- **Priority your team can see.** P1 and P2 are written back as GitHub labels, so
-  the priority you set is not private to your machine.
 - **Reviews by Claude or Codex.** Kick off an AI review per PR, choosing between
   comments only or comments plus pushed fixes. The agent runs in a throwaway git
   worktree of your local clone, so your own working tree is never touched. The
@@ -49,8 +47,8 @@ your menu bar and keeps the count in front of you.
 - **Stacks rebase themselves.** Merge a PR and the PRs stacked on top of it are
   rebased onto their new base, so the chain does not rot while you work through
   it. One switch in the settings turns it off.
-- **Sort, search, favourites.** Six sort modes (triage, priority, updated,
-  oldest, size, project), a search box that matches title, repository name and
+- **Sort, search, favourites.** Five sort modes (triage, updated, oldest, size,
+  project), a search box that matches title, repository name and
   number, and repositories you star pinned to the top of the sidebar. Every
   choice is remembered per machine.
 - **System notifications** when an agent run finishes or fails, when CI on one of

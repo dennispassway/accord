@@ -3,7 +3,6 @@ import { type PrStatus, type PrStatusKey, prStatus } from "./rank";
 
 export type SortMode =
   | "triage"
-  | "prioriteit"
   | "bijgewerkt"
   | "oudste"
   | "omvang"
@@ -38,12 +37,6 @@ const TRIAGE_SECTIONS: {
   { rank: 6, key: "concept", titel: "Concept" },
 ];
 
-function priorityWeight(pr: PullRequest): number {
-  if (pr.priority === 1) return 0;
-  if (pr.priority === 2) return 1;
-  return 2;
-}
-
 function statusOf(pr: PullRequest, ctx: SortCtx): PrStatus {
   return prStatus(pr, {
     agentBezig: ctx.isAgentBezig(pr),
@@ -56,13 +49,9 @@ function byRecencyDesc(a: PullRequest, b: PullRequest): number {
   return b.updatedAt.localeCompare(a.updatedAt);
 }
 
-/** Triage-volgorde: status-rank, dan prioriteit, dan meest recent bijgewerkt. */
+/** Triage-volgorde: status-rank, dan meest recent bijgewerkt. */
 function byTriage(a: PullRequest, b: PullRequest, ctx: SortCtx): number {
-  return (
-    statusOf(a, ctx).rank - statusOf(b, ctx).rank ||
-    priorityWeight(a) - priorityWeight(b) ||
-    byRecencyDesc(a, b)
-  );
+  return statusOf(a, ctx).rank - statusOf(b, ctx).rank || byRecencyDesc(a, b);
 }
 
 /** Porteert sortRows() uit het design-script: bepaalt de rijvolgorde per modus. */
@@ -72,14 +61,7 @@ function sortPrs(
   ctx: SortCtx,
 ): PullRequest[] {
   const out = [...prs];
-  if (mode === "prioriteit") {
-    out.sort(
-      (a, b) =>
-        priorityWeight(a) - priorityWeight(b) ||
-        statusOf(a, ctx).rank - statusOf(b, ctx).rank ||
-        byRecencyDesc(a, b),
-    );
-  } else if (mode === "omvang") {
+  if (mode === "omvang") {
     out.sort(
       (a, b) =>
         a.additions + a.deletions - (b.additions + b.deletions) ||

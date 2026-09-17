@@ -25,7 +25,6 @@ describe("parseSearchResponse", () => {
       author: { kind: "human", login: "dennis" },
       isDraft: false,
       mergeable: "MERGEABLE",
-      priority: 1,
       createdAt: "2026-07-01T09:00:00Z",
       updatedAt: "2026-07-02T09:00:00Z",
       additions: 120,
@@ -46,12 +45,11 @@ describe("parseSearchResponse", () => {
     );
   });
 
-  it("defaults ciStatus to none and priority to null when absent", () => {
+  it("defaults ciStatus to none when absent", () => {
     const [pr] = parseSearchResponse({ nodes: [draftPrNodeNoCi] });
 
     expect(pr?.ciStatus).toEqual({ state: "none" });
     expect(pr?.reviewState).toEqual({ state: "none" });
-    expect(pr?.priority).toBeNull();
     expect(pr?.isDraft).toBe(true);
   });
 
