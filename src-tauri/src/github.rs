@@ -105,9 +105,7 @@ pub fn classify(error: &reqwest::Error) -> TransportError {
         || lower.contains("nodename nor servname")
     {
         TransportErrorKind::Dns
-    } else if lower.contains("tls")
-        || lower.contains("certificate")
-        || lower.contains("handshake")
+    } else if lower.contains("tls") || lower.contains("certificate") || lower.contains("handshake")
     {
         TransportErrorKind::Tls
     } else if error.is_connect() || error.is_request() {
