@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.0.0](https://github.com/dennispassway/accord/compare/v0.11.0...v1.0.0) (2026-09-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** bump typescript naar 7
+* **deps:** bump vitest en @vitest/coverage-v8 naar 5
+* **deps:** bump vite naar 8 en @vitejs/plugin-react naar 6
+
+### Nieuw
+
+* verwijder prioritering (P1/P2) ([c42f3d4](https://github.com/dennispassway/accord/commit/c42f3d44d17e12c558fa94e710c331b2b41eacf4))
+
+
+### Opgelost
+
+* **prs:** open ook meer dan 5 PR's op GitHub ([e850dcb](https://github.com/dennispassway/accord/commit/e850dcb2b7caaafda6b8ecbe022cc52f6cb918dd))
+* **prs:** open ook meer dan 5 PR's op GitHub ([08518fa](https://github.com/dennispassway/accord/commit/08518fa4f5c261881551d29dd4a84ed48557d5fd))
+* **window:** sta start_dragging toe zodat het venster sleepbaar is ([062cb5f](https://github.com/dennispassway/accord/commit/062cb5ff067d9780a4fb479f3f23b0ca93493d77))
+
+
+### Build
+
+* **deps:** bump typescript naar 7 ([9634c24](https://github.com/dennispassway/accord/commit/9634c243f540dbfc52e06429c3cc08c6cdc6fd56))
+* **deps:** bump vite naar 8 en @vitejs/plugin-react naar 6 ([c494950](https://github.com/dennispassway/accord/commit/c494950640d2d06a523c3f8de5a2ac11296816ce))
+* **deps:** bump vitest en @vitest/coverage-v8 naar 5 ([687a4b4](https://github.com/dennispassway/accord/commit/687a4b41e5be360172c4f240039430fd2820ff2e))
+
 ## [0.11.0](https://github.com/dennispassway/accord/compare/v0.10.0...v0.11.0) (2026-09-15)
 
 
