@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/dennispassway/accord/compare/v1.0.0...v1.1.0) (2026-09-17)
+
+
+### Nieuw
+
+* **settings:** eigen model voor reviews zonder fixes ([03f33a3](https://github.com/dennispassway/accord/commit/03f33a3e6937a4b29047c2b4622b218f6f87da25))
+
+
+### Sneller
+
+* **agents:** laat de fix-modes groene CI vertrouwen ([3cf8f71](https://github.com/dennispassway/accord/commit/3cf8f71b5fdd9806d4d19a01dc1a61371c79b927))
+* **agents:** richt het lezen in de review-modes op de diff ([ba8a876](https://github.com/dennispassway/accord/commit/ba8a876afb350955de9bee1fd3ef02864bad3c72))
+* maak agent-review-runs goedkoper (CI-bewuste gates, diff-gericht lezen, model per modus) ([a6ea388](https://github.com/dennispassway/accord/commit/a6ea388f42f5e27226c357de079f8064360808de))
+
 ## [1.0.0](https://github.com/dennispassway/accord/compare/v0.11.0...v1.0.0) (2026-09-17)
 
 
