@@ -7,11 +7,10 @@ import "./sortmenu.css";
 
 const SORT_OPTIONS: { mode: SortMode; label: string; kbd: string }[] = [
   { mode: "triage", label: "Triage (wat nu te doen)", kbd: mod("1") },
-  { mode: "prioriteit", label: "Prioriteit (P1 eerst)", kbd: mod("2") },
-  { mode: "bijgewerkt", label: "Laatst bijgewerkt", kbd: mod("3") },
-  { mode: "oudste", label: "Aanmaakdatum (oudste eerst)", kbd: mod("4") },
-  { mode: "omvang", label: "Snelste eerst (kleinste diff)", kbd: mod("5") },
-  { mode: "project", label: "Per project gegroepeerd", kbd: mod("6") },
+  { mode: "bijgewerkt", label: "Laatst bijgewerkt", kbd: mod("2") },
+  { mode: "oudste", label: "Aanmaakdatum (oudste eerst)", kbd: mod("3") },
+  { mode: "omvang", label: "Snelste eerst (kleinste diff)", kbd: mod("4") },
+  { mode: "project", label: "Per project gegroepeerd", kbd: mod("5") },
 ];
 
 interface SortMenuProps {

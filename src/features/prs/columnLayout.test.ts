@@ -14,13 +14,16 @@ import {
 /** Smalste lijstkolom die kan voorkomen: LIST_MIN uit panelLayout.ts. */
 const NARROW = 384;
 const WIDE = 724;
+/** Breedte waarop de greep op de TITEL stuit en niet op COLUMN_BOUNDS.max:
+ * op WIDE is de bovengrens van de projectkolom eerder bindend, en dan meet
+ * een grenstest de clamp in plaats van de inklap-ladder. */
+const SNUG = 700;
 
 /** Telt de rij na zoals de browser hem legt: padding, cellen en gaps. */
 function rowWidth(applied: AppliedColumns, shows: Shows): number {
   const cells = [
     shows.project ? applied.widths.project : null,
     applied.widths.nr,
-    shows.prio ? FIXED_COLUMNS.prio : null,
     applied.widths.status,
     applied.widths.wie,
     applied.showMetrics ? FIXED_COLUMNS.omvang : null,
@@ -34,12 +37,10 @@ function rowWidth(applied: AppliedColumns, shows: Shows): number {
 
 interface Shows {
   project: boolean;
-  prio: boolean;
 }
 
-const ALLES: Shows = { project: true, prio: false };
-const EEN_REPO: Shows = { project: false, prio: false };
-const MET_PRIO: Shows = { project: true, prio: true };
+const ALLES: Shows = { project: true };
+const EEN_REPO: Shows = { project: false };
 
 describe("clampColumn", () => {
   it("houdt een kolom binnen zijn ondergrens", () => {
@@ -98,13 +99,6 @@ describe("effectiveColumns op de smalste lijstkolom", () => {
     expect(applied.showComments).toBe(false);
   });
 
-  it("offert ook de omvangkolom op als de prioriteitkolom meedoet", () => {
-    const applied = effectiveColumns(DEFAULT_COLUMNS, NARROW, MET_PRIO);
-    expect(applied.showMetrics).toBe(false);
-    expect(applied.titleWidth).toBeGreaterThanOrEqual(TITLE_MIN);
-    expect(rowWidth(applied, MET_PRIO)).toBeLessThanOrEqual(NARROW);
-  });
-
   it("houdt in een enkele repo meer over doordat de projectkolom wegvalt", () => {
     const alles = effectiveColumns(DEFAULT_COLUMNS, NARROW, ALLES);
     const een = effectiveColumns(DEFAULT_COLUMNS, NARROW, EEN_REPO);
@@ -115,11 +109,11 @@ describe("effectiveColumns op de smalste lijstkolom", () => {
 
 describe("maxColumnWidth", () => {
   it("stopt de greep vóór de titel onder TITLE_MIN zakt", () => {
-    const max = maxColumnWidth("project", DEFAULT_COLUMNS, WIDE, MET_PRIO);
+    const max = maxColumnWidth("project", DEFAULT_COLUMNS, SNUG, ALLES);
     const applied = effectiveColumns(
       { ...DEFAULT_COLUMNS, project: max },
-      WIDE,
-      MET_PRIO,
+      SNUG,
+      ALLES,
     );
     // Op die breedte klapt er nog niets in: het project houdt zijn naam.
     expect(applied.projectLabel).toBe(true);
@@ -127,11 +121,11 @@ describe("maxColumnWidth", () => {
   });
 
   it("laat één pixel meer wél inklappen, dus de grens ligt precies goed", () => {
-    const max = maxColumnWidth("project", DEFAULT_COLUMNS, WIDE, MET_PRIO);
+    const max = maxColumnWidth("project", DEFAULT_COLUMNS, SNUG, ALLES);
     const applied = effectiveColumns(
       { ...DEFAULT_COLUMNS, project: max + 1 },
-      WIDE,
-      MET_PRIO,
+      SNUG,
+      ALLES,
     );
     expect(applied.projectLabel).toBe(false);
   });
@@ -147,14 +141,14 @@ describe("maxColumnWidth", () => {
     // beweging. Gaf de grens hier de ondergrens terug, dan sprong de kolom
     // bij die ene klik naar zijn smalste stand en was de opgeslagen keuze
     // weg.
-    expect(maxColumnWidth("project", DEFAULT_COLUMNS, NARROW, MET_PRIO)).toBe(
+    expect(maxColumnWidth("project", DEFAULT_COLUMNS, NARROW, ALLES)).toBe(
       DEFAULT_COLUMNS.project,
     );
   });
 
   it("knijpt een versleepte kolom op een smalle lijst niet terug", () => {
     const breed = { ...DEFAULT_COLUMNS, wie: 90 };
-    expect(maxColumnWidth("wie", breed, NARROW, MET_PRIO)).toBe(90);
+    expect(maxColumnWidth("wie", breed, NARROW, ALLES)).toBe(90);
   });
 });
 

@@ -1,10 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type {
-  Author,
-  PrNumber,
-  PullRequest,
-  RepoId,
-} from "../../lib/github/domain";
+import type { Author, PullRequest } from "../../lib/github/domain";
 import { deriveAuthor } from "../../lib/github/domain";
 import type { MergeMethod } from "../../lib/github/merge";
 import type { PrStackInfo } from "../../lib/github/stacks";
@@ -27,7 +22,6 @@ import {
   StackIcon,
 } from "./icons";
 import { MergeSection } from "./MergeSection";
-import { PrioritySegmented } from "./PrioritySegmented";
 import { ReviewHistory } from "./ReviewHistory";
 import { sizeWord } from "./RowMetrics";
 import type { PrStatusKey } from "./rank";
@@ -133,13 +127,6 @@ interface DetailPanelProps {
   pr: PullRequest | undefined;
   stackInfo: PrStackInfo | undefined;
   stackChain: PullRequest[];
-  onSetPriority: (
-    repoId: RepoId,
-    prNumber: PrNumber,
-    priority: 1 | 2 | null,
-  ) => void;
-  /** Reden van een mislukte prioriteits-write voor de geselecteerde PR. */
-  priorityError?: string | null;
   onMergePr: (pr: PullRequest, method: MergeMethod) => Promise<void>;
   clis: AgentClis;
   repoPath: string | undefined;
@@ -177,8 +164,6 @@ export function DetailPanel({
   pr,
   stackInfo,
   stackChain,
-  onSetPriority,
-  priorityError,
   onMergePr,
   clis,
   repoPath,
@@ -267,12 +252,6 @@ export function DetailPanel({
           >
             {status.label}
           </span>
-          {pr.priority === 1 && (
-            <span className="detail-chip detail-chip-prio1">P1</span>
-          )}
-          {pr.priority === 2 && (
-            <span className="detail-chip detail-chip-prio2">P2</span>
-          )}
           {pr.isDraft && (
             <span className="detail-chip detail-chip-draft">
               <ConceptIcon size={9} />
@@ -364,14 +343,6 @@ export function DetailPanel({
             meLogin={meLogin}
           />
         </div>
-
-        <PrioritySegmented
-          repoId={pr.repoId}
-          prNumber={pr.number}
-          priority={pr.priority}
-          onSetPriority={onSetPriority}
-          error={priorityError}
-        />
 
         {runningHere ? null : (
           <div className="detail-agents detail-card">

@@ -23,3 +23,10 @@ valt dan terug op de `width`-prop. Eén klik op een greep schrijft dus een waard
 Toets zo'n grens op de smalste stand en niet op een ruim venster. Op `LIST_MIN` (384px) is
 `fullTitleRoom` al ruim negatief vóórdat `effectiveColumns` iets heeft ingeklapt, en daar
 zitten deze randgevallen; op de standaardbreedte blijft alles groen.
+
+Pas ook op voor het omgekeerde. Op een ruim venster geeft `maxColumnWidth` gewoon
+`COLUMN_BOUNDS[kolom].max` terug, want de titel knelt daar niet. Een test die daar een
+pixel boven die grens gaat zitten meet dan de clamp en niet de inklap-ladder, en blijft
+groen wat je ook aan die ladder verandert. Kies een breedte waar de titel de bindende
+grens is (`SNUG` in `columnLayout.test.ts`) en reken na dat je grens onder de
+kolom-bovengrens ligt.

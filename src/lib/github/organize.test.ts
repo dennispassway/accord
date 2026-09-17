@@ -18,7 +18,6 @@ function pr(
     reviewState: { state: "none" },
     isDraft: false,
     mergeable: "MERGEABLE",
-    priority: null,
     createdAt: "2026-07-01T09:00:00Z",
     updatedAt: "2026-07-01T09:00:00Z",
     additions: 0,
@@ -50,23 +49,7 @@ describe("groupByRepo", () => {
     expect(groups.map((g) => g.repoId)).toEqual(["acme/alpha", "acme/zeta"]);
   });
 
-  it("sorts P1 before P2 before unprioritized", () => {
-    const prs = [
-      pr({ number: 1, repoId: "acme/widgets", priority: null }),
-      pr({ number: 2, repoId: "acme/widgets", priority: 2 }),
-      pr({ number: 3, repoId: "acme/widgets", priority: 1 }),
-    ];
-
-    const [group] = groupByRepo(prs);
-
-    expect(group?.prs.map((p) => p.number)).toEqual([
-      toPrNumber(3),
-      toPrNumber(2),
-      toPrNumber(1),
-    ]);
-  });
-
-  it("sorts a stack base before its children within the same priority", () => {
+  it("sorts a stack base before its children", () => {
     const prs = [
       pr({
         number: 2,
@@ -90,7 +73,7 @@ describe("groupByRepo", () => {
     ]);
   });
 
-  it("puts red CI authored-by-me PRs before others at the same priority/stack level, then oldest review request first", () => {
+  it("puts red CI authored-by-me PRs before others at the same stack level, then oldest review request first", () => {
     const prs = [
       pr({
         number: 1,

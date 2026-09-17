@@ -1,8 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PrNumber, PullRequest, RepoId } from "../../lib/github/domain";
-import { toPrNumber, toRepoId } from "../../lib/github/domain";
-import { setPriority } from "../../lib/github/labels";
+import type { PullRequest } from "../../lib/github/domain";
 import type { MergeMethod } from "../../lib/github/merge";
 import { mergePullRequest } from "../../lib/github/merge";
 import { isTransientKind, NetworkError } from "../../lib/github/networkError";
@@ -15,18 +13,6 @@ import { withRetry } from "../../lib/retry";
 
 const IS_MOCK = isMockApp(mockMode());
 
-// ponytail: mock-only foutpad voor QA, vaste PR/waarde zoals in de
-// designdemo (docs/design-v2/pr-cockpit-v2.dc.html, regel 946).
-const MOCK_FAIL_PRIORITY_REPO = toRepoId("acme/knowledge-base");
-const MOCK_FAIL_PRIORITY_NR = toPrNumber(167);
-
-interface PrWriteError {
-  scope: "priority" | "merge";
-  text: string;
-  /** `${repoId}#${prNumber}`, zoals keyOfPr/prKeyOf elders in de app. */
-  prKey: string;
-}
-
 export type PrsState =
   | { status: "loading" }
   | { status: "error"; message: string }
@@ -34,7 +20,6 @@ export type PrsState =
       status: "ready";
       prs: PullRequest[];
       lastUpdated: Date;
-      writeError: PrWriteError | null;
       /** Fout van een achtergrond-refresh; de lijst blijft staan, dit wordt
        * als wegklikbare banner getoond (zie Cockpit.tsx). */
       refreshError: string | null;
@@ -149,7 +134,6 @@ function initialState(): PrsState {
       status: "ready",
       prs: MOCK_PRS,
       lastUpdated: new Date(),
-      writeError: null,
       refreshError: null,
       viewerLogin: MOCK_ME,
       // Visuele QA van de afkap-banner: ?mock=app&truncated
@@ -164,7 +148,6 @@ function initialState(): PrsState {
       status: "ready",
       prs: snapshot.prs,
       lastUpdated: new Date(snapshot.lastUpdated),
-      writeError: null,
       refreshError: null,
       viewerLogin: snapshot.viewerLogin,
       // ponytail: niet gepersisteerd in de snapshot, de eerstvolgende echte
@@ -177,8 +160,8 @@ function initialState(): PrsState {
 }
 
 /**
- * Loads all "@me" PRs and exposes a `refresh()` and `updatePriority()` for
- * the UI. Ververst zichzelf niet op een interval: Cockpit is de enige
+ * Loads all "@me" PRs and exposes a `refresh()` for the UI. Ververst
+ * zichzelf niet op een interval: Cockpit is de enige
  * scheduler (settings-gedreven, incl. "handmatig"). `onAuthError` lets the
  * caller (App) log the user out when the stored token is rejected.
  */
@@ -252,7 +235,6 @@ export function usePrs(
           status: "ready",
           prs,
           lastUpdated,
-          writeError: null,
           refreshError: null,
           viewerLogin,
           truncated,
@@ -292,114 +274,6 @@ export function usePrs(
   useEffect(() => {
     if (state.status === "ready") prsRef.current = state.prs;
   }, [state]);
-
-  const updatePriority = useCallback(
-    async (repoId: RepoId, prNumber: PrNumber, priority: 1 | 2 | null) => {
-      const prKey = `${repoId}#${prNumber}`;
-      const previousPriority =
-        prsRef.current.find(
-          (pr) => pr.repoId === repoId && pr.number === prNumber,
-        )?.priority ?? null;
-      setState((prev) => {
-        if (prev.status !== "ready") return prev;
-        return {
-          ...prev,
-          writeError: null,
-          prs: prev.prs.map((pr) =>
-            pr.repoId === repoId && pr.number === prNumber
-              ? { ...pr, priority }
-              : pr,
-          ),
-        };
-      });
-      if (IS_MOCK) {
-        if (
-          repoId === MOCK_FAIL_PRIORITY_REPO &&
-          prNumber === MOCK_FAIL_PRIORITY_NR &&
-          priority === 1
-        ) {
-          const message = "Label P1 zetten mislukt (403)";
-          setState((prev) =>
-            prev.status === "ready"
-              ? {
-                  ...prev,
-                  prs: prev.prs.map((pr) =>
-                    pr.repoId === repoId && pr.number === prNumber
-                      ? { ...pr, priority: previousPriority }
-                      : pr,
-                  ),
-                  writeError: { scope: "priority", text: message, prKey },
-                }
-              : prev,
-          );
-          throw new Error(message);
-        }
-        return;
-      }
-
-      // Een mislukte write mag de ready-state (en dus de PR-lijst) niet
-      // wegvegen: toon de fout ernaast in plaats van de state te vervangen.
-      const fail = (message: string) =>
-        setState((prev) =>
-          prev.status === "ready"
-            ? {
-                ...prev,
-                writeError: { scope: "priority", text: message, prKey },
-              }
-            : { status: "error", message },
-        );
-
-      let token: string | null;
-      try {
-        token = await getToken();
-      } catch (error) {
-        fail((error as Error).message);
-        throw error;
-      }
-      if (token == null || token === "") {
-        const message = "Niet ingelogd";
-        fail(message);
-        throw new Error(message);
-      }
-
-      try {
-        await setPriority(
-          token,
-          repoId,
-          prNumber,
-          priority,
-          previousPriority,
-          tauriFetch,
-        );
-      } catch (error) {
-        if (error instanceof AuthError) {
-          onAuthErrorRef.current();
-          return;
-        }
-        // Roll back the optimistic update, keeping the rest of the list.
-        setState((prev) => {
-          if (prev.status !== "ready") return prev;
-          return {
-            ...prev,
-            prs: prev.prs.map((pr) =>
-              pr.repoId === repoId && pr.number === prNumber
-                ? { ...pr, priority: previousPriority }
-                : pr,
-            ),
-          };
-        });
-        fail((error as Error).message);
-        throw error;
-      }
-    },
-    [],
-  );
-
-  const clearWriteError = useCallback(() => {
-    setState((prev) =>
-      prev.status === "ready" ? { ...prev, writeError: null } : prev,
-    );
-  }, []);
 
   const clearRefreshError = useCallback(() => {
     setState((prev) =>
@@ -452,9 +326,7 @@ export function usePrs(
   return {
     state,
     refresh: load,
-    updatePriority,
     mergePr,
-    clearWriteError,
     clearRefreshError,
     refreshing,
   };
