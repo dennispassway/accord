@@ -115,7 +115,12 @@ fn rebase_stack_branch_impl(
 
     let rebase = run_git(
         &worktree,
-        &["rebase", "--onto", &format!("origin/{new_base}"), old_base_sha],
+        &[
+            "rebase",
+            "--onto",
+            &format!("origin/{new_base}"),
+            old_base_sha,
+        ],
     );
     if let Err(rebase_err) = rebase {
         // Niet elke gefaalde rebase is een conflict: een onbekende
@@ -136,12 +141,19 @@ fn rebase_stack_branch_impl(
     let lease = format!("--force-with-lease={branch}:{expected_head_sha}");
     let push = run_git(
         &worktree,
-        &["push", &lease, "origin", &format!("HEAD:refs/heads/{branch}")],
+        &[
+            "push",
+            &lease,
+            "origin",
+            &format!("HEAD:refs/heads/{branch}"),
+        ],
     );
     cleanup_worktree(repo_path, &worktree);
     match push {
         Ok(_) => Ok("rebased".to_string()),
-        Err(e) => Err(format!("push mislukte (waarschijnlijk een verlopen lease): {e}")),
+        Err(e) => Err(format!(
+            "push mislukte (waarschijnlijk een verlopen lease): {e}"
+        )),
     }
 }
 
@@ -168,7 +180,13 @@ pub async fn rebase_stack_branch(
 ) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let repo_path = checked_repo_path(&repo_path)?;
-        rebase_stack_branch_impl(&repo_path, &branch, &old_base_sha, &expected_head_sha, &new_base)
+        rebase_stack_branch_impl(
+            &repo_path,
+            &branch,
+            &old_base_sha,
+            &expected_head_sha,
+            &new_base,
+        )
     })
     .await
     .map_err(|e| format!("kon de rebase niet uitvoeren: {e}"))?
@@ -210,7 +228,11 @@ mod tests {
                 .arg(&clone)
                 .output()
                 .unwrap();
-            assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+            assert!(
+                out.status.success(),
+                "{}",
+                String::from_utf8_lossy(&out.stderr)
+            );
             let repo = TestRepo { origin, clone };
             repo.sh(&["config", "user.email", "test@example.com"]);
             repo.sh(&["config", "user.name", "Test"]);
@@ -351,7 +373,11 @@ mod tests {
         let old_b_sha = repo.sh(&["rev-parse", "B"]);
 
         repo.sh(&["checkout", "main"]);
-        repo.write_and_commit("shared.txt", "base\nmain change\n", "main changes shared line");
+        repo.write_and_commit(
+            "shared.txt",
+            "base\nmain change\n",
+            "main changes shared line",
+        );
         repo.sh(&["push", "origin", "main"]);
 
         let outcome = rebase_stack_branch_impl(&repo.clone, "B", &old_main_sha, &old_b_sha, "main");
@@ -381,8 +407,13 @@ mod tests {
         repo.sh(&["push", "-u", "origin", "B"]);
         let old_b_sha = repo.sh(&["rev-parse", "B"]);
 
-        let outcome =
-            rebase_stack_branch_impl(&repo.clone, "B", &old_main_sha, &old_b_sha, "geen-bestaande-branch");
+        let outcome = rebase_stack_branch_impl(
+            &repo.clone,
+            "B",
+            &old_main_sha,
+            &old_b_sha,
+            "geen-bestaande-branch",
+        );
         assert!(outcome.is_err());
 
         repo.sh(&["fetch", "origin"]);
@@ -441,7 +472,9 @@ mod tests {
         let ghost_sha = "0".repeat(40);
         let outcome = rebase_stack_branch_impl(&repo.clone, "B", &ghost_sha, &old_b_sha, "main");
         assert!(
-            outcome.as_ref().is_err_and(|e| e.contains("rebase van B mislukte")),
+            outcome
+                .as_ref()
+                .is_err_and(|e| e.contains("rebase van B mislukte")),
             "verwacht een echte fout, kreeg: {outcome:?}"
         );
 
