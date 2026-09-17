@@ -67,6 +67,7 @@ describe("loadSettings", () => {
     const settings = loadSettings();
     expect(settings.claude).toEqual({
       model: "opus",
+      commentsOnlyModel: "opus",
       effort: DEFAULT_SETTINGS.claude.effort,
     });
     expect(settings.codex).toEqual(DEFAULT_SETTINGS.codex);
@@ -76,11 +77,69 @@ describe("loadSettings", () => {
   it("leest terug wat saveSettings heeft weggeschreven", () => {
     const custom = {
       ...DEFAULT_SETTINGS,
-      claude: { model: "haiku" as const, effort: "hoog" as const },
+      claude: {
+        model: "haiku" as const,
+        commentsOnlyModel: "haiku" as const,
+        effort: "hoog" as const,
+      },
       review: { ...DEFAULT_SETTINGS.review, timeoutMinutes: 10 },
     };
     saveSettings(custom);
     expect(loadSettings()).toEqual(custom);
+  });
+});
+
+describe("commentsOnlyModel", () => {
+  /// Versie 2 kende het veld niet. De opslag weggooien zou elke bestaande
+  /// keuze wissen, dus de migratie houdt de gekozen modellen en leidt het
+  /// leesmodel daaruit af.
+  it("migreert een opslag van versie 2 en leidt het leesmodel af uit het model", () => {
+    localStorage.setItem(
+      "pr-cockpit.settings",
+      JSON.stringify({
+        version: 2,
+        claude: { model: "opus", effort: "hoog" },
+        codex: { model: "gpt-5.5", effort: "laag" },
+      }),
+    );
+    const settings = loadSettings();
+    expect(settings.version).toBe(3);
+    expect(settings.claude).toEqual({
+      model: "opus",
+      commentsOnlyModel: "opus",
+      effort: "hoog",
+    });
+    expect(settings.codex).toEqual({
+      model: "gpt-5.5",
+      commentsOnlyModel: "gpt-5.5",
+      effort: "laag",
+    });
+  });
+
+  it.each([null, undefined, ""])(
+    "valt bij %j terug op het model voor fixwerk",
+    (value) => {
+      localStorage.setItem(
+        "pr-cockpit.settings",
+        JSON.stringify({
+          ...DEFAULT_SETTINGS,
+          claude: { model: "opus", commentsOnlyModel: value, effort: "hoog" },
+        }),
+      );
+      expect(loadSettings().claude.commentsOnlyModel).toBe("opus");
+    },
+  );
+
+  it("houdt een eigen keuze die los staat van het model", () => {
+    saveSettings({
+      ...DEFAULT_SETTINGS,
+      claude: { model: "opus", commentsOnlyModel: "haiku", effort: "midden" },
+    });
+    expect(loadSettings().claude).toEqual({
+      model: "opus",
+      commentsOnlyModel: "haiku",
+      effort: "midden",
+    });
   });
 });
 

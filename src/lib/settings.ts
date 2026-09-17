@@ -32,6 +32,10 @@ export function withCurrent(options: string[], current: string): string[] {
 interface AgentSettings {
   /** Vrije string: de lijst komt uit de CLI, niet uit een vaste union. */
   model: string;
+  /** Model voor het leeswerk (mode `commentsOnly`), los van het model voor
+   * fixwerk: een review zonder code-wijzigingen hoeft niet op hetzelfde
+   * zware model te draaien. Leeg of ontbrekend valt terug op `model`. */
+  commentsOnlyModel: string;
   effort: Effort;
 }
 
@@ -43,7 +47,7 @@ interface ReviewSettings {
 }
 
 export interface Settings {
-  version: 2;
+  version: 3;
   claude: AgentSettings;
   codex: AgentSettings;
   review: ReviewSettings;
@@ -57,12 +61,19 @@ export interface Settings {
 }
 
 const STORAGE_KEY = "pr-cockpit.settings";
-const VERSION = 2;
+const VERSION = 3;
+/** Versie 2 kende `commentsOnlyModel` nog niet; `normalizeAgent` vult dat aan,
+ * dus die opslag gooien we niet weg voor één ontbrekend veld. */
+const MIGRATABLE_VERSION = 2;
 
 export const DEFAULT_SETTINGS: Settings = {
   version: VERSION,
-  claude: { model: "sonnet", effort: "midden" },
-  codex: { model: "gpt-5.6-sol", effort: "midden" },
+  claude: { model: "sonnet", commentsOnlyModel: "haiku", effort: "midden" },
+  codex: {
+    model: "gpt-5.6-sol",
+    commentsOnlyModel: "gpt-5.4-mini",
+    effort: "midden",
+  },
   review: {
     primaryMode: "commentsOnly",
     refreshMinutes: 5,
@@ -90,18 +101,41 @@ function normalizeNotifications(value: unknown): boolean {
   return typeof value === "boolean" ? value : DEFAULT_SETTINGS.notifications;
 }
 
+/** Vult een opgeslagen agent aan. Een ontbrekend, leeg of null `commentsOnlyModel`
+ * (versie 2 kende het veld niet, en een verplicht stringveld komt ook als ""
+ * terug) volgt het model dat de gebruiker wél koos, niet de default. */
+function normalizeAgent(
+  stored: Partial<AgentSettings> | undefined,
+  fallback: AgentSettings,
+): AgentSettings {
+  // Staat er niets, dan koos de gebruiker ook niets: dan geldt de hele default,
+  // inclusief het lichtere leesmodel.
+  if (stored == null) return fallback;
+  const model = stored.model || fallback.model;
+  return {
+    ...fallback,
+    ...stored,
+    model,
+    commentsOnlyModel: stored.commentsOnlyModel || model,
+  };
+}
+
 /** Leest settings uit localStorage; valt terug op de defaults bij ontbrekende
  * data, corrupte JSON of een ander versieveld, en vult ontbrekende velden aan. */
 export function loadSettings(): Settings {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw == null) return DEFAULT_SETTINGS;
   try {
-    const parsed = JSON.parse(raw) as Partial<Settings>;
-    if (parsed.version !== VERSION) return DEFAULT_SETTINGS;
+    const parsed = JSON.parse(raw) as Omit<Partial<Settings>, "version"> & {
+      version?: number;
+    };
+    if (parsed.version !== VERSION && parsed.version !== MIGRATABLE_VERSION) {
+      return DEFAULT_SETTINGS;
+    }
     return {
       version: VERSION,
-      claude: { ...DEFAULT_SETTINGS.claude, ...parsed.claude },
-      codex: { ...DEFAULT_SETTINGS.codex, ...parsed.codex },
+      claude: normalizeAgent(parsed.claude, DEFAULT_SETTINGS.claude),
+      codex: normalizeAgent(parsed.codex, DEFAULT_SETTINGS.codex),
       review: { ...DEFAULT_SETTINGS.review, ...parsed.review },
       theme: normalizeTheme(parsed.theme),
       autoRebaseStacks: normalizeAutoRebaseStacks(parsed.autoRebaseStacks),

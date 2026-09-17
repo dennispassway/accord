@@ -296,7 +296,14 @@ export function useAgentRuns(
       }
       const runId = crypto.randomUUID();
       // "model · effort" gaat mee als eerste logregel van de run (design v2).
-      const { model, effort } = settingsRef.current[agent];
+      // Leeswerk (commentsOnly) mag op een lichter model dan fixwerk, dus de
+      // modus bepaalt welk van de twee modellen meegaat en in de logregel staat.
+      const agentSettings = settingsRef.current[agent];
+      const model =
+        mode === "commentsOnly"
+          ? agentSettings.commentsOnlyModel
+          : agentSettings.model;
+      const { effort } = agentSettings;
       const firstLine = `${model} · ${effort}`;
       setRuns((current) => {
         const next = new Map(current);
