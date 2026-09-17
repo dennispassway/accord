@@ -76,6 +76,16 @@ jobs:
       - name: Formattering
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
 
+      - name: Lockfile in pas met Cargo.toml
+        # Een release bumpt Cargo.toml; blijft Cargo.lock achter, dan faalt dit
+        # met "cannot update the lock file ... because --locked was passed".
+        # Dit is de luide kant van release-please-config.json: dat wijst
+        # Cargo.lock aan op index 0 van de package-lijst, en die index klopt
+        # alleen zolang "accord" alfabetisch vooraan staat.
+        env:
+          TAURI_CONFIG: '{"app":{"macOSPrivateApi":true}}'
+        run: cargo metadata --manifest-path src-tauri/Cargo.toml --format-version 1 --locked > /dev/null
+
       - name: Test
         # Het build-script van tauri toetst de feature-lijst in Cargo.toml tegen
         # tauri.conf.json en struikelt over macos-private-api, dat daar niet
