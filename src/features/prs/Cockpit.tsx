@@ -28,7 +28,6 @@ import { SettingsSheet } from "../settings/SettingsSheet";
 import { UpdateBanner } from "../update/UpdateBanner";
 import { useUpdate } from "../update/useUpdate";
 import "./contextmenu.css";
-import { shouldConfirmBulkOpen } from "./bulkOpen";
 import {
   loadRepoFilter,
   loadSortMode,
@@ -1036,12 +1035,6 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           position={contextMenu.position}
           onClose={() => setContextMenu(null)}
           onOpenOnGitHub={(prsToOpen) => {
-            if (
-              shouldConfirmBulkOpen(prsToOpen.length) &&
-              !confirm(`${prsToOpen.length} tabs openen op GitHub?`)
-            ) {
-              return;
-            }
             for (const pr of prsToOpen) void openUrl(pr.url);
           }}
           onStartReview={(prsToReview, mode, agent) =>
