@@ -776,6 +776,30 @@ fn push_if_marked(app: &AppHandle, run_id: &str, worktree: &Path, head_ref: &str
     outcome
 }
 
+/// Los van tauri om zonder AppHandle te kunnen testen: mag deze run als
+/// geslaagd gelden, plus de logregel erover.
+///
+/// `commentsOnly` levert niets op dat in de worktree achterblijft: de enige
+/// uitkomst is de review op GitHub. De agent kan die niet kwijt zijn geraakt en
+/// tóch met exit 0 eindigen (zijn eigen tooling valt weg, zijn sandbox heeft
+/// geen netwerk), en dan staat er een run op "klaar" waar niemand iets van
+/// terugziet. Vandaar dat exit 0 hier niet volstaat als bewijs.
+///
+/// Andere modes gaan er ongemoeid langs; die hebben hun eigen bewijs
+/// (`push_outcome`) of laten commits achter. Een controle die zelf faalt
+/// bewijst niets, dus die laat de run geslaagd en meldt alleen dat hij niet
+/// kon draaien.
+fn review_outcome(
+    mode: &str,
+    exit_code: i32,
+    cancelled: bool,
+    posted: impl FnOnce() -> Result<bool, String>,
+) -> (bool, Option<String>) {
+    let _ = posted;
+    let _ = (mode, exit_code, cancelled);
+    (true, None)
+}
+
 /// Los van tauri om zonder AppHandle te kunnen testen: de reden om de worktree
 /// te bewaren, of `None` als hij weg mag. Bij twijfel bewaren: kan de check niet
 /// draaien, dan blijft alles staan.
@@ -1746,6 +1770,77 @@ mod tests {
             !args.iter().any(|a| a.contains("writable_roots")),
             "commentsOnly hoort geen schrijfrechten op .git te krijgen: {args:?}"
         );
+    }
+
+    // Een globale ~/.codex/config.toml kan MCP-servers meebrengen die codex naar
+    // een andere uitvoerlaag laten schakelen. Gebeurde dat, dan liep elke
+    // shell-aanroep dood op "timed out negotiating with the code-mode host" en
+    // week de agent uit naar een runtime zonder netwerk: review voorbereid, nooit
+    // geplaatst, exit 0.
+    #[test]
+    fn codex_runs_without_the_mcp_servers_from_the_global_config() {
+        let command = agent_command(
+            "codex",
+            "commentsOnly",
+            "prompt",
+            Path::new("/usr/bin/codex"),
+            "gpt-5",
+            "midden",
+            Path::new("/repo/.git"),
+        )
+        .expect("command");
+        let args: Vec<String> = command
+            .get_args()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect();
+        assert!(
+            args.contains(&"mcp_servers={}".to_string()),
+            "codex hoort zonder MCP-servers te draaien: {args:?}"
+        );
+    }
+
+    #[test]
+    fn a_comments_only_run_without_a_review_counts_as_failed() {
+        let (ok, line) = review_outcome("commentsOnly", 0, false, || Ok(false));
+        assert!(!ok);
+        assert!(
+            line.expect("logregel").contains("geen review"),
+            "de logregel hoort te zeggen dat er niets geplaatst is"
+        );
+    }
+
+    #[test]
+    fn a_comments_only_run_with_a_review_counts_as_done() {
+        let (ok, line) = review_outcome("commentsOnly", 0, false, || Ok(true));
+        assert!(ok);
+        assert_eq!(line, None);
+    }
+
+    // De controle zelf is een tweede aanroep die om eigen redenen kan falen
+    // (geen netwerk, gh niet ingelogd). Dat is geen bewijs dat er niets
+    // geplaatst is, dus de run blijft geslaagd en de reden gaat naar het log.
+    #[test]
+    fn a_failing_check_does_not_fail_the_run() {
+        let (ok, line) = review_outcome("commentsOnly", 0, false, || Err("gh: 401".to_string()));
+        assert!(ok);
+        assert!(line.expect("logregel").contains("gh: 401"));
+    }
+
+    #[test]
+    fn other_modes_and_unfinished_runs_skip_the_check() {
+        for (mode, exit_code, cancelled) in [
+            ("withFixes", 0, false),
+            ("fixComments", 0, false),
+            ("distillLearnings", 0, false),
+            ("commentsOnly", 1, false),
+            ("commentsOnly", 0, true),
+        ] {
+            let (ok, line) = review_outcome(mode, exit_code, cancelled, || {
+                panic!("de controle hoort hier niet te draaien: {mode} {exit_code} {cancelled}")
+            });
+            assert!(ok);
+            assert_eq!(line, None);
+        }
     }
 
     #[test]
