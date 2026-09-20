@@ -147,6 +147,10 @@ struct LogEvent {
 struct DoneEvent {
     run_id: String,
     exit_code: i32,
+    /// Een commentsOnly-run die netjes stopte maar geen review achterliet. De
+    /// exitcode is dan 0 en zegt dus niets; zonder dit veld zou de UI hem als
+    /// geslaagd tonen.
+    review_missing: bool,
 }
 
 fn find_binary(name: &str) -> Option<PathBuf> {
@@ -354,16 +358,40 @@ fn run_ref_for(run_id: &str) -> String {
 /// antwoorden) en een harde timeout zodat een hangende fetch de run niet
 /// eeuwig op "reviewt" laat staan.
 pub(crate) fn run_git(repo_path: &Path, args: &[&str]) -> Result<String, String> {
-    let child = Command::new("git")
+    let mut command = Command::new("git");
+    command
         .arg("-C")
         .arg(repo_path)
         .args(args)
-        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_TERMINAL_PROMPT", "0");
+    run_tool(command, &format!("git {}", args.join(" ")))
+}
+
+/// `gh` in de repo van de run, dus zonder owner en naam mee te geven: die leidt
+/// gh zelf uit de remote af. De agent gebruikt dezelfde CLI, dus de login staat
+/// er al. `child_path` moet erbij omdat een uit Finder gestarte app de
+/// launchd-PATH erft, waar gh niet in staat.
+fn run_gh(repo_path: &Path, args: &[&str], env: &[(&str, &str)]) -> Result<String, String> {
+    let mut command = Command::new("gh");
+    command
+        .current_dir(repo_path)
+        .args(args)
+        .env("PATH", child_path());
+    for (key, value) in env {
+        command.env(key, value);
+    }
+    run_tool(command, &format!("gh {}", args.join(" ")))
+}
+
+/// Eén plek voor de harde timeout en het afbreken daarna, zodat git en gh zich
+/// hetzelfde gedragen als er iets blijft hangen.
+fn run_tool(mut command: Command, label: &str) -> Result<String, String> {
+    let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("git kon niet starten: {e}"))?;
+        .map_err(|e| format!("{label} kon niet starten: {e}"))?;
     let pid = child.id();
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
@@ -374,11 +402,10 @@ pub(crate) fn run_git(repo_path: &Path, args: &[&str]) -> Result<String, String>
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         }
         Ok(Ok(output)) => Err(format!(
-            "git {} faalde: {}",
-            args.join(" "),
+            "{label} faalde: {}",
             String::from_utf8_lossy(&output.stderr).trim()
         )),
-        Ok(Err(e)) => Err(format!("git {} faalde: {e}", args.join(" "))),
+        Ok(Err(e)) => Err(format!("{label} faalde: {e}")),
         Err(_) => {
             let _ = Command::new("kill")
                 .arg("-TERM")
@@ -387,8 +414,7 @@ pub(crate) fn run_git(repo_path: &Path, args: &[&str]) -> Result<String, String>
                 .stderr(Stdio::null())
                 .status();
             Err(format!(
-                "git {} duurde langer dan {} seconden en is gestopt; controleer je netwerkverbinding of je git-credentials",
-                args.join(" "),
+                "{label} duurde langer dan {} seconden en is gestopt; controleer je netwerkverbinding of je git-credentials",
                 GIT_TIMEOUT.as_secs()
             ))
         }
@@ -509,6 +535,15 @@ fn kill_group_if_alive(pgid: u32) {
     }
 }
 
+/// De onzichtbare regel waarmee Accord zijn eigen agent-reviews terugvindt op
+/// GitHub. De prompt die hem laat plaatsen en de controle die hem terugzoekt
+/// lezen allebei deze functie, zodat ze niet uit elkaar kunnen lopen: een
+/// hernoemde mode of agent zou anders stil een review opleveren die Accord niet
+/// meer herkent.
+fn review_marker(agent: &str, mode: &str) -> String {
+    format!("<!-- accord:{agent}:{mode} -->")
+}
+
 fn prompt_for_mode(
     agent: &str,
     mode: &str,
@@ -517,6 +552,7 @@ fn prompt_for_mode(
     base_ref: &str,
     push_marker: &Path,
 ) -> Result<String, String> {
+    let marker = review_marker(agent, mode);
     // De agent pusht niet zelf: hij geeft groen licht en de app pusht met een
     // refspec die hij zelf bouwt. Zo kan een agent de bestemming niet meer
     // beïnvloeden en is force-pushen onmogelijk in plaats van afgesproken.
@@ -538,10 +574,10 @@ fn prompt_for_mode(
     );
     let prompt = match mode {
         "withFixes" => format!(
-            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}). {diff_focus} Lees ook de al geplaatste review-comments en open threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments), en vorm daarna pas je oordeel. Richt je op problemen die gedrag raken (bugs, security, dataverlies); stijl alleen als het echt schaadt. Fix wat je vindt met kleine, losse commits, en verwerk daarbij ook de terechte punten uit de open threads. Draai daarna de tests en linter van het project. {hand_off} Reageer per verwerkte thread in die thread zelf (gh api met in_reply_to) wat je hebt aangepast en resolve hem daarna via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het met een punt gemotiveerd oneens, leg dat uit in een reply en laat die thread open. Sluit af met één samenvattende review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `<!-- accord:{agent}:withFixes -->` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review), gevolgd door per bevinding bestand:regel, wat er mis was en wat je hebt aangepast."
+            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}). {diff_focus} Lees ook de al geplaatste review-comments en open threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments), en vorm daarna pas je oordeel. Richt je op problemen die gedrag raken (bugs, security, dataverlies); stijl alleen als het echt schaadt. Fix wat je vindt met kleine, losse commits, en verwerk daarbij ook de terechte punten uit de open threads. Draai daarna de tests en linter van het project. {hand_off} Reageer per verwerkte thread in die thread zelf (gh api met in_reply_to) wat je hebt aangepast en resolve hem daarna via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het met een punt gemotiveerd oneens, leg dat uit in een reply en laat die thread open. Sluit af met één samenvattende review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review), gevolgd door per bevinding bestand:regel, wat er mis was en wat je hebt aangepast."
         ),
         "commentsOnly" => format!(
-            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}). {diff_focus} Vorm daarna pas je bevindingen. Controleer elke bevinding tegen de code en meld alleen punten waar je zeker van bent, met bestand:regel erbij. Label elke bevinding: [belangrijk] voor bugs, security of dataverlies, [nit] voor stijl; maximaal 5 nits, en sla gegenereerde bestanden en lockfiles over. Plaats alles als één review met inline comments op de betreffende regels: post naar gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/reviews --input - een JSON-payload met event COMMENT, en als body: de regel `<!-- accord:{agent}:commentsOnly -->` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review) gevolgd door een korte samenvatting, en per bevinding een entry in comments met path, line en side RIGHT (regelnummer in het nieuwe bestand, niet de diff-positie). Per inline comment: het probleem, waarom het uitmaakt en een concreet fix-voorstel. Geen blokkerende punten: zeg dat dan expliciet in één zin in de review-body. Wijzig geen bestanden en push geen code."
+            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}). {diff_focus} Vorm daarna pas je bevindingen. Controleer elke bevinding tegen de code en meld alleen punten waar je zeker van bent, met bestand:regel erbij. Label elke bevinding: [belangrijk] voor bugs, security of dataverlies, [nit] voor stijl; maximaal 5 nits, en sla gegenereerde bestanden en lockfiles over. Plaats alles als één review met inline comments op de betreffende regels: post naar gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/reviews --input - een JSON-payload met event COMMENT, en als body: de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review) gevolgd door een korte samenvatting, en per bevinding een entry in comments met path, line en side RIGHT (regelnummer in het nieuwe bestand, niet de diff-positie). Per inline comment: het probleem, waarom het uitmaakt en een concreet fix-voorstel. Geen blokkerende punten: zeg dat dan expliciet in één zin in de review-body. Wijzig geen bestanden en push geen code."
         ),
         "fixComments" => format!(
             "Los de openstaande review-comments op pull request #{pr_number} in deze repo op. Lees eerst alle open threads via gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments, en bepaal per punt of het terecht is. Fix de terechte punten met kleine, losse commits; los een falend punt op in de code, nooit door een test te verzwakken, te skippen of te verwijderen. Draai daarna de tests en linter. {hand_off} Reageer daarna per verwerkte comment in zijn eigen thread (gh api met in_reply_to) wat je hebt aangepast en resolve die thread via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het ergens gemotiveerd oneens, leg dat uit in een reply zonder code te wijzigen en laat die thread open."
@@ -636,6 +672,17 @@ fn agent_command(
                 .arg(model)
                 .arg("-c")
                 .arg("sandbox_workspace_write.network_access=true")
+                // Codex leest ~/.codex/config.toml, en de ChatGPT-app schrijft
+                // daar een MCP-server in. Laadt die mee, dan schakelt codex naar
+                // een uitvoerlaag die vanuit een headless run niet opstart: elke
+                // shell-aanroep strandt op "timed out negotiating with the
+                // code-mode host" en de agent wijkt uit naar die MCP-runtime, die
+                // in een eigen sandbox zonder netwerk draait. Hij leest dan geen
+                // diff en plaatst geen comments, maar eindigt wel met exit 0.
+                // Accord heeft hier geen enkele MCP-server nodig, dus die hele
+                // laag gaat uit.
+                .arg("-c")
+                .arg("mcp_servers={}")
                 .arg("-c")
                 .arg(format!("model_reasoning_effort=\"{}\"", cli_effort(effort)));
             if with_fixes {
@@ -795,9 +842,67 @@ fn review_outcome(
     cancelled: bool,
     posted: impl FnOnce() -> Result<bool, String>,
 ) -> (bool, Option<String>) {
-    let _ = posted;
-    let _ = (mode, exit_code, cancelled);
-    (true, None)
+    if mode != "commentsOnly" || cancelled || exit_code != 0 {
+        return (true, None);
+    }
+    match posted() {
+        Ok(true) => (true, None),
+        Ok(false) => (
+            false,
+            Some(
+                "de agent stopte zonder fout, maar er staat geen review van deze run op de PR: er is niets geplaatst".to_string(),
+            ),
+        ),
+        Err(error) => (
+            true,
+            Some(format!("kon niet controleren of de review geplaatst is: {error}")),
+        ),
+    }
+}
+
+/// Staat er een review met onze marker op de PR die ná `since` (unixtijd)
+/// is ingediend? De tijdgrens moet erbij: zonder die grens zou de review van een
+/// vórige run deze controle laten slagen, en dan gaat de gate nooit meer rood.
+///
+/// jq doet het filteren, zodat de marker als env-waarde meegaat en niet in een
+/// filter geplakt hoeft te worden. Een review zonder `submitted_at` is een
+/// concept en telt niet mee. `--paginate` print per pagina een eigen getal, dus
+/// één pagina met een treffer is genoeg.
+fn review_posted(
+    repo_path: &Path,
+    pr_number: u64,
+    marker: &str,
+    since: u64,
+) -> Result<bool, String> {
+    let endpoint = format!("repos/{{owner}}/{{repo}}/pulls/{pr_number}/reviews");
+    let filter = "[.[] | select(.submitted_at != null)
+         | select((.submitted_at | fromdateiso8601) >= (env.ACCORD_SINCE | tonumber))
+         | select((.body // \"\") | contains(env.ACCORD_MARKER))] | length";
+    let found = run_gh(
+        repo_path,
+        &["api", &endpoint, "--paginate", "--jq", filter],
+        &[
+            ("ACCORD_SINCE", &since.to_string()),
+            ("ACCORD_MARKER", marker),
+        ],
+    )?;
+    Ok(found
+        .lines()
+        .filter_map(|line| line.trim().parse::<u64>().ok())
+        .any(|count| count > 0))
+}
+
+/// De klok van deze machine tegenover die van GitHub: een review die vlak na de
+/// start binnenkomt mag niet buiten de grens vallen doordat de twee een paar
+/// seconden schelen. Een run duurt minuten, dus een marge van een minuut kan
+/// geen review van een vorige run binnenhalen.
+const REVIEW_CLOCK_SLACK: u64 = 60;
+
+fn review_cutoff() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs().saturating_sub(REVIEW_CLOCK_SLACK))
+        .unwrap_or(0)
 }
 
 /// Los van tauri om zonder AppHandle te kunnen testen: de reden om de worktree
@@ -1241,6 +1346,11 @@ fn start_review_blocking(
     }
 
     let app_for_wait = app.clone();
+    // Vóór de wait vastleggen: de controle verderop zoekt reviews van ná dit
+    // moment, en dat moment is de start van de agent, niet zijn einde.
+    let review_since = review_cutoff();
+    let review_mode = mode.clone();
+    let review_marker = review_marker(&agent, &mode);
     std::thread::spawn(move || {
         let exit_code = match child.wait() {
             Ok(status) => status.code().unwrap_or(-1),
@@ -1258,6 +1368,15 @@ fn start_review_blocking(
             PushOutcome::NotPushed
         };
         let _ = std::fs::remove_file(push_marker(&run_id));
+        // Exit 0 is voor commentsOnly geen bewijs: die mode laat niets in de
+        // worktree achter, dus de enige uitkomst staat op GitHub. Daar kijken we
+        // dan ook, vóór cleanup_run, want daarna is de run uit beeld.
+        let (review_ok, review_line) = review_outcome(&review_mode, exit_code, cancelled, || {
+            review_posted(&repo_path, pr_number, &review_marker, review_since)
+        });
+        if let Some(line) = review_line {
+            emit_log(&app_for_wait, &run_id, vec![line]);
+        }
         // Een gelijktijdige stop_all_runs (app-exit) kan deze run net vóór ons
         // geclaimd en opgeruimd hebben; claim_cleanup zorgt dat precies één
         // van beiden cleanup_run daadwerkelijk draait.
@@ -1277,7 +1396,7 @@ fn start_review_blocking(
             if let Some(run) = runs.get_mut(&run_id) {
                 run.status = if run.cancelled {
                     RunStatus::Cancelled
-                } else if exit_code == 0 {
+                } else if exit_code == 0 && review_ok {
                     RunStatus::Done
                 } else {
                     RunStatus::Failed
@@ -1286,7 +1405,14 @@ fn start_review_blocking(
                 run.pid = None;
             }
         });
-        let _ = app_for_wait.emit("agent-done", DoneEvent { run_id, exit_code });
+        let _ = app_for_wait.emit(
+            "agent-done",
+            DoneEvent {
+                run_id,
+                exit_code,
+                review_missing: !review_ok,
+            },
+        );
     });
 
     Ok(())
@@ -1350,6 +1476,7 @@ fn abort_prepared_run(app: &AppHandle, run_id: &str, repo_path: &Path, worktree:
         DoneEvent {
             run_id: run_id.to_string(),
             exit_code: -1,
+            review_missing: false,
         },
     );
 }

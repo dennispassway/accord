@@ -229,46 +229,52 @@ export function useAgentRuns(
       listen<{ runId: string; lines: string[] }>("agent-log", (event) => {
         appendLines(event.payload.runId, event.payload.lines);
       }),
-      listen<{ runId: string; exitCode: number }>("agent-done", (event) => {
-        const { runId, exitCode } = event.payload;
-        clearTimeoutTimer(runId);
-        const wasCancelled = cancelled.current.has(runId);
-        cancelled.current.delete(runId);
-        // De statusovergang leest en schrijft hier bewust binnen dezelfde
-        // setRuns-updater (i.p.v. via runsRef.current, gevuld door een
-        // post-commit-effect): komt agent-done vóór dat effect (een direct
-        // falende run, of eentje die afrondt tijdens de list_runs-herstel),
-        // dan leest de updater wél de al-gecommitte state en blijft de run
-        // niet stil op "running" hangen.
-        setRuns((current) => {
-          const run = current.get(runId);
-          // "cancelled" is terminaal: het afloop-event van een gestopte
-          // agent mag hem niet alsnog op done of failed zetten.
-          if (!run || run.status === "cancelled") return current;
-          const nextStatus = wasCancelled
-            ? "cancelled"
-            : exitCode === 0
-              ? "done"
-              : "failed";
-          const next = new Map(current);
-          next.set(runId, { ...run, status: nextStatus, exitCode });
-          // U10: een afgeronde run (niet gecancelled) meldt zich eenmalig bij
-          // de aanroeper voor een toast + PR-refresh.
-          if (
-            nextStatus !== "cancelled" &&
-            !notifiedRunIds.current.has(runId)
-          ) {
-            notifiedRunIds.current.add(runId);
-            onRunFinishedRef.current?.(
-              run.prKey,
-              nextStatus,
-              run.agent,
-              run.mode,
-            );
-          }
-          return next;
-        });
-      }),
+      listen<{ runId: string; exitCode: number; reviewMissing: boolean }>(
+        "agent-done",
+        (event) => {
+          const { runId, exitCode, reviewMissing } = event.payload;
+          clearTimeoutTimer(runId);
+          const wasCancelled = cancelled.current.has(runId);
+          cancelled.current.delete(runId);
+          // De statusovergang leest en schrijft hier bewust binnen dezelfde
+          // setRuns-updater (i.p.v. via runsRef.current, gevuld door een
+          // post-commit-effect): komt agent-done vóór dat effect (een direct
+          // falende run, of eentje die afrondt tijdens de list_runs-herstel),
+          // dan leest de updater wél de al-gecommitte state en blijft de run
+          // niet stil op "running" hangen.
+          setRuns((current) => {
+            const run = current.get(runId);
+            // "cancelled" is terminaal: het afloop-event van een gestopte
+            // agent mag hem niet alsnog op done of failed zetten.
+            if (!run || run.status === "cancelled") return current;
+            // `reviewMissing` staat los van de exitcode: een commentsOnly-agent
+            // kan netjes afsluiten terwijl er geen review op de PR staat, en dan
+            // is er niets gebeurd waar de gebruiker iets aan heeft.
+            const nextStatus = wasCancelled
+              ? "cancelled"
+              : exitCode === 0 && !reviewMissing
+                ? "done"
+                : "failed";
+            const next = new Map(current);
+            next.set(runId, { ...run, status: nextStatus, exitCode });
+            // U10: een afgeronde run (niet gecancelled) meldt zich eenmalig bij
+            // de aanroeper voor een toast + PR-refresh.
+            if (
+              nextStatus !== "cancelled" &&
+              !notifiedRunIds.current.has(runId)
+            ) {
+              notifiedRunIds.current.add(runId);
+              onRunFinishedRef.current?.(
+                run.prKey,
+                nextStatus,
+                run.agent,
+                run.mode,
+              );
+            }
+            return next;
+          });
+        },
+      ),
     ];
     return () => {
       for (const unlisten of unlisteners) {
