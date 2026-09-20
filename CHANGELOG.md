@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/dennispassway/accord/compare/v1.1.0...v1.1.1) (2026-09-20)
+
+
+### Opgelost
+
+* **agents:** laat een commentsOnly-run falen als er geen review geplaatst is ([12962aa](https://github.com/dennispassway/accord/commit/12962aa457b5391a18e95160131864eb099d1144))
+
 ## [1.1.0](https://github.com/dennispassway/accord/compare/v1.0.0...v1.1.0) (2026-09-17)
 
 
