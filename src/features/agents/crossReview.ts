@@ -1,4 +1,4 @@
-import type { Author, PullRequest } from "../../lib/github/domain";
+import type { AgentReview, Author, PullRequest } from "../../lib/github/domain";
 
 export type ReviewAgent = "claude" | "codex";
 export type ReviewMode = "commentsOnly" | "withFixes";
@@ -19,6 +19,21 @@ export function preferredReviewer(author: Author): ReviewAgent {
     return author.agent === "claude" ? "codex" : "claude";
   }
   return "claude";
+}
+
+/**
+ * Kruiswerk in de andere richting: wie het laatst reviewde fixt niet zijn
+ * eigen bevindingen. Zonder agent-review geldt de tegenhanger van de
+ * standaardreviewer, zodat review en fix ook dan bij twee agents liggen.
+ */
+export function preferredFixer(pr: PullRequest): ReviewAgent {
+  const latest = pr.agentReviews.reduce<AgentReview | undefined>(
+    (best, review) =>
+      best == null || review.submittedAt > best.submittedAt ? review : best,
+    undefined,
+  );
+  const reviewer = latest?.agent ?? preferredReviewer(pr.author);
+  return reviewer === "claude" ? "codex" : "claude";
 }
 
 /**
