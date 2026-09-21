@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/dennispassway/accord/compare/v1.1.1...v1.2.0) (2026-09-21)
+
+
+### Nieuw
+
+* **agents:** preferredFixer kiest de tegenhanger van de laatste reviewer ([83b1e5a](https://github.com/dennispassway/accord/commit/83b1e5a46c9ec1e635abfae68173f778a1c66521))
+* **detail:** aparte fixkaart met eigen agentkeuze naast de reviewkaart ([29e6139](https://github.com/dennispassway/accord/commit/29e6139ddc2e29099f243a3c7ebcabaa4a911619))
+
+
+### Opgelost
+
+* **detail:** laat flex het agent-log niet tot 0px knijpen op een laag venster ([3208525](https://github.com/dennispassway/accord/commit/32085251e485b4f0d92d94d8bf56cd1556a1a223))
+
 ## [1.1.1](https://github.com/dennispassway/accord/compare/v1.1.0...v1.1.1) (2026-09-20)
 
 
