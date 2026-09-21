@@ -4,6 +4,7 @@ import { toPrNumber, toRepoId } from "../../lib/github/domain";
 import {
   availableFixModes,
   chainsIntoLearnings,
+  preferredFixer,
   preferredReviewer,
 } from "./crossReview";
 
@@ -87,6 +88,41 @@ describe("chainsIntoLearnings", () => {
     expect(chainsIntoLearnings("commentsOnly")).toBe(false);
     expect(chainsIntoLearnings("fixChecks")).toBe(false);
     expect(chainsIntoLearnings("fixConflicts")).toBe(false);
+  });
+});
+
+describe("preferredFixer", () => {
+  it("laat de andere agent fixen dan die het laatst reviewde", () => {
+    const pr = makePr({
+      agentReviews: [
+        {
+          agent: "claude",
+          mode: "commentsOnly",
+          commentCount: 2,
+          commitCount: 0,
+          submittedAt: "2026-09-20T10:00:00Z",
+        },
+        {
+          agent: "codex",
+          mode: "commentsOnly",
+          commentCount: 1,
+          commitCount: 0,
+          submittedAt: "2026-09-21T10:00:00Z",
+        },
+      ],
+    });
+    expect(preferredFixer(pr)).toBe("claude");
+  });
+
+  it("valt zonder agent-review terug op de tegenhanger van de reviewer", () => {
+    expect(preferredFixer(makePr())).toBe("codex");
+    expect(
+      preferredFixer(
+        makePr({
+          author: { kind: "agent", agent: "claude", login: "claude[bot]" },
+        }),
+      ),
+    ).toBe("claude");
   });
 });
 
