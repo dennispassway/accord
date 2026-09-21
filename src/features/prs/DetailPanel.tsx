@@ -6,10 +6,14 @@ import type { PrStackInfo } from "../../lib/github/stacks";
 import type { Settings } from "../../lib/settings";
 import { AgentLogPanel } from "../agents/AgentLogPanel";
 import type { AgentMode, ReviewAgent } from "../agents/crossReview";
-import { preferredReviewer } from "../agents/crossReview";
+import {
+  availableFixModes,
+  preferredFixer,
+  preferredReviewer,
+} from "../agents/crossReview";
 import { RepoPathSetup } from "../agents/RepoPathSetup";
 import type { AgentClis, AgentRun } from "../agents/useAgentRuns";
-import { AgentButtons } from "./AgentButtons";
+import { AgentButtons, altReviewMode } from "./AgentButtons";
 import { Avatar } from "./Avatar";
 import { BulkReviewButton } from "./BulkReviewButton";
 import { CiStatus } from "./CiStatus";
@@ -204,6 +208,19 @@ export function DetailPanel({
   const preferred = preferredReviewer(pr.author);
   const agentOrder: ReviewAgent[] =
     preferred === "claude" ? ["claude", "codex"] : ["codex", "claude"];
+  // Fixen is een eigen stap met een eigen agentkeuze, zodat de ene agent kan
+  // reviewen en de andere de bevindingen verwerkt. Blokkerend werk eerst
+  // (conflict, checks), dan de comments; de rest achter het chevron.
+  const [primaryFix, ...menuFixes] = availableFixModes(pr);
+  const fixer = preferredFixer(pr);
+  const fixerOrder: ReviewAgent[] =
+    fixer === "claude" ? ["claude", "codex"] : ["codex", "claude"];
+  const { primaryMode } = settings.review;
+  // De modelregel volgt de knop: Comments draait op het leesmodel.
+  const reviewModel = (agent: ReviewAgent) =>
+    primaryMode === "commentsOnly"
+      ? settings[agent].commentsOnlyModel
+      : settings[agent].model;
 
   function disabledReason(agent: ReviewAgent): string | null {
     if (!clis[agent]) {
@@ -364,8 +381,9 @@ export function DetailPanel({
                 pr={pr}
                 agent={agent}
                 primary={agent === preferred}
-                primaryMode={settings.review.primaryMode}
-                modelLine={`${settings[agent].model} · ${settings[agent].effort}`}
+                primaryMode={primaryMode}
+                menuModes={[altReviewMode(primaryMode)]}
+                modelLine={`${reviewModel(agent)} · ${settings[agent].effort}`}
                 disabledReason={disabledReason(agent)}
                 onStartRun={onStartRun}
               />
@@ -375,12 +393,34 @@ export function DetailPanel({
               prs={allPrs}
               runningPrKeys={runningPrKeys}
               mode={
-                settings.review.primaryMode === "withFixes"
+                primaryMode === "withFixes"
                   ? "comments + fixes"
                   : "alleen comments"
               }
               onStart={onBulkStart}
             />
+          </div>
+        )}
+
+        {runningHere || primaryFix == null ? null : (
+          <div className="detail-agents detail-card">
+            <div className="detail-agents-head">
+              <span className="detail-label">Laten fixen</span>
+              <span className="detail-agents-rule" />
+            </div>
+            {fixerOrder.map((agent) => (
+              <AgentButtons
+                key={agent}
+                pr={pr}
+                agent={agent}
+                primary={false}
+                primaryMode={primaryFix}
+                menuModes={menuFixes}
+                modelLine={`${settings[agent].model} · ${settings[agent].effort}`}
+                disabledReason={disabledReason(agent)}
+                onStartRun={onStartRun}
+              />
+            ))}
           </div>
         )}
 
