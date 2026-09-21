@@ -120,6 +120,13 @@
   gap: 12px;
 }
 
+/* Een kaart met een eigen overflow (het agent-log) krijgt als flex-kind
+   min-height 0 en wordt op een laag venster tot 0px geknepen in plaats van
+   de body te laten scrollen. Elke kaart houdt daarom zijn eigen hoogte. */
+.detail-body > * {
+  flex-shrink: 0;
+}
+
 .detail-label {
   font-family: var(--mono);
   font-size: 10px;
