@@ -499,7 +499,11 @@ export function DetailPanel({
           </div>
         )}
 
-        {run && <AgentLogPanel run={run} onCancel={onCancelRun} />}
+        {/* key per run: anders blijft een uitgeklapte volledige log van de
+            vorige PR staan (en landt een late fetch) onder deze run. */}
+        {run && (
+          <AgentLogPanel key={run.runId} run={run} onCancel={onCancelRun} />
+        )}
 
         {(repoPath == null || repoPath === "") && (
           <RepoPathSetup repoId={pr.repoId} onLinked={onRepoLinked} />
