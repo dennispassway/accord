@@ -437,10 +437,13 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   );
   // Kop tonen: in triage-modus altijd, in project-modus alleen als alle
   // repo's zichtbaar zijn (bij één geselecteerd project vervalt de kop).
+  // "Later" is geen projectkop maar een inklapknop: die houdt zijn label.
   const sectionsForDisplay = useMemo(
     () =>
       sortMode === "project" && selectedRepoId !== "all"
-        ? sections.map((section) => ({ ...section, titel: "" }))
+        ? sections.map((section) =>
+            section.key === "later" ? section : { ...section, titel: "" },
+          )
         : sections,
     [sections, sortMode, selectedRepoId],
   );
