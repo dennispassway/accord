@@ -143,6 +143,11 @@ fn append_log_file(run_id: &str, lines: &[String]) {
 /// geen onderdeel van een run.
 fn cleanup_old_logs() {
     let dir = std::env::temp_dir().join("pr-cockpit").join("logs");
+    // Zelfde check als bij schrijven: is de map een symlink van een ander
+    // account, dan zou read_dir hem volgen en verwijderen we daar bestanden.
+    if ensure_private_logs_dir(&dir).is_err() {
+        return;
+    }
     let Ok(entries) = std::fs::read_dir(&dir) else {
         return;
     };
