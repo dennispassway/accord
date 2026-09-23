@@ -700,6 +700,9 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       } else if (
         !event.metaKey &&
         !event.ctrlKey &&
+        // Ingedrukt houden zou na elke snooze de volgende bovenste PR pakken:
+        // de selectie springt naar filteredPrs[0] als Later ingeklapt is.
+        !event.repeat &&
         event.key.toLowerCase() === "l" &&
         shortcutsEnabled &&
         !isAnyMenuOverlayOpen(document) &&
@@ -717,7 +720,8 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         if (selectedPrs.every((pr) => snoozeUntilOf(pr) != null)) {
           handleUnsnooze(selectedPrs);
         } else {
-          handleSnooze(selectedPrs, tomorrowAt9(now));
+          // Verse klok: de minuten-tick `now` kan net voor middernacht staan.
+          handleSnooze(selectedPrs, tomorrowAt9(new Date()));
         }
       }
     }
@@ -744,7 +748,6 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     setSortMode,
     filteredPrs,
     snoozeUntilOf,
-    now,
     handleSnooze,
     handleUnsnooze,
   ]);
