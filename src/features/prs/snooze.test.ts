@@ -289,6 +289,20 @@ describe("fromAmsterdamLocal", () => {
       "2026-01-15T13:00:00.000Z",
     );
   });
+
+  // Tussen 01:00 en 03:00 op een omschakelnacht ligt de gok van één pass aan
+  // de verkeerde kant van de knip (01:00 UTC).
+  it("houdt 01:30 in de nacht naar zomertijd op wintertijd", () => {
+    expect(fromAmsterdamLocal("2026-03-29T01:30").toISOString()).toBe(
+      "2026-03-29T00:30:00.000Z",
+    );
+  });
+
+  it("houdt 01:30 in de nacht naar wintertijd op zomertijd", () => {
+    expect(fromAmsterdamLocal("2026-10-25T01:30").toISOString()).toBe(
+      "2026-10-24T23:30:00.000Z",
+    );
+  });
 });
 
 describe("toAmsterdamLocal", () => {
