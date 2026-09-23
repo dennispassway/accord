@@ -249,6 +249,8 @@ export function PrContextMenu({
             type="datetime-local"
             className="ctx-snooze-picker-input"
             min={toAmsterdamLocal(now)}
+            // biome-ignore lint/a11y/noAutofocus: het menu-item met de focus is net ontkoppeld; zonder dit valt de focus naar body en is de picker per toetsenbord onbereikbaar
+            autoFocus
             value={pickerValue}
             onChange={(event) => setPickerValue(event.target.value)}
           />
@@ -261,6 +263,9 @@ export function PrContextMenu({
               className="ctx-menu-item"
               disabled={isPastOrNow(pickerValue, now)}
               onClick={() => {
+                // `now` is van de laatste render: een gekozen moment kan
+                // sindsdien verstreken zijn.
+                if (isPastOrNow(pickerValue, new Date())) return;
                 onSnooze(prs, fromAmsterdamLocal(pickerValue));
                 onClose();
               }}
