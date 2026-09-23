@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/dennispassway/accord/compare/v1.3.0...v1.3.1) (2026-09-23)
+
+
+### Opgelost
+
+* **agents:** geef git de aangevulde PATH mee zodat Git LFS-hooks werken ([66b70f6](https://github.com/dennispassway/accord/commit/66b70f647b90c2e80f875606053f429167109caa))
+* **agents:** laat reviews op LFS-repo's starten vanuit de Finder-app ([cb691b8](https://github.com/dennispassway/accord/commit/cb691b8a897a1f0fe7d470be64b7856c1ae8812c))
+
 ## [1.3.0](https://github.com/dennispassway/accord/compare/v1.2.0...v1.3.0) (2026-09-23)
 
 
