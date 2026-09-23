@@ -53,13 +53,14 @@ fragment PrFields on PullRequest {
   author { login }
   isDraft
   mergeable
+  mergeStateStatus
   reviewDecision
   additions
   deletions
   createdAt
   updatedAt
   comments { totalCount }
-  reviewThreads(first: 1) { totalCount }
+  reviewThreads(first: 100) { totalCount nodes { isResolved } }
   assignees(first: 20) { nodes { login } }
   reviewRequests(first: 20) {
     nodes { requestedReviewer { ... on User { login } } }

@@ -12,13 +12,17 @@ export const validPrNode = {
   labels: { nodes: [{ name: "P1" }] },
   isDraft: false,
   mergeable: "MERGEABLE",
+  mergeStateStatus: "BLOCKED",
   reviewDecision: "REVIEW_REQUIRED",
   additions: 120,
   deletions: 30,
   createdAt: "2026-07-01T09:00:00Z",
   updatedAt: "2026-07-02T09:00:00Z",
   comments: { totalCount: 4 },
-  reviewThreads: { totalCount: 2 },
+  reviewThreads: {
+    totalCount: 2,
+    nodes: [{ isResolved: true }, { isResolved: false }],
+  },
   assignees: { nodes: [{ login: "dennis" }] },
   reviewRequests: {
     nodes: [{ requestedReviewer: { login: "alice" } }],

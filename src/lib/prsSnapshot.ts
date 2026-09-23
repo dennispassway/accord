@@ -1,4 +1,5 @@
 import type { PullRequest } from "./github/domain";
+import { MERGE_STATE_STATUSES } from "./github/parse";
 
 /**
  * Bewaart de laatst opgehaalde PR-lijst zodat de app bij een koude start
@@ -14,6 +15,20 @@ export interface PrsSnapshot {
 }
 
 const STORAGE_KEY = "pr-cockpit.prsSnapshot";
+
+/** Normaliseert een PR uit een oudere snapshot (vóór mergeStateStatus/
+ * openThreads bestonden) naar het huidige vorm, zodat een koude start met
+ * een oude snapshot niet crasht op ontbrekende velden. */
+function normalizePr(pr: PullRequest): PullRequest {
+  const rawStatus = (pr as Partial<PullRequest>).mergeStateStatus;
+  const mergeStateStatus =
+    typeof rawStatus === "string" && rawStatus in MERGE_STATE_STATUSES
+      ? rawStatus
+      : "UNKNOWN";
+  const rawThreads = (pr as Partial<PullRequest>).openThreads;
+  const openThreads = typeof rawThreads === "number" ? rawThreads : 0;
+  return { ...pr, mergeStateStatus, openThreads };
+}
 
 /** Minimale Storage-vorm, zodat tests een in-memory fake kunnen meegeven
  * i.p.v. een DOM-omgeving nodig te hebben (zelfde patroon als `FetchImpl`). */
@@ -36,7 +51,7 @@ export function loadPrsSnapshot(
       return null;
     }
     return {
-      prs: parsed.prs,
+      prs: parsed.prs.map(normalizePr),
       viewerLogin: parsed.viewerLogin ?? null,
       lastUpdated: parsed.lastUpdated,
     };

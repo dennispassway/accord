@@ -3,6 +3,7 @@ import {
   type CiStatus,
   deriveAuthor,
   type Mergeable,
+  type MergeStateStatus,
   type PullRequest,
   type RepoId,
   type Reviewer,
@@ -29,6 +30,23 @@ const MERGEABLE_VALUES: Mergeable[] = ["MERGEABLE", "CONFLICTING", "UNKNOWN"];
 function parseMergeable(value: unknown): Mergeable {
   return MERGEABLE_VALUES.includes(value as Mergeable)
     ? (value as Mergeable)
+    : "UNKNOWN";
+}
+
+export const MERGE_STATE_STATUSES: Record<MergeStateStatus, true> = {
+  BEHIND: true,
+  BLOCKED: true,
+  CLEAN: true,
+  DIRTY: true,
+  DRAFT: true,
+  HAS_HOOKS: true,
+  UNKNOWN: true,
+  UNSTABLE: true,
+};
+
+function parseMergeStateStatus(value: unknown): MergeStateStatus {
+  return Object.keys(MERGE_STATE_STATUSES).includes(value as string)
+    ? (value as MergeStateStatus)
     : "UNKNOWN";
 }
 
@@ -105,6 +123,13 @@ function parseComments(node: Record<string, unknown>): number {
     (isFiniteNumber(issueComments) ? issueComments : 0) +
     (isFiniteNumber(reviewComments) ? reviewComments : 0)
   );
+}
+
+/** ponytail: telt alleen de eerste 100 threads (reviewThreads(first: 100)). */
+function parseOpenThreads(node: Record<string, unknown>): number {
+  return nodesOf(node.reviewThreads).filter(
+    (thread) => isRecord(thread) && thread.isResolved === false,
+  ).length;
 }
 
 function parseAssignees(node: Record<string, unknown>): string[] {
@@ -290,11 +315,13 @@ function parseNode(node: unknown): PullRequest | undefined {
     reviewState: parseReviewState(node.reviewDecision),
     isDraft: node.isDraft === true,
     mergeable: parseMergeable(node.mergeable),
+    mergeStateStatus: parseMergeStateStatus(node.mergeStateStatus),
     createdAt: node.createdAt,
     updatedAt: node.updatedAt,
     additions: isFiniteNumber(node.additions) ? node.additions : 0,
     deletions: isFiniteNumber(node.deletions) ? node.deletions : 0,
     comments: parseComments(node),
+    openThreads: parseOpenThreads(node),
     reviewers: parseReviewers(node),
     agentReviews: parseAgentReviews(node),
     assignees: parseAssignees(node),
