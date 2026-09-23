@@ -27,9 +27,11 @@ jobs:
           manifest-file: .release-please-manifest.json
 
       # De action kent geen assignees; wijs de release-PR aan de repo-eigenaar
-      # toe. Draait bij elke update opnieuw, dat is idempotent.
+      # toe. Draait bij elke update opnieuw, dat is idempotent. Mag nooit de
+      # build van een release blokkeren, vandaar continue-on-error.
       - name: Release-PR aan de eigenaar toewijzen
         if: steps.release.outputs.pr != ''
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
