@@ -176,7 +176,11 @@ function amsterdamWallClockToInstant(
   // dag te bepalen (de offset zelf hangt af van welke kant van de DST-knip we
   // zitten, dus we kunnen 'm niet los van een datum uitrekenen).
   const guess = Date.UTC(year, month, day, hour, minute);
-  const offset = amsterdamOffsetMinutes(new Date(guess));
+  // Tweede pass: tussen 01:00 en 03:00 op een omschakelnacht ligt `guess`
+  // aan de andere kant van de knip dan het echte instant; de offset op de
+  // eerste uitkomst is dan wel de goede.
+  const first = guess - amsterdamOffsetMinutes(new Date(guess)) * 60000;
+  const offset = amsterdamOffsetMinutes(new Date(first));
   return new Date(guess - offset * 60000);
 }
 
