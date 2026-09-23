@@ -15,6 +15,7 @@ import {
   type CiStatus,
   deriveAuthor,
   type Mergeable,
+  type MergeStateStatus,
   type PullRequest,
   type Reviewer,
   type ReviewerState,
@@ -139,6 +140,10 @@ interface RawPr {
   assignees: string[];
   reviewers: [string, "gevraagd" | "goedgekeurd" | "changes"][];
   comments: number;
+  /** Onopgeloste review-threads; standaard 0. */
+  openThreads?: number;
+  /** Standaard afgeleid uit de andere velden, zie defaultMergeState. */
+  mergeState?: MergeStateStatus;
   /** ARUNS uit de designspec: reviewhistorie van agents op deze PR. */
   aRuns?: RawARun[];
 }
@@ -166,6 +171,7 @@ const RAW_PRS: RawPr[] = [
     assignees: ["hubot"],
     reviewers: [["octocat", "gevraagd"]],
     comments: 24,
+    openThreads: 7,
   },
   {
     id: "ama36",
@@ -187,6 +193,7 @@ const RAW_PRS: RawPr[] = [
     assignees: [],
     reviewers: [["octocat", "gevraagd"]],
     comments: 3,
+    openThreads: 1,
     aRuns: [["claude", "comments", 2, 0, 60]],
   },
   {
@@ -232,6 +239,7 @@ const RAW_PRS: RawPr[] = [
     assignees: ["monalisa"],
     reviewers: [["octocat", "gevraagd"]],
     comments: 6,
+    openThreads: 2,
   },
   {
     id: "ken186",
@@ -253,6 +261,7 @@ const RAW_PRS: RawPr[] = [
     assignees: ["octocat"],
     reviewers: [["octocat", "gevraagd"]],
     comments: 9,
+    openThreads: 2,
     aRuns: [["claude", "fixes", 5, 1, 180]],
   },
   {
@@ -276,6 +285,7 @@ const RAW_PRS: RawPr[] = [
     assignees: ["octocat"],
     reviewers: [["octocat", "gevraagd"]],
     comments: 6,
+    openThreads: 3,
     aRuns: [["claude", "comments", 4, 0, 40]],
   },
   {
@@ -341,6 +351,7 @@ const RAW_PRS: RawPr[] = [
     assignees: ["octocat"],
     reviewers: [["octocat", "changes"]],
     comments: 11,
+    openThreads: 4,
     aRuns: [
       ["codex", "fixes", 3, 2, 240],
       ["claude", "comments", 2, 0, 180],
@@ -390,6 +401,7 @@ const RAW_PRS: RawPr[] = [
     assignees: ["octocat"],
     reviewers: [["monalisa", "gevraagd"]],
     comments: 3,
+    openThreads: 2,
     aRuns: [["claude", "comments", 3, 0, 20]],
   },
   {
@@ -412,6 +424,7 @@ const RAW_PRS: RawPr[] = [
     assignees: [],
     reviewers: [["octocat", "gevraagd"]],
     comments: 5,
+    openThreads: 2,
   },
   {
     id: "mee58",
@@ -433,6 +446,7 @@ const RAW_PRS: RawPr[] = [
     assignees: [],
     reviewers: [["octocat", "gevraagd"]],
     comments: 2,
+    openThreads: 1,
     aRuns: [["codex", "fixes", 2, 1, 300]],
   },
   {
@@ -456,7 +470,63 @@ const RAW_PRS: RawPr[] = [
     reviewers: [["monalisa", "goedgekeurd"]],
     comments: 1,
   },
+  {
+    id: "nts115",
+    repo: "acme/careers-site",
+    nr: 115,
+    title: "feat(vacatures): toon de salarisindicatie op de detailpagina",
+    head: "feat/salarisindicatie",
+    base: "main",
+    author: "octocat",
+    ci: "groen",
+    failed: [],
+    review: "gevraagd",
+    draft: false,
+    mergeable: "kan",
+    add: 48,
+    del: 7,
+    created: [0, 15, 10],
+    updatedMin: 95,
+    assignees: ["octocat"],
+    reviewers: [["monalisa", "gevraagd"]],
+    comments: 0,
+  },
+  {
+    id: "mee61",
+    repo: "acme/waste-portal",
+    nr: 61,
+    title: "fix(kalender): haal ophaaldagen per wijk uit de nieuwe API",
+    head: "fix/ophaaldagen-api",
+    base: "main",
+    author: "octocat",
+    ci: "groen",
+    failed: [],
+    review: "goedgekeurd",
+    draft: false,
+    mergeable: "kan",
+    add: 96,
+    del: 40,
+    created: [3, 10, 5],
+    updatedMin: 410,
+    assignees: ["octocat"],
+    reviewers: [["monalisa", "goedgekeurd"]],
+    comments: 2,
+    mergeState: "BEHIND",
+  },
 ];
+
+/**
+ * Wat GitHub bij deze combinatie als mergeStateStatus zou geven: een
+ * verplichte review die nog openstaat blokkeert via branch protection.
+ */
+function defaultMergeState(raw: RawPr): MergeStateStatus {
+  if (raw.draft) return "DRAFT";
+  if (raw.mergeable === "conflict") return "DIRTY";
+  if (raw.mergeable === "onbekend") return "UNKNOWN";
+  if (raw.ci === "rood" || raw.ci === "bezig") return "UNSTABLE";
+  if (raw.review === "gevraagd") return "BLOCKED";
+  return "CLEAN";
+}
 
 function toPullRequest(raw: RawPr): PullRequest {
   const repoId = toRepoId(raw.repo);
@@ -477,11 +547,13 @@ function toPullRequest(raw: RawPr): PullRequest {
     reviewState: review(raw.review),
     isDraft: raw.draft,
     mergeable: mergeable(raw.mergeable),
+    mergeStateStatus: raw.mergeState ?? defaultMergeState(raw),
     createdAt: daysAgo(...raw.created),
     updatedAt: minutesAgo(raw.updatedMin),
     additions: raw.add,
     deletions: raw.del,
     comments: raw.comments,
+    openThreads: raw.openThreads ?? 0,
     reviewers,
     agentReviews: (raw.aRuns ?? []).map(agentRun),
     assignees: raw.assignees,

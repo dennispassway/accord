@@ -1,7 +1,9 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { useRef } from "react";
 import type { Author, PullRequest } from "../../lib/github/domain";
 import { deriveAuthor } from "../../lib/github/domain";
 import type { MergeMethod } from "../../lib/github/merge";
+import type { ReviewEvent } from "../../lib/github/review";
 import type { PrStackInfo } from "../../lib/github/stacks";
 import type { Settings } from "../../lib/settings";
 import { AgentLogPanel } from "../agents/AgentLogPanel";
@@ -18,7 +20,7 @@ import { Avatar } from "./Avatar";
 import { BulkReviewButton } from "./BulkReviewButton";
 import { CiStatus } from "./CiStatus";
 import "./detail.css";
-import { formatAmsterdam, formatRelative } from "./format";
+import { formatAmsterdam, formatRelative, formatSnoozeUntil } from "./format";
 import {
   ConceptIcon,
   ExternalLinkIcon,
@@ -26,6 +28,7 @@ import {
   StackIcon,
 } from "./icons";
 import { MergeSection } from "./MergeSection";
+import { ReviewActions } from "./ReviewActions";
 import { ReviewHistory } from "./ReviewHistory";
 import { sizeWord } from "./RowMetrics";
 import type { PrStatusKey } from "./rank";
@@ -33,10 +36,24 @@ import { prStatus } from "./rank";
 import type { StackRebaseStatus } from "./StackRail";
 import { StackRail } from "./StackRail";
 
+/** Verbergt tekst visueel maar houdt hem beschikbaar voor schermlezers. */
+const VISUALLY_HIDDEN_STYLE = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+} as const;
+
 const STATUS_COLOR: Record<PrStatusKey, string> = {
   klaar: "var(--ok)",
   review: "var(--accent)",
   actie: "var(--err)",
+  wachtReview: "var(--warn)",
   agent: "var(--agent)",
   wachten: "var(--warn)",
   concept: "var(--text-3)",
@@ -132,6 +149,14 @@ interface DetailPanelProps {
   stackInfo: PrStackInfo | undefined;
   stackChain: PullRequest[];
   onMergePr: (pr: PullRequest, method: MergeMethod) => Promise<void>;
+  /** U1/D4/D8: goedkeuren, changes vragen en reageren vanuit het paneel.
+   * Verschijnt boven MergeSection zodra een review van de gebruiker gevraagd
+   * is en de PR niet van hemzelf is. */
+  onSubmitReview: (
+    pr: PullRequest,
+    event: ReviewEvent,
+    body: string,
+  ) => Promise<void>;
   clis: AgentClis;
   repoPath: string | undefined;
   run: AgentRun | undefined;
@@ -162,6 +187,9 @@ interface DetailPanelProps {
   onToggleAutoRebase: () => void;
   /** Status van een lopende auto-rebase na een merge, zie StackRail. */
   stackRebaseStatus?: StackRebaseStatus | null;
+  /** ISO-instant waarop de geselecteerde PR terugkeert uit "Later", als hij
+   * gesnoozed is. */
+  snoozeUntil?: string;
 }
 
 export function DetailPanel({
@@ -169,6 +197,7 @@ export function DetailPanel({
   stackInfo,
   stackChain,
   onMergePr,
+  onSubmitReview,
   clis,
   repoPath,
   run,
@@ -187,7 +216,10 @@ export function DetailPanel({
   selectedCount,
   onToggleAutoRebase,
   stackRebaseStatus,
+  snoozeUntil,
 }: DetailPanelProps) {
+  const fixCardRef = useRef<HTMLDivElement>(null);
+
   if (!pr) {
     return (
       <aside className="detail-panel">
@@ -252,6 +284,25 @@ export function DetailPanel({
   }));
 
   const totalLines = pr.additions + pr.deletions;
+  const reviewRequestedFromMe = pr.reviewRequestedFromMe && !pr.authoredByMe;
+
+  const canJumpToFix =
+    !runningHere &&
+    primaryFix != null &&
+    (status.problem != null || status.key === "actie");
+  const fixHintId = `detail-fix-hint-${pr.number}`;
+  function scrollToFixCard() {
+    const card = fixCardRef.current;
+    if (card == null) return;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    card.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "center",
+    });
+    card.querySelector<HTMLButtonElement>("button")?.focus();
+  }
 
   return (
     <aside className="detail-panel">
@@ -263,12 +314,28 @@ export function DetailPanel({
       )}
       <div className="detail-head">
         <div className="detail-chips">
-          <span
-            className="detail-chip detail-chip-status"
-            style={{ color: STATUS_COLOR[status.key] }}
-          >
-            {status.label}
-          </span>
+          {canJumpToFix ? (
+            <button
+              type="button"
+              className="detail-chip detail-chip-status detail-chip-status-button"
+              style={{ color: STATUS_COLOR[status.key] }}
+              title="Ga naar Laten fixen"
+              aria-describedby={fixHintId}
+              onClick={scrollToFixCard}
+            >
+              {status.label}
+              <span id={fixHintId} style={VISUALLY_HIDDEN_STYLE}>
+                , ga naar Laten fixen
+              </span>
+            </button>
+          ) : (
+            <span
+              className="detail-chip detail-chip-status"
+              style={{ color: STATUS_COLOR[status.key] }}
+            >
+              {status.label}
+            </span>
+          )}
           {pr.isDraft && (
             <span className="detail-chip detail-chip-draft">
               <ConceptIcon size={9} />
@@ -279,6 +346,14 @@ export function DetailPanel({
             <span className="detail-chip detail-chip-stack mono">
               <StackIcon />
               stapel {stackInfo.stackPosition}/{stackInfo.stackSize}
+            </span>
+          )}
+          {snoozeUntil != null && (
+            <span
+              className="detail-chip detail-chip-snooze"
+              title={`Terug op ${formatAmsterdam(snoozeUntil)}`}
+            >
+              later tot {formatSnoozeUntil(snoozeUntil)}
             </span>
           )}
           <span className="detail-chip">
@@ -403,7 +478,7 @@ export function DetailPanel({
         )}
 
         {runningHere || primaryFix == null ? null : (
-          <div className="detail-agents detail-card">
+          <div className="detail-agents detail-card" ref={fixCardRef}>
             <div className="detail-agents-head">
               <span className="detail-label">Laten fixen</span>
               <span className="detail-agents-rule" />
@@ -424,7 +499,11 @@ export function DetailPanel({
           </div>
         )}
 
-        {run && <AgentLogPanel run={run} onCancel={onCancelRun} />}
+        {/* key per run: anders blijft een uitgeklapte volledige log van de
+            vorige PR staan (en landt een late fetch) onder deze run. */}
+        {run && (
+          <AgentLogPanel key={run.runId} run={run} onCancel={onCancelRun} />
+        )}
 
         {(repoPath == null || repoPath === "") && (
           <RepoPathSetup repoId={pr.repoId} onLinked={onRepoLinked} />
@@ -432,12 +511,21 @@ export function DetailPanel({
       </div>
 
       <div className="detail-foot">
+        {reviewRequestedFromMe && (
+          <ReviewActions
+            key={`review-${pr.id}`}
+            pr={pr}
+            onSubmitReview={onSubmitReview}
+            shortcutsEnabled={shortcutsEnabled}
+          />
+        )}
         <MergeSection
-          key={pr.id}
+          key={`merge-${pr.id}`}
           pr={pr}
           stackInfo={stackInfo}
           onMergePr={onMergePr}
           shortcutsEnabled={shortcutsEnabled}
+          variant={reviewRequestedFromMe ? "secondary" : "primary"}
         />
         <button
           type="button"

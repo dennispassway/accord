@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
 import type { Settings } from "../../lib/settings";
@@ -42,6 +42,20 @@ export interface AgentRun {
   status: "running" | "done" | "failed" | "cancelled";
   lines: string[];
   exitCode?: number;
+  /** `Date.now()` bij de start; Rust houdt zelf geen kloktijd bij (alleen een
+   * monotone teller voor de volgorde), dus dit is front-end state. Bij een
+   * herstelde run (list_runs na een remount) is dit bij gebrek aan beter het
+   * moment van herstel, niet de echte starttijd. */
+  startedAt: number;
+  finishedAt?: number;
+  /** U4: hoeveel van de fix-commits de push haalde, en hoeveel er alleen
+   * lokaal staan; `keptWorktree` is het pad als de worktree daarom bewaard
+   * bleef. Ontbreken zolang de run nog loopt. */
+  pushedCommits?: number;
+  unpushedCommits?: number;
+  keptWorktree?: string;
+  /** Een commentsOnly-run die netjes stopte maar geen review achterliet. */
+  reviewMissing?: boolean;
 }
 
 export interface AgentClis {
@@ -59,6 +73,26 @@ interface RunSnapshot {
   status: AgentRun["status"];
   lines: string[];
   exitCode: number | null;
+  pushedCommits: number;
+  unpushedCommits: number;
+  keptWorktree: string | null;
+}
+
+/** Realistische afloop per mock-modus (D5/U4): fixwerk pusht standaard 2
+ * commits; fixChecks laat er bewust 1 lokaal staan met een nep-pad, zodat de
+ * "alleen lokaal"-melding zichtbaar is zonder een echte agent te draaien. */
+function mockOutcome(
+  mode: AgentMode,
+): Pick<AgentRun, "pushedCommits" | "unpushedCommits" | "keptWorktree"> {
+  if (mode === "commentsOnly") return {};
+  if (mode === "fixChecks") {
+    return {
+      pushedCommits: 0,
+      unpushedCommits: 1,
+      keptWorktree: "/tmp/pr-cockpit/mock-run-fixchecks",
+    };
+  }
+  return { pushedCommits: 2, unpushedCommits: 0 };
 }
 
 /** Houdt de logregels per run beperkt zodat een lange run het geheugen niet opvreet. */
@@ -197,6 +231,18 @@ export function useAgentRuns(
             status: snapshot.status,
             lines: snapshot.lines,
             exitCode: snapshot.exitCode ?? undefined,
+            // Rust kent de echte starttijd niet (alleen een monotone teller);
+            // bij een herstelde run is dit dus het moment van herstel.
+            startedAt: Date.now(),
+            pushedCommits:
+              snapshot.status === "running"
+                ? undefined
+                : snapshot.pushedCommits,
+            unpushedCommits:
+              snapshot.status === "running"
+                ? undefined
+                : snapshot.unpushedCommits,
+            keptWorktree: snapshot.keptWorktree ?? undefined,
           });
         }
         return next;
@@ -229,52 +275,72 @@ export function useAgentRuns(
       listen<{ runId: string; lines: string[] }>("agent-log", (event) => {
         appendLines(event.payload.runId, event.payload.lines);
       }),
-      listen<{ runId: string; exitCode: number; reviewMissing: boolean }>(
-        "agent-done",
-        (event) => {
-          const { runId, exitCode, reviewMissing } = event.payload;
-          clearTimeoutTimer(runId);
-          const wasCancelled = cancelled.current.has(runId);
-          cancelled.current.delete(runId);
-          // De statusovergang leest en schrijft hier bewust binnen dezelfde
-          // setRuns-updater (i.p.v. via runsRef.current, gevuld door een
-          // post-commit-effect): komt agent-done vóór dat effect (een direct
-          // falende run, of eentje die afrondt tijdens de list_runs-herstel),
-          // dan leest de updater wél de al-gecommitte state en blijft de run
-          // niet stil op "running" hangen.
-          setRuns((current) => {
-            const run = current.get(runId);
-            // "cancelled" is terminaal: het afloop-event van een gestopte
-            // agent mag hem niet alsnog op done of failed zetten.
-            if (!run || run.status === "cancelled") return current;
-            // `reviewMissing` staat los van de exitcode: een commentsOnly-agent
-            // kan netjes afsluiten terwijl er geen review op de PR staat, en dan
-            // is er niets gebeurd waar de gebruiker iets aan heeft.
-            const nextStatus = wasCancelled
-              ? "cancelled"
-              : exitCode === 0 && !reviewMissing
-                ? "done"
-                : "failed";
-            const next = new Map(current);
-            next.set(runId, { ...run, status: nextStatus, exitCode });
-            // U10: een afgeronde run (niet gecancelled) meldt zich eenmalig bij
-            // de aanroeper voor een toast + PR-refresh.
-            if (
-              nextStatus !== "cancelled" &&
-              !notifiedRunIds.current.has(runId)
-            ) {
-              notifiedRunIds.current.add(runId);
-              onRunFinishedRef.current?.(
-                run.prKey,
-                nextStatus,
-                run.agent,
-                run.mode,
-              );
-            }
-            return next;
+      listen<{
+        runId: string;
+        exitCode: number;
+        reviewMissing: boolean;
+        pushedCommits: number;
+        unpushedCommits: number;
+        keptWorktree: string | null;
+      }>("agent-done", (event) => {
+        const {
+          runId,
+          exitCode,
+          reviewMissing,
+          pushedCommits,
+          unpushedCommits,
+          keptWorktree,
+        } = event.payload;
+        clearTimeoutTimer(runId);
+        const wasCancelled = cancelled.current.has(runId);
+        cancelled.current.delete(runId);
+        // De statusovergang leest en schrijft hier bewust binnen dezelfde
+        // setRuns-updater (i.p.v. via runsRef.current, gevuld door een
+        // post-commit-effect): komt agent-done vóór dat effect (een direct
+        // falende run, of eentje die afrondt tijdens de list_runs-herstel),
+        // dan leest de updater wél de al-gecommitte state en blijft de run
+        // niet stil op "running" hangen.
+        setRuns((current) => {
+          const run = current.get(runId);
+          // "cancelled" is terminaal: het afloop-event van een gestopte
+          // agent mag hem niet alsnog op done of failed zetten.
+          if (!run || run.status === "cancelled") return current;
+          // `reviewMissing` staat los van de exitcode: een commentsOnly-agent
+          // kan netjes afsluiten terwijl er geen review op de PR staat, en dan
+          // is er niets gebeurd waar de gebruiker iets aan heeft.
+          const nextStatus = wasCancelled
+            ? "cancelled"
+            : exitCode === 0 && !reviewMissing
+              ? "done"
+              : "failed";
+          const next = new Map(current);
+          next.set(runId, {
+            ...run,
+            status: nextStatus,
+            exitCode,
+            finishedAt: Date.now(),
+            reviewMissing,
+            pushedCommits,
+            unpushedCommits,
+            keptWorktree: keptWorktree ?? undefined,
           });
-        },
-      ),
+          // U10: een afgeronde run (niet gecancelled) meldt zich eenmalig bij
+          // de aanroeper voor een toast + PR-refresh.
+          if (
+            nextStatus !== "cancelled" &&
+            !notifiedRunIds.current.has(runId)
+          ) {
+            notifiedRunIds.current.add(runId);
+            onRunFinishedRef.current?.(
+              run.prKey,
+              nextStatus,
+              run.agent,
+              run.mode,
+            );
+          }
+          return next;
+        });
+      }),
     ];
     return () => {
       for (const unlisten of unlisteners) {
@@ -320,6 +386,7 @@ export function useAgentRuns(
           mode,
           status: "running",
           lines: [firstLine],
+          startedAt: Date.now(),
         });
         return next;
       });
@@ -341,7 +408,13 @@ export function useAgentRuns(
               const run = current.get(runId);
               if (!run) return current;
               const next = new Map(current);
-              next.set(runId, { ...run, status: nextStatus, exitCode: 0 });
+              next.set(runId, {
+                ...run,
+                status: nextStatus,
+                exitCode: 0,
+                finishedAt: Date.now(),
+                ...(nextStatus === "done" ? mockOutcome(run.mode) : {}),
+              });
               return next;
             });
             if (nextStatus !== "cancelled" && finished != null) {
@@ -445,10 +518,16 @@ export function useAgentRuns(
     [runs],
   );
 
-  const runningPrKeys = new Set(
-    [...runs.values()]
-      .filter((run) => run.status === "running")
-      .map((run) => run.prKey),
+  // Stabiel per `runs`: sortCtx en de snooze-effecten in Cockpit hangen hiervan
+  // af, en een nieuwe Set per render liet die effecten eindeloos opnieuw lopen.
+  const runningPrKeys = useMemo(
+    () =>
+      new Set(
+        [...runs.values()]
+          .filter((run) => run.status === "running")
+          .map((run) => run.prKey),
+      ),
+    [runs],
   );
 
   return {

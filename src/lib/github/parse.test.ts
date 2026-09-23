@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { MergeStateStatus } from "./domain";
 import {
   draftPrNodeNoCi,
   prNodeWithAgentFixes,
@@ -25,11 +26,13 @@ describe("parseSearchResponse", () => {
       author: { kind: "human", login: "dennis" },
       isDraft: false,
       mergeable: "MERGEABLE",
+      mergeStateStatus: "BLOCKED",
       createdAt: "2026-07-01T09:00:00Z",
       updatedAt: "2026-07-02T09:00:00Z",
       additions: 120,
       deletions: 30,
       comments: 6,
+      openThreads: 1,
       assignees: ["dennis"],
       reviewRequestedFromMe: false,
       assignedToMe: false,
@@ -138,6 +141,66 @@ describe("parseSearchResponse - reviewers", () => {
     });
 
     expect(pr?.comments).toBe(8);
+  });
+
+  it("counts only unresolved review threads as open", () => {
+    const [pr] = parseSearchResponse({
+      nodes: [
+        {
+          ...validPrNode,
+          reviewThreads: {
+            totalCount: 3,
+            nodes: [
+              { isResolved: true },
+              { isResolved: false },
+              { isResolved: false },
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(pr?.openThreads).toBe(2);
+    expect(pr?.comments).toBe(7);
+  });
+
+  it("defaults openThreads to 0 when thread nodes are missing", () => {
+    const [pr] = parseSearchResponse({
+      nodes: [{ ...validPrNode, reviewThreads: { totalCount: 2 } }],
+    });
+
+    expect(pr?.openThreads).toBe(0);
+  });
+
+  it("parses every known mergeStateStatus", () => {
+    const all: Record<MergeStateStatus, true> = {
+      BEHIND: true,
+      BLOCKED: true,
+      CLEAN: true,
+      DIRTY: true,
+      DRAFT: true,
+      HAS_HOOKS: true,
+      UNKNOWN: true,
+      UNSTABLE: true,
+    };
+    for (const status of Object.keys(all)) {
+      const [pr] = parseSearchResponse({
+        nodes: [{ ...validPrNode, mergeStateStatus: status }],
+      });
+      expect(pr?.mergeStateStatus).toBe(status);
+    }
+  });
+
+  it("falls back to UNKNOWN for a missing or unexpected mergeStateStatus", () => {
+    const [missing, odd] = parseSearchResponse({
+      nodes: [
+        { ...validPrNode, mergeStateStatus: undefined },
+        { ...validPrNode, id: "PR_9", mergeStateStatus: "SOMETHING_NEW" },
+      ],
+    });
+
+    expect(missing?.mergeStateStatus).toBe("UNKNOWN");
+    expect(odd?.mergeStateStatus).toBe("UNKNOWN");
   });
 });
 

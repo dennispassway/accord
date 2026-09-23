@@ -10,9 +10,40 @@ function comment(
   login: string,
   bodyText: string,
   createdAt: string,
+  body: string = bodyText,
 ): PrComment {
-  return { author: deriveAuthor(login), bodyText, createdAt };
+  return { author: deriveAuthor(login), bodyText, body, createdAt };
 }
+
+// Toont alle markdown-vormen die CommentsView moet renderen: inline code,
+// een codeblok, een lijst, een link en een afbeelding (die als tekstlink
+// verschijnt, want de CSP staat alleen img-src 'self' data: toe).
+const MARKDOWN_DEMO_BODY = `\`xargs -r rm -rf\` op basis van \`ls -1t\` voelt kwetsbaar als een releasemap een spatie in de naam heeft.
+
+Kort overzicht van wat ik checkte:
+- releasemappen zijn timestamps, dus geen spaties
+- \`find -print0\` zou robuuster zijn maar is hier niet nodig
+- de restart-regel in deploy.sh blijft ongemoeid
+
+\`\`\`bash
+find "$RELEASES_DIR" -maxdepth 1 -mindepth 1 | sort
+\`\`\`
+
+Zie ook de [GNU findutils-docs](https://www.gnu.org/software/findutils/) voor de -print0-vlag.
+
+![Voorbeeld van de output](https://example.com/screenshot.png)`;
+
+// Bot-reactie zoals Vercel die plaatst: rauwe HTML met een geneste
+// <picture>/<source>/<img> en een tabel, geen echte markdown. Laat zien dat
+// CommentBody die opschoont in plaats van de markup letterlijk te tonen.
+const VERCEL_BOT_BODY = `<a href="https://vercel.com/acme/storefront"><sup><img src="https://vercel.com/api/www/avatar?u=acme&s=16" width="16" height="16" align="middle" alt="" /></sup></a> **storefront** – [Bekijk preview](https://storefront-git-hoc49-acme.vercel.app)
+
+| Project | Deployment | Actions | Updated (UTC) |
+| --- | --- | --- | --- |
+| **storefront** | <a href="https://vercel.com/acme/storefront/hoc49abc">Ready</a> ([Inspect](https://vercel.com/acme/storefront/hoc49abc)) | <a href="https://vercel.com/acme/storefront/hoc49abc" rel="noreferrer"><picture><source media="(prefers-color-scheme: dark)" srcset="https://vercel.com/button-dark.svg"><img src="https://vercel.com/button-light.svg" alt="Request Review"></picture></a> | Sep 23, 2026 2:14pm |
+`;
+
+let threadCounter = 0;
 
 function thread(
   path: string,
@@ -20,7 +51,17 @@ function thread(
   isResolved: boolean,
   comments: PrComment[],
 ): ReviewThread {
-  return { path, line, isResolved, comments };
+  threadCounter += 1;
+  return {
+    id: `mock-thread-${threadCounter}`,
+    path,
+    line,
+    isResolved,
+    viewerCanReply: !isResolved,
+    viewerCanResolve: !isResolved,
+    viewerCanUnresolve: isResolved,
+    comments,
+  };
 }
 
 const KEN167_DIFF = `diff --git a/deploy/deploy.sh b/deploy/deploy.sh
@@ -141,6 +182,7 @@ export const MOCK_PR_DETAILS: Record<string, PrDetail> = {
           "octocat",
           "xargs -r rm -rf op basis van ls -1t voelt kwetsbaar als een releasemap een spatie in de naam heeft. Onze releasemappen zijn timestamps, dus prima, maar leg dat aan als comment vast.",
           "2026-07-28T10:05:00Z",
+          MARKDOWN_DEMO_BODY,
         ),
       ]),
       thread("deploy/deploy.sh", 15, true, [
@@ -170,6 +212,12 @@ export const MOCK_PR_DETAILS: Record<string, PrDetail> = {
         "octocat",
         "E2E faalt op chromium, even kijken of dat aan deze PR ligt of aan de runner.",
         "2026-07-27T15:30:00Z",
+      ),
+      comment(
+        "vercel[bot]",
+        "storefront: Ready, bekijk de preview.",
+        "2026-07-27T15:45:00Z",
+        VERCEL_BOT_BODY,
       ),
     ],
     reviewThreads: [

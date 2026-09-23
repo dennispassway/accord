@@ -112,6 +112,17 @@
   text-decoration: none;
 }
 
+.login-button-secondary {
+  margin-top: 0;
+  background: var(--fill-1);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-1);
+}
+
+.login-button-secondary:hover {
+  background: var(--fill-2);
+}
+
 .login-foot {
   font: 400 10.5px / 1.5 var(--mono);
   color: var(--text-3);

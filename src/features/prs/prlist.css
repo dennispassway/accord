@@ -82,6 +82,10 @@ li:first-child > .pl-group-header {
   color: var(--err);
 }
 
+.pl-group-header-wachtReview {
+  color: var(--warn);
+}
+
 .pl-group-header-agent {
   color: var(--agent);
 }
@@ -92,6 +96,36 @@ li:first-child > .pl-group-header {
 
 .pl-group-header-concept {
   color: var(--text-3);
+}
+
+.pl-group-header-later {
+  color: var(--text-3);
+}
+
+.pl-group-header-toggle {
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* Rechtsgericht (">") is de ingeklapte stand, gelijk aan het icoon in rust;
+   pl-later-chevron-open draait 'm naar beneden voor de uitgeklapte stand. */
+.pl-later-chevron {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pl-later-chevron {
+    transition: transform 0.1s ease;
+  }
+}
+
+.pl-later-chevron-open {
+  transform: rotate(90deg);
 }
 
 .pl-group-icon {
@@ -328,10 +362,20 @@ li:first-child > .pl-group-header {
   color: var(--warn);
 }
 
+.pl-status-pill-wachtReview {
+  color: var(--warn);
+}
+
 /* --text-2 en niet --text-3: op zijn eigen 11%-tint haalt --text-3 maar
    3,47:1, en dit is 10,5px tekst. Zie themeContrast.test.ts. */
 .pl-status-pill-concept {
   color: var(--text-2);
+}
+
+/* Na de key-regels, zodat een review-PR met conflict rood wordt en niet
+   de accentkleur van zijn sectie houdt. */
+.pl-status-pill-problem {
+  color: var(--err);
 }
 
 .pl-running-dot {

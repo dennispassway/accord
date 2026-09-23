@@ -10,10 +10,15 @@ import {
   effectiveColumns,
   maxColumnWidth,
 } from "./columnLayout";
-import { formatAmsterdam, formatRelative } from "./format";
+import {
+  formatAmsterdam,
+  formatRelative,
+  formatSnoozeUntilCompact,
+} from "./format";
 import {
   AgentIcon,
   AlertIcon,
+  ChevronIcon,
   ClockIcon,
   ConceptIcon,
   EyeIcon,
@@ -35,6 +40,7 @@ const SECTION_ICON: Record<PrStatusKey, typeof EyeIcon> = {
   review: EyeIcon,
   klaar: MergeIcon,
   actie: AlertIcon,
+  wachtReview: EyeIcon,
   agent: AgentIcon,
   wachten: ClockIcon,
   concept: ConceptIcon,
@@ -59,6 +65,13 @@ interface PrListProps {
   runningPrKeys: Set<string>;
   /** Er staat een zoekopdracht in het toolbar-veld: andere lege staat. */
   hasActiveSearch: boolean;
+  /** Until-instant (ISO) van een gesnoozede PR; alleen relevant voor rijen in
+   * de sectie "later". */
+  snoozeUntilOf?: (pr: PullRequest) => string | undefined;
+  /** Ingeklapt/uitgeklapt staat van de "Later"-sectie; leeft in Cockpit,
+   * want die bepaalt ook welke rijen meetellen voor toetsenbordnavigatie. */
+  laterCollapsed: boolean;
+  onToggleLater: () => void;
 }
 
 export function keyOfPr(pr: PullRequest): string {
@@ -106,6 +119,9 @@ export function PrList({
   showRepoMeta,
   runningPrKeys,
   hasActiveSearch,
+  snoozeUntilOf,
+  laterCollapsed,
+  onToggleLater,
 }: PrListProps) {
   const selectedRowRef = useRef<HTMLButtonElement>(null);
   const [tableRef, tableWidth] = useContainerWidth<HTMLDivElement>();
@@ -167,6 +183,178 @@ export function PrList({
     );
   }
 
+  /** Eén PR-rij; ook gebruikt voor de rijen in de inklapbare "Later"-sectie. */
+  function renderRow(
+    pr: PullRequest,
+    section: PrSection,
+    startsSection: boolean,
+  ) {
+    const key = keyOfPr(pr);
+    const stackInfo = stackInfoByKey.get(key);
+    const running = runningPrKeys.has(key);
+    const status = prStatus(pr, {
+      agentBezig: running,
+      stackBlocked: (stackInfo?.blockedByPrNumbers.length ?? 0) > 0,
+    });
+    const isSelected = key === selectedKey || selectedKeys.has(key);
+    const SectionIcon =
+      section.statusKey != null ? SECTION_ICON[section.statusKey] : null;
+    // Een probleem (conflict, rode checks) krijgt de alarmtoon, ook
+    // in "Jouw review nodig" waar de sectie zelf niet rood is.
+    const StatusIcon =
+      status.problem != null ? AlertIcon : SECTION_ICON[status.key];
+    const snoozeUntil =
+      section.key === "later" ? snoozeUntilOf?.(pr) : undefined;
+
+    return (
+      <li key={key} role="presentation">
+        {startsSection && (
+          <div
+            className={
+              section.statusKey != null
+                ? `pl-group-header mono pl-group-header-${section.statusKey}`
+                : "pl-group-header mono"
+            }
+            role="presentation"
+          >
+            {SectionIcon != null && (
+              <span className="pl-group-icon">
+                <SectionIcon size={14} />
+              </span>
+            )}
+            <span className="pl-group-title">{section.titel}</span>
+            <span className="pl-group-count">{section.prs.length}</span>
+          </div>
+        )}
+        <button
+          type="button"
+          ref={key === selectedKey ? selectedRowRef : undefined}
+          role="option"
+          aria-selected={isSelected}
+          className={
+            key === selectedKey
+              ? "pl-row pl-row-selected"
+              : selectedKeys.has(key)
+                ? "pl-row pl-row-multi"
+                : "pl-row"
+          }
+          onClick={(event) =>
+            onSelect(key, {
+              meta: modKey(event),
+              shift: event.shiftKey,
+            })
+          }
+          onDoubleClick={() => {
+            onSelect(key, { meta: false, shift: false });
+            onRowDoubleClick(key);
+          }}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onContextMenu(key, event);
+          }}
+        >
+          {showRepoMeta && (
+            <span className="pl-cell pl-cell-project mono" title={pr.repoId}>
+              <span
+                className="pl-repo-dot"
+                style={{ background: repoDotBg(pr.repoId) }}
+              />
+              {applied.projectLabel && (
+                <span className="pl-repo-naam">{pr.repoId.split("/")[1]}</span>
+              )}
+            </span>
+          )}
+          <span className="pl-cell pl-cell-nr mono">#{pr.number}</span>
+          <span className="pl-cell pl-cell-title">
+            <span className="pl-title">{pr.title}</span>
+            {stackInfo && stackInfo.stackSize > 1 && (
+              <span className="pl-stack-chip mono" title="Positie in de stack">
+                <StackIcon />
+                {stackInfo.stackPosition}/{stackInfo.stackSize}
+              </span>
+            )}
+          </span>
+          <span className="pl-cell pl-cell-status">
+            <span
+              className={
+                status.problem != null
+                  ? `pl-status-pill pl-status-pill-${status.key} pl-status-pill-problem`
+                  : `pl-status-pill pl-status-pill-${status.key}`
+              }
+              title={status.label}
+            >
+              {status.key === "agent" ? (
+                <span className="pl-running-dot" />
+              ) : (
+                !applied.statusLabel && <StatusIcon size={12} />
+              )}
+              {applied.statusLabel && (
+                <span className="pl-status-pill-label">{status.short}</span>
+              )}
+            </span>
+          </span>
+          <span className="pl-cell pl-cell-wie">
+            {pr.agentReviews.map((review) => (
+              <span
+                key={review.agent}
+                className="pl-agent-badge"
+                style={{ background: avatarBg(review.agent) }}
+                title={agentBadgeTitle(review)}
+              >
+                <AgentIcon size={9} />
+                <span
+                  className={
+                    review.mode === "commentsAndFixes"
+                      ? "pl-agent-badge-dot pl-agent-badge-dot-fixes"
+                      : "pl-agent-badge-dot"
+                  }
+                />
+              </span>
+            ))}
+            <Avatar author={pr.author} size={18} />
+          </span>
+          {applied.showMetrics && (
+            <span className="pl-cell pl-cell-omvang">
+              <RowMetrics additions={pr.additions} deletions={pr.deletions} />
+            </span>
+          )}
+          {applied.showComments && (
+            <span
+              className="pl-cell pl-cell-reacties"
+              title={
+                pr.comments > 0
+                  ? `${pr.comments} ${pr.comments === 1 ? "reactie" : "reacties"} op deze PR`
+                  : undefined
+              }
+            >
+              {pr.comments > 0 && (
+                <>
+                  <ReactieIcon size={11} />
+                  <span className="mono">{pr.comments}</span>
+                </>
+              )}
+            </span>
+          )}
+          {snoozeUntil != null ? (
+            <span
+              className="pl-cell pl-cell-tijd"
+              title={`Terug op ${formatAmsterdam(snoozeUntil)}`}
+            >
+              {formatSnoozeUntilCompact(snoozeUntil)}
+            </span>
+          ) : (
+            <span
+              className="pl-cell pl-cell-tijd"
+              title={formatAmsterdam(pr.updatedAt)}
+            >
+              {formatRelative(pr.updatedAt)}
+            </span>
+          )}
+        </button>
+      </li>
+    );
+  }
+
   return (
     <div className="pl-table" ref={tableRef} style={trackStyle(applied)}>
       <div className="pl-thead mono" role="presentation">
@@ -212,172 +400,40 @@ export function PrList({
 
       {/* biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: role="listbox" met li[role="presentation"] en per-rij button[role="option"] is de valide ARIA-listbox-pattern */}
       <ul className="pl-list" role="listbox" aria-multiselectable="true">
-        {sections.map((section) =>
-          section.prs.map((pr, index) => {
-            const key = keyOfPr(pr);
-            const stackInfo = stackInfoByKey.get(key);
-            const startsSection = index === 0 && section.titel !== "";
-            const running = runningPrKeys.has(key);
-            const status = prStatus(pr, {
-              agentBezig: running,
-              stackBlocked: (stackInfo?.blockedByPrNumbers.length ?? 0) > 0,
-            });
-            const isSelected = key === selectedKey || selectedKeys.has(key);
-            const SectionIcon =
-              section.statusKey != null
-                ? SECTION_ICON[section.statusKey]
-                : null;
-            const StatusIcon = SECTION_ICON[status.key];
-
-            return (
-              <li key={key} role="presentation">
-                {startsSection && (
-                  <div
-                    className={
-                      section.statusKey != null
-                        ? `pl-group-header mono pl-group-header-${section.statusKey}`
-                        : "pl-group-header mono"
-                    }
-                    role="presentation"
-                  >
-                    {SectionIcon != null && (
-                      <span className="pl-group-icon">
-                        <SectionIcon size={14} />
-                      </span>
-                    )}
-                    <span className="pl-group-title">{section.titel}</span>
-                    <span className="pl-group-count">{section.prs.length}</span>
-                  </div>
-                )}
+        {sections.map((section) => {
+          if (section.key === "later") {
+            // De rijen zijn broers van de kop, niet zijn kinderen: renderRow
+            // levert zelf een <li>, en een <li> in een <li> is ongeldige DOM.
+            return [
+              <li key="later" role="presentation">
                 <button
                   type="button"
-                  ref={key === selectedKey ? selectedRowRef : undefined}
-                  role="option"
-                  aria-selected={isSelected}
-                  className={
-                    key === selectedKey
-                      ? "pl-row pl-row-selected"
-                      : selectedKeys.has(key)
-                        ? "pl-row pl-row-multi"
-                        : "pl-row"
-                  }
-                  onClick={(event) =>
-                    onSelect(key, {
-                      meta: modKey(event),
-                      shift: event.shiftKey,
-                    })
-                  }
-                  onDoubleClick={() => {
-                    onSelect(key, { meta: false, shift: false });
-                    onRowDoubleClick(key);
-                  }}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    onContextMenu(key, event);
-                  }}
+                  className="pl-group-header pl-group-header-later pl-group-header-toggle mono"
+                  aria-expanded={!laterCollapsed}
+                  onClick={onToggleLater}
                 >
-                  {showRepoMeta && (
-                    <span
-                      className="pl-cell pl-cell-project mono"
-                      title={pr.repoId}
-                    >
-                      <span
-                        className="pl-repo-dot"
-                        style={{ background: repoDotBg(pr.repoId) }}
-                      />
-                      {applied.projectLabel && (
-                        <span className="pl-repo-naam">
-                          {pr.repoId.split("/")[1]}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                  <span className="pl-cell pl-cell-nr mono">#{pr.number}</span>
-                  <span className="pl-cell pl-cell-title">
-                    <span className="pl-title">{pr.title}</span>
-                    {stackInfo && stackInfo.stackSize > 1 && (
-                      <span
-                        className="pl-stack-chip mono"
-                        title="Positie in de stack"
-                      >
-                        <StackIcon />
-                        {stackInfo.stackPosition}/{stackInfo.stackSize}
-                      </span>
-                    )}
-                  </span>
-                  <span className="pl-cell pl-cell-status">
-                    <span
-                      className={`pl-status-pill pl-status-pill-${status.key}`}
-                      title={status.label}
-                    >
-                      {status.key === "agent" ? (
-                        <span className="pl-running-dot" />
-                      ) : (
-                        !applied.statusLabel && <StatusIcon size={12} />
-                      )}
-                      {applied.statusLabel && (
-                        <span className="pl-status-pill-label">
-                          {status.short}
-                        </span>
-                      )}
-                    </span>
-                  </span>
-                  <span className="pl-cell pl-cell-wie">
-                    {pr.agentReviews.map((review) => (
-                      <span
-                        key={review.agent}
-                        className="pl-agent-badge"
-                        style={{ background: avatarBg(review.agent) }}
-                        title={agentBadgeTitle(review)}
-                      >
-                        <AgentIcon size={9} />
-                        <span
-                          className={
-                            review.mode === "commentsAndFixes"
-                              ? "pl-agent-badge-dot pl-agent-badge-dot-fixes"
-                              : "pl-agent-badge-dot"
-                          }
-                        />
-                      </span>
-                    ))}
-                    <Avatar author={pr.author} size={18} />
-                  </span>
-                  {applied.showMetrics && (
-                    <span className="pl-cell pl-cell-omvang">
-                      <RowMetrics
-                        additions={pr.additions}
-                        deletions={pr.deletions}
-                      />
-                    </span>
-                  )}
-                  {applied.showComments && (
-                    <span
-                      className="pl-cell pl-cell-reacties"
-                      title={
-                        pr.comments > 0
-                          ? `${pr.comments} ${pr.comments === 1 ? "reactie" : "reacties"} op deze PR`
-                          : undefined
+                  <span className="pl-group-icon">
+                    <ChevronIcon
+                      className={
+                        laterCollapsed
+                          ? "pl-later-chevron"
+                          : "pl-later-chevron pl-later-chevron-open"
                       }
-                    >
-                      {pr.comments > 0 && (
-                        <>
-                          <ReactieIcon size={11} />
-                          <span className="mono">{pr.comments}</span>
-                        </>
-                      )}
-                    </span>
-                  )}
-                  <span
-                    className="pl-cell pl-cell-tijd"
-                    title={formatAmsterdam(pr.updatedAt)}
-                  >
-                    {formatRelative(pr.updatedAt)}
+                    />
                   </span>
+                  <span className="pl-group-title">{section.titel}</span>
+                  <span className="pl-group-count">{section.prs.length}</span>
                 </button>
-              </li>
-            );
-          }),
-        )}
+              </li>,
+              ...(laterCollapsed
+                ? []
+                : section.prs.map((pr) => renderRow(pr, section, false))),
+            ];
+          }
+          return section.prs.map((pr, index) =>
+            renderRow(pr, section, index === 0),
+          );
+        })}
       </ul>
     </div>
   );

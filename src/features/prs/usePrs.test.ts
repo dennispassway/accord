@@ -6,6 +6,7 @@ import { AuthError, GithubApiError } from "../../lib/github/queries";
 import { withRetry } from "../../lib/retry";
 import type { PrsState } from "./usePrs";
 import {
+  applyReviewOutcome,
   createRecentlyMergedTracker,
   detectCiFlippedToRed,
   nextStateOnLoadError,
@@ -27,11 +28,13 @@ function pr(overrides: Partial<PullRequest> = {}): PullRequest {
     reviewState: { state: "none" },
     isDraft: false,
     mergeable: "MERGEABLE",
+    mergeStateStatus: "CLEAN",
     createdAt: "2026-07-01T09:00:00Z",
     updatedAt: "2026-07-01T09:00:00Z",
     additions: 3,
     deletions: 1,
     comments: 0,
+    openThreads: 0,
     reviewers: [],
     agentReviews: [],
     assignees: [],
@@ -42,6 +45,53 @@ function pr(overrides: Partial<PullRequest> = {}): PullRequest {
   };
 }
 
+describe("applyReviewOutcome", () => {
+  it("zet reviewState op approved en werkt de eigen reviewer bij na APPROVE", () => {
+    const pull = pr({
+      reviewState: { state: "reviewRequested" },
+      reviewRequestedFromMe: true,
+      reviewers: [{ login: "dennis", state: "pending" }],
+    });
+
+    const result = applyReviewOutcome(pull, "approved", "dennis");
+
+    expect(result.reviewState).toEqual({ state: "approved" });
+    expect(result.reviewRequestedFromMe).toBe(false);
+    expect(result.reviewers).toEqual([{ login: "dennis", state: "approved" }]);
+  });
+
+  it("zet reviewState op changesRequested na REQUEST_CHANGES", () => {
+    const pull = pr({
+      reviewState: { state: "reviewRequested" },
+      reviewRequestedFromMe: true,
+      reviewers: [{ login: "dennis", state: "pending" }],
+    });
+
+    const result = applyReviewOutcome(pull, "changesRequested", "dennis");
+
+    expect(result.reviewState).toEqual({ state: "changesRequested" });
+    expect(result.reviewers).toEqual([
+      { login: "dennis", state: "changesRequested" },
+    ]);
+  });
+
+  it("laat reviewers van anderen ongemoeid", () => {
+    const pull = pr({
+      reviewers: [
+        { login: "dennis", state: "pending" },
+        { login: "sam", state: "pending" },
+      ],
+    });
+
+    const result = applyReviewOutcome(pull, "approved", "dennis");
+
+    expect(result.reviewers).toEqual([
+      { login: "dennis", state: "approved" },
+      { login: "sam", state: "pending" },
+    ]);
+  });
+});
+
 describe("nextStateOnLoadError", () => {
   it("bij een ready-state met data blijft de lijst staan en wordt refreshError gezet", () => {
     const ready: PrsState = {
@@ -51,6 +101,7 @@ describe("nextStateOnLoadError", () => {
       refreshError: null,
       viewerLogin: "dennis",
       truncated: false,
+      fromSnapshot: false,
     };
     const next = nextStateOnLoadError(ready, "Netwerkfout");
     expect(next).toEqual({ ...ready, refreshError: "Netwerkfout" });

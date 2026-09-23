@@ -8,7 +8,12 @@ import { MOCK_ME } from "../../lib/mock/fixtures";
 import { type MockMode, mockMode } from "../../lib/mock/mode";
 import { clearPrsSnapshot } from "../../lib/prsSnapshot";
 import { GITHUB_CLIENT_ID, isClientIdConfigured } from "./config";
-import type { AuthState, DeviceLoginStart, PollResult } from "./types";
+import type {
+  AuthState,
+  DeviceLoginStart,
+  LoggedOutReason,
+  PollResult,
+} from "./types";
 
 const MAX_CONSECUTIVE_POLL_ERRORS = 5;
 const EXPIRED_MESSAGE = "De inlogcode is verlopen, probeer opnieuw.";
@@ -18,7 +23,7 @@ const MOCK_AUTH_STATES: Record<Exclude<MockMode, "off">, AuthState> = {
   // `?mock=update` toont de gewone app; alleen het updatescherm verschilt.
   update: { status: "loggedIn", login: MOCK_ME },
   "login-client": { status: "unconfigured" },
-  "login-uit": { status: "loggedOut" },
+  "login-uit": { status: "loggedOut", reason: "manual" },
   "login-device": {
     status: "deviceCodePending",
     userCode: "WDJB-MJHT",
@@ -68,13 +73,28 @@ export function useAuth() {
 
   useEffect(() => stopPolling, [stopPolling]);
 
+  const logout = useCallback(
+    async (
+      reason: Extract<LoggedOutReason, "manual" | "sessionExpired"> = "manual",
+    ) => {
+      stopPolling();
+      generationRef.current += 1;
+      if (MOCK_MODE !== "off") {
+        setState({ status: "loggedOut", reason });
+        return;
+      }
+      await invoke("logout");
+      clearPrsSnapshot();
+      setState({ status: "loggedOut", reason });
+    },
+    [stopPolling],
+  );
+
   // 401 always means the stored token is no longer valid: always clear it
   // and always end up loggedOut, regardless of which path detected it.
   const handleUnauthorized = useCallback(async () => {
-    await invoke("logout");
-    clearPrsSnapshot();
-    setState({ status: "loggedOut" });
-  }, []);
+    await logout("sessionExpired");
+  }, [logout]);
 
   // U2a: alleen de aanwezigheid van een token checken (keychain), geen
   // aparte REST `/user`-call meer. Dat ontkoppelt de app-start van een extra
@@ -96,7 +116,7 @@ export function useAuth() {
         return;
       }
       if (token == null || token === "") {
-        setState({ status: "loggedOut" });
+        setState({ status: "loggedOut", reason: "firstRun" });
         return;
       }
       // Login-naam is nog onbekend: Cockpit vult 'm aan zodra zijn eigen
@@ -137,6 +157,9 @@ export function useAuth() {
       let consecutiveErrors = 0;
 
       const poll = async (intervalSeconds: number) => {
+        // Annuleren of uitloggen tijdens een lopende invoke of tijdens
+        // openUrl: stopPolling mist dan de timer die daarna nog gezet wordt.
+        if (generationRef.current !== generation) return;
         if (Date.now() >= deadline) {
           setState({ status: "error", message: EXPIRED_MESSAGE });
           return;
@@ -149,6 +172,7 @@ export function useAuth() {
             deviceCode: start.deviceCode,
           });
         } catch (error) {
+          if (generationRef.current !== generation) return;
           // Transient invoke/network failure: keep polling up to a limit
           // instead of ending the login attempt on the first hiccup.
           consecutiveErrors += 1;
@@ -206,7 +230,7 @@ export function useAuth() {
             setState({ status: "error", message: EXPIRED_MESSAGE });
             return;
           case "denied":
-            setState({ status: "loggedOut" });
+            setState({ status: "loggedOut", reason: "denied" });
         }
       };
 
@@ -219,17 +243,13 @@ export function useAuth() {
     }
   }, [stopPolling, handleUnauthorized]);
 
-  const logout = useCallback(async () => {
+  // Alleen zinvol tijdens deviceCodePending: stopt het pollen zonder de
+  // keychain aan te raken (er is nog geen token opgehaald).
+  const cancelLogin = useCallback(() => {
     stopPolling();
     generationRef.current += 1;
-    if (MOCK_MODE !== "off") {
-      setState({ status: "loggedOut" });
-      return;
-    }
-    await invoke("logout");
-    clearPrsSnapshot();
-    setState({ status: "loggedOut" });
+    setState({ status: "loggedOut", reason: "cancelled" });
   }, [stopPolling]);
 
-  return { state, login, logout };
+  return { state, login, logout, cancelLogin };
 }

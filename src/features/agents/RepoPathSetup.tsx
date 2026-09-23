@@ -7,6 +7,8 @@ import "./agents.css";
 interface RepoPathSetupProps {
   repoId: RepoId;
   onLinked: () => Promise<void>;
+  /** Andere repo's kunnen door de scan gevonden zijn zonder dat deze erbij zat: ververs die rijen zonder het paneel te sluiten. */
+  onOtherRepoFound?: () => void;
 }
 
 interface ScanResult {
@@ -18,7 +20,11 @@ interface ScanResult {
  * Verschijnt in het detailpaneel zodra een agent-actie een niet-gekoppelde
  * repo raakt: primair "Map zoeken…", daaronder een mono-invoer voor het pad.
  */
-export function RepoPathSetup({ repoId, onLinked }: RepoPathSetupProps) {
+export function RepoPathSetup({
+  repoId,
+  onLinked,
+  onOtherRepoFound,
+}: RepoPathSetupProps) {
   const [manualPath, setManualPath] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,13 +36,16 @@ export function RepoPathSetup({ repoId, onLinked }: RepoPathSetupProps) {
       const found = await invoke<ScanResult[]>("scan_projects", {
         roots: ["~/Projects", "~/Code"],
       });
-      await onLinked();
       const hit = found.find((entry) => entry.repoId === repoId);
-      setMessage(
-        hit
-          ? `Gekoppeld aan ${hit.path}`
-          : `${found.length} repo's gevonden, maar ${repoId} zat er niet bij. Zet het pad handmatig.`,
-      );
+      if (hit) {
+        await onLinked();
+        setMessage(`Gekoppeld aan ${hit.path}`);
+      } else {
+        onOtherRepoFound?.();
+        setMessage(
+          `${found.length} repo's gevonden, maar ${repoId} zat er niet bij. Zet het pad handmatig.`,
+        );
+      }
     } catch (error) {
       setMessage(String(error));
     } finally {

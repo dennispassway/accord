@@ -78,6 +78,17 @@ export interface AgentReview {
 
 export type Mergeable = "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
 
+/** GitHub's mergeStateStatus: branch protection, achterstand op de base, enz. */
+export type MergeStateStatus =
+  | "BEHIND"
+  | "BLOCKED"
+  | "CLEAN"
+  | "DIRTY"
+  | "DRAFT"
+  | "HAS_HOOKS"
+  | "UNKNOWN"
+  | "UNSTABLE";
+
 export type ReviewerState = "approved" | "changesRequested" | "pending";
 
 export interface Reviewer {
@@ -98,11 +109,15 @@ export interface PullRequest {
   reviewState: ReviewState;
   isDraft: boolean;
   mergeable: Mergeable;
+  mergeStateStatus: MergeStateStatus;
   createdAt: string;
   updatedAt: string;
   additions: number;
   deletions: number;
+  /** Issue-comments plus alle review-threads, ook de opgeloste. */
   comments: number;
+  /** Review-threads die nog niet resolved zijn. */
+  openThreads: number;
   reviewers: Reviewer[];
   agentReviews: AgentReview[];
   assignees: string[];

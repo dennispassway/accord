@@ -218,6 +218,47 @@ describe("notifications", () => {
   });
 });
 
+describe("autoDistillLearnings", () => {
+  it("staat standaard aan", () => {
+    expect(loadSettings().review.autoDistillLearnings).toBe(true);
+  });
+
+  it("rondt uit en aan om via save en load", () => {
+    saveSettings({
+      ...DEFAULT_SETTINGS,
+      review: { ...DEFAULT_SETTINGS.review, autoDistillLearnings: false },
+    });
+    expect(loadSettings().review.autoDistillLearnings).toBe(false);
+    saveSettings({
+      ...DEFAULT_SETTINGS,
+      review: { ...DEFAULT_SETTINGS.review, autoDistillLearnings: true },
+    });
+    expect(loadSettings().review.autoDistillLearnings).toBe(true);
+  });
+
+  it("vult het veld aan met de default als het ontbreekt", () => {
+    localStorage.setItem(
+      "pr-cockpit.settings",
+      JSON.stringify({ version: 2, claude: { model: "opus" } }),
+    );
+    expect(loadSettings().review.autoDistillLearnings).toBe(true);
+  });
+
+  it.each([null, undefined, "", "ja"])(
+    "valt bij %j terug op de default",
+    (value) => {
+      localStorage.setItem(
+        "pr-cockpit.settings",
+        JSON.stringify({
+          ...DEFAULT_SETTINGS,
+          review: { ...DEFAULT_SETTINGS.review, autoDistillLearnings: value },
+        }),
+      );
+      expect(loadSettings().review.autoDistillLearnings).toBe(true);
+    },
+  );
+});
+
 describe("modellijsten", () => {
   it("vult de claude-aliassen uit de CLI aan met de fallback", () => {
     expect(claudeModels(["fable", "opus", "sonnet"])).toEqual([

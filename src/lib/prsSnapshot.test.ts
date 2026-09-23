@@ -35,11 +35,13 @@ function pr(): PullRequest {
     reviewState: { state: "none" },
     isDraft: false,
     mergeable: "MERGEABLE",
+    mergeStateStatus: "CLEAN",
     createdAt: "2026-07-01T09:00:00Z",
     updatedAt: "2026-07-01T09:00:00Z",
     additions: 3,
     deletions: 1,
     comments: 0,
+    openThreads: 0,
     reviewers: [],
     agentReviews: [],
     assignees: [],
@@ -117,6 +119,37 @@ describe("prsSnapshot", () => {
         throwing,
       ),
     ).not.toThrow();
+  });
+
+  it("normaliseert PR's van een oudere appversie zonder mergeStateStatus/openThreads", () => {
+    const { mergeStateStatus, openThreads, ...oudeVorm } = pr();
+    storage.setItem(
+      "pr-cockpit.prsSnapshot",
+      JSON.stringify({
+        prs: [oudeVorm],
+        viewerLogin: "dennis",
+        lastUpdated: "2026-08-02T10:00:00.000Z",
+      }),
+    );
+
+    const snapshot = loadPrsSnapshot(storage);
+    expect(snapshot?.prs[0]?.mergeStateStatus).toBe("UNKNOWN");
+    expect(snapshot?.prs[0]?.openThreads).toBe(0);
+  });
+
+  it("laat een geldige mergeStateStatus/openThreads ongemoeid", () => {
+    storage.setItem(
+      "pr-cockpit.prsSnapshot",
+      JSON.stringify({
+        prs: [{ ...pr(), mergeStateStatus: "BLOCKED", openThreads: 3 }],
+        viewerLogin: "dennis",
+        lastUpdated: "2026-08-02T10:00:00.000Z",
+      }),
+    );
+
+    const snapshot = loadPrsSnapshot(storage);
+    expect(snapshot?.prs[0]?.mergeStateStatus).toBe("BLOCKED");
+    expect(snapshot?.prs[0]?.openThreads).toBe(3);
   });
 
   it("wist een bewaarde snapshot", () => {

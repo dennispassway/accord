@@ -1,14 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
-import type { PrDetail } from "../../lib/github/prDetail";
+import { deriveAuthor } from "../../lib/github/domain";
+import type { PrComment, PrDetail } from "../../lib/github/prDetail";
 import { fetchPrDetail } from "../../lib/github/prDetail";
 import { AuthError } from "../../lib/github/queries";
 import { tauriFetch } from "../../lib/github/tauriFetch";
+import { replyToThread, setThreadResolved } from "../../lib/github/threads";
 import {
   MOCK_PR_DETAIL_FALLBACK,
   MOCK_PR_DETAILS,
 } from "../../lib/mock/detailFixtures";
+import { MOCK_ME } from "../../lib/mock/fixtures";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
 import { keyOfPr } from "./PrList";
 
@@ -60,6 +63,59 @@ export function detailFromCache(
     : { status: "ready", detail: cached, error: null };
 }
 
+/** Voegt comment toe aan de thread met threadId (elders ongewijzigd). Puur,
+ * voor testbaarheid los van de hook. */
+export function applyReply(
+  detail: PrDetail,
+  threadId: string,
+  comment: PrComment,
+): PrDetail {
+  return {
+    ...detail,
+    reviewThreads: detail.reviewThreads.map((thread) =>
+      thread.id === threadId
+        ? { ...thread, comments: [...thread.comments, comment] }
+        : thread,
+    ),
+  };
+}
+
+/** Zet isResolved op de thread met threadId (elders ongewijzigd). Puur, voor
+ * testbaarheid los van de hook. */
+export function applyResolved(
+  detail: PrDetail,
+  threadId: string,
+  resolved: boolean,
+): PrDetail {
+  return {
+    ...detail,
+    reviewThreads: detail.reviewThreads.map((thread) =>
+      thread.id === threadId
+        ? {
+            ...thread,
+            isResolved: resolved,
+            viewerCanResolve: !resolved,
+            viewerCanUnresolve: resolved,
+          }
+        : thread,
+    ),
+  };
+}
+
+/** Beslissing na een geslaagde mutatie waarvan de refetch faalt: alleen de
+ * mutatie zelf mag een foutstatus opleveren, anders stuurt de UI de
+ * gebruiker naar een retry die de mutatie dubbel uitvoert (bijvoorbeeld een
+ * reactie die twee keer op GitHub belandt). De lokale wijziging wordt
+ * toegepast op de laatst bekende detail en er wordt geen fout gemeld. Puur,
+ * voor testbaarheid los van de hook. */
+export function stateAfterFailedRefetch(
+  detail: PrDetail | null,
+  applyLocally: (detail: PrDetail) => PrDetail,
+): PrDetailState | null {
+  if (detail == null) return null;
+  return { status: "ready", detail: applyLocally(detail), error: null };
+}
+
 /**
  * Haalt de diff en comments van één PR op, met een cache per prKey zodat een
  * cache-hit nooit opnieuw fetcht. Mockmodus (`?mock=app`) gebruikt fixtures
@@ -73,6 +129,12 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
   const prKey = keyOfPr(pr);
   const onAuthErrorRef = useRef(onAuthError);
   onAuthErrorRef.current = onAuthError;
+  // Een refetch na een mutatie mag de state alleen zetten als hij de laatste
+  // is en de gebruiker nog op dezelfde PR staat: anders landt een trager
+  // antwoord over een nieuwer, of de detail van PR A onder PR B.
+  const currentKeyRef = useRef(prKey);
+  currentKeyRef.current = prKey;
+  const mutationSeqRef = useRef(0);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: retryToken triggert alleen een herfetch, de body leest 'm niet; pr zelf wordt via repoId/number bewaakt zodat een nieuw pr-object per poll-refresh geen onnodige herfetch triggert
   useEffect(() => {
@@ -151,10 +213,116 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
     setRetryToken((t) => t + 1);
   }, [prKey]);
 
+  /** Na een geslaagde mutatie is de lokale cache-entry voor deze PR stale:
+   * hij wordt verwijderd en de detail opnieuw gefetcht zodat het antwoord
+   * altijd de servertoestand toont. */
+  const refetchAfterMutation = useCallback(
+    async (token: string, seq: number) => {
+      cacheRef.current.delete(prKey);
+      const detail = await fetchPrDetail(
+        token,
+        pr.repoId,
+        pr.number,
+        tauriFetch,
+      );
+      if (seq !== mutationSeqRef.current) return;
+      cacheRef.current.set(prKey, detail);
+      if (currentKeyRef.current !== prKey) return;
+      setState({ status: "ready", detail, error: null });
+    },
+    [prKey, pr.repoId, pr.number],
+  );
+
+  const withToken = useCallback(
+    async (
+      mutate: (token: string) => Promise<void>,
+      applyLocally: (detail: PrDetail) => PrDetail,
+    ) => {
+      const token = await invoke<string | null>("get_token");
+      if (token == null || token === "") {
+        throw new Error("Geen GitHub-token gevonden.");
+      }
+      try {
+        await mutate(token);
+      } catch (error) {
+        if (error instanceof AuthError) {
+          onAuthErrorRef.current();
+        }
+        throw error;
+      }
+      // De mutatie is al geslaagd; de refetch is best-effort. Faalt hij, dan
+      // mag dat niet als mutatiefout naar de gebruiker (zie
+      // stateAfterFailedRefetch hierboven).
+      const seq = ++mutationSeqRef.current;
+      const mutatedKey = currentKeyRef.current;
+      try {
+        await refetchAfterMutation(token, seq);
+      } catch {
+        if (currentKeyRef.current !== mutatedKey) return;
+        setState(
+          (prev) => stateAfterFailedRefetch(prev.detail, applyLocally) ?? prev,
+        );
+      }
+    },
+    [refetchAfterMutation],
+  );
+
+  const reply = useCallback(
+    async (threadId: string, body: string) => {
+      if (IS_MOCK) {
+        setState((prev) => {
+          if (prev.detail == null) return prev;
+          const comment: PrComment = {
+            author: deriveAuthor(MOCK_ME),
+            bodyText: body,
+            body,
+            createdAt: new Date().toISOString(),
+          };
+          return {
+            ...prev,
+            detail: applyReply(prev.detail, threadId, comment),
+          };
+        });
+        return;
+      }
+      let posted: PrComment | null = null;
+      await withToken(
+        async (token) => {
+          posted = await replyToThread(token, threadId, body, tauriFetch);
+        },
+        (detail) =>
+          posted == null ? detail : applyReply(detail, threadId, posted),
+      );
+    },
+    [withToken],
+  );
+
+  const setResolved = useCallback(
+    async (threadId: string, resolved: boolean) => {
+      if (IS_MOCK) {
+        setState((prev) => {
+          if (prev.detail == null) return prev;
+          return {
+            ...prev,
+            detail: applyResolved(prev.detail, threadId, resolved),
+          };
+        });
+        return;
+      }
+      await withToken(
+        (token) => setThreadResolved(token, threadId, resolved, tauriFetch),
+        (detail) => applyResolved(detail, threadId, resolved),
+      );
+    },
+    [withToken],
+  );
+
   return {
     status: state.status,
     detail: state.detail,
     error: state.error,
     retry,
+    reply,
+    setResolved,
   };
 }

@@ -44,6 +44,9 @@ interface ReviewSettings {
   /** 0 = handmatig verversen. */
   refreshMinutes: number;
   timeoutMinutes: number;
+  /** D9: destilleert automatisch de lessen (inline op de PR-branch) na een
+   * geslaagde fix-run. Aan-uit-schakelbaar, huidig gedrag als default. */
+  autoDistillLearnings: boolean;
 }
 
 export interface Settings {
@@ -78,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
     primaryMode: "commentsOnly",
     refreshMinutes: 5,
     timeoutMinutes: 20,
+    autoDistillLearnings: true,
   },
   theme: "system",
   autoRebaseStacks: true,
@@ -99,6 +103,22 @@ function normalizeAutoRebaseStacks(value: unknown): boolean {
  * (aan): alleen een echte boolean overschrijft 'm. */
 function normalizeNotifications(value: unknown): boolean {
   return typeof value === "boolean" ? value : DEFAULT_SETTINGS.notifications;
+}
+
+/** null, undefined, lege string of een ander type vallen terug op de default
+ * (aan): alleen een echte boolean overschrijft 'm. */
+function normalizeReview(
+  stored: Partial<ReviewSettings> | undefined,
+): ReviewSettings {
+  const fallback = DEFAULT_SETTINGS.review;
+  return {
+    ...fallback,
+    ...stored,
+    autoDistillLearnings:
+      typeof stored?.autoDistillLearnings === "boolean"
+        ? stored.autoDistillLearnings
+        : fallback.autoDistillLearnings,
+  };
 }
 
 /** Vult een opgeslagen agent aan. Een ontbrekend, leeg of null `commentsOnlyModel`
@@ -136,7 +156,7 @@ export function loadSettings(): Settings {
       version: VERSION,
       claude: normalizeAgent(parsed.claude, DEFAULT_SETTINGS.claude),
       codex: normalizeAgent(parsed.codex, DEFAULT_SETTINGS.codex),
-      review: { ...DEFAULT_SETTINGS.review, ...parsed.review },
+      review: normalizeReview(parsed.review),
       theme: normalizeTheme(parsed.theme),
       autoRebaseStacks: normalizeAutoRebaseStacks(parsed.autoRebaseStacks),
       notifications: normalizeNotifications(parsed.notifications),

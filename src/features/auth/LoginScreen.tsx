@@ -1,6 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useState } from "react";
-import type { AuthState } from "./types";
+import type { AuthState, LoggedOutReason } from "./types";
 import "./login.css";
 
 type LoginAuthState = Extract<
@@ -11,7 +11,24 @@ type LoginAuthState = Extract<
 type Props = {
   state: LoginAuthState;
   onLogin: () => void;
+  onCancelLogin: () => void;
 };
+
+// Puur zodat de tekst per reden getest kan worden zonder te renderen.
+export function loggedOutBody(reason: LoggedOutReason): string {
+  switch (reason) {
+    case "firstRun":
+      return "Accord leest de pull requests die op jou wachten via GitHub. Log in om te beginnen.";
+    case "manual":
+      return "Je bent uitgelogd.";
+    case "denied":
+      return "Je hebt de toegang op GitHub geweigerd. Log opnieuw in als je Accord toch wilt koppelen.";
+    case "sessionExpired":
+      return "GitHub accepteert je sessie niet meer: hij is verlopen of ingetrokken. Log opnieuw in.";
+    case "cancelled":
+      return "Inloggen geannuleerd.";
+  }
+}
 
 function SlotIcon() {
   return (
@@ -46,7 +63,7 @@ function GithubIcon() {
   );
 }
 
-export function LoginScreen({ state, onLogin }: Props) {
+export function LoginScreen({ state, onLogin, onCancelLogin }: Props) {
   const [copyLabel, setCopyLabel] = useState("Kopieer");
 
   if (state.status === "unconfigured") {
@@ -72,10 +89,7 @@ export function LoginScreen({ state, onLogin }: Props) {
           <GithubIcon />
         </div>
         <div className="login-title">Inloggen bij GitHub</div>
-        <div className="login-body">
-          Je bent uitgelogd. Accord vraagt om read/write op pull requests en
-          labels van de repo&rsquo;s waar je toegang hebt.
-        </div>
+        <div className="login-body">{loggedOutBody(state.reason)}</div>
         <button type="button" className="login-button" onClick={onLogin}>
           Inloggen met GitHub
         </button>
@@ -118,6 +132,13 @@ export function LoginScreen({ state, onLogin }: Props) {
         onClick={() => void openUrl(state.verificationUri).catch(() => {})}
       >
         Open github.com/login/device
+      </button>
+      <button
+        type="button"
+        className="login-button login-button-secondary"
+        onClick={onCancelLogin}
+      >
+        Annuleren
       </button>
     </div>
   );

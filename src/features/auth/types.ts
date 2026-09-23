@@ -1,7 +1,14 @@
+export type LoggedOutReason =
+  | "firstRun"
+  | "manual"
+  | "denied"
+  | "sessionExpired"
+  | "cancelled";
+
 export type AuthState =
   | { status: "checking" }
   | { status: "unconfigured" }
-  | { status: "loggedOut" }
+  | { status: "loggedOut"; reason: LoggedOutReason }
   | { status: "deviceCodePending"; userCode: string; verificationUri: string }
   | { status: "loggedIn"; login: string }
   | { status: "error"; message: string };

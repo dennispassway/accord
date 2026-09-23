@@ -4,7 +4,7 @@ import { canRetry, useAuth } from "./features/auth/useAuth";
 import { Cockpit } from "./features/prs/Cockpit";
 
 function App() {
-  const { state, login, logout } = useAuth();
+  const { state, login, logout, cancelLogin } = useAuth();
 
   return (
     <main className="container">
@@ -18,12 +18,20 @@ function App() {
       {(state.status === "unconfigured" ||
         state.status === "loggedOut" ||
         state.status === "deviceCodePending") && (
-        <LoginScreen state={state} onLogin={() => void login()} />
+        <LoginScreen
+          state={state}
+          onLogin={() => void login()}
+          onCancelLogin={cancelLogin}
+        />
       )}
 
       {state.status === "loggedIn" && (
         <div className="loggedin-shell">
-          <Cockpit login={state.login} onAuthError={logout} onLogout={logout} />
+          <Cockpit
+            login={state.login}
+            onAuthError={() => logout("sessionExpired")}
+            onLogout={() => logout()}
+          />
         </div>
       )}
 

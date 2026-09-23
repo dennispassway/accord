@@ -55,6 +55,8 @@ export function availableFixModes(pr: PullRequest): FixMode[] {
   const modes: FixMode[] = [];
   if (pr.mergeable === "CONFLICTING") modes.push("fixConflicts");
   if (pr.ciStatus.state === "failure") modes.push("fixChecks");
-  if (pr.comments > 0) modes.push("fixComments", "distillLearnings");
+  // Opgeloste threads vragen geen fix meer, maar leveren nog wel lessen op.
+  if (pr.openThreads > 0) modes.push("fixComments");
+  if (pr.comments > 0) modes.push("distillLearnings");
   return modes;
 }

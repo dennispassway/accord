@@ -21,7 +21,10 @@ describe("SEARCH_PRS_QUERY", () => {
     expect(SEARCH_PRS_QUERY).toContain("statusCheckRollup");
     expect(SEARCH_PRS_QUERY).toContain("reviewDecision");
     expect(SEARCH_PRS_QUERY).toContain("comments { totalCount }");
-    expect(SEARCH_PRS_QUERY).toContain("reviewThreads(first: 1)");
+    expect(SEARCH_PRS_QUERY).toContain(
+      "reviewThreads(first: 100) { totalCount nodes { isResolved } }",
+    );
+    expect(SEARCH_PRS_QUERY).toContain("mergeStateStatus");
     expect(SEARCH_PRS_QUERY).toContain("assignees(first: 20)");
     expect(SEARCH_PRS_QUERY).toContain("reviewRequests(first: 20)");
     expect(SEARCH_PRS_QUERY).toContain("latestOpinionatedReviews(first: 20)");

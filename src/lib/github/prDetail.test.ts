@@ -24,11 +24,13 @@ const graphqlBody = {
             {
               author: { login: "dennispassway" },
               bodyText: "second",
+              body: "second",
               createdAt: "2026-08-02T00:00:00Z",
             },
             {
               author: null,
               bodyText: "first",
+              body: "first",
               createdAt: "2026-08-01T00:00:00Z",
             },
           ],
@@ -36,14 +38,19 @@ const graphqlBody = {
         reviewThreads: {
           nodes: [
             {
+              id: "PRRT_thread1",
               path: "src/index.ts",
               line: 12,
               isResolved: false,
+              viewerCanReply: true,
+              viewerCanResolve: true,
+              viewerCanUnresolve: false,
               comments: {
                 nodes: [
                   {
                     author: { login: "claude" },
                     bodyText: "nit",
+                    body: "nit",
                     createdAt: "2026-08-01T12:00:00Z",
                   },
                 ],
@@ -79,23 +86,30 @@ describe("fetchPrDetail", () => {
       {
         author: { kind: "human", login: "ghost" },
         bodyText: "first",
+        body: "first",
         createdAt: "2026-08-01T00:00:00Z",
       },
       {
         author: { kind: "human", login: "dennispassway" },
         bodyText: "second",
+        body: "second",
         createdAt: "2026-08-02T00:00:00Z",
       },
     ]);
     expect(detail.reviewThreads).toEqual([
       {
+        id: "PRRT_thread1",
         path: "src/index.ts",
         line: 12,
         isResolved: false,
+        viewerCanReply: true,
+        viewerCanResolve: true,
+        viewerCanUnresolve: false,
         comments: [
           {
             author: { kind: "agent", agent: "claude", login: "claude" },
             bodyText: "nit",
+            body: "nit",
             createdAt: "2026-08-01T12:00:00Z",
           },
         ],
@@ -163,10 +177,15 @@ describe("fetchPrDetail", () => {
           pullRequest: {
             comments: {
               nodes: [
-                { author: { login: "dennispassway" }, bodyText: "geen datum" },
+                {
+                  author: { login: "dennispassway" },
+                  bodyText: "geen datum",
+                  body: "geen datum",
+                },
                 {
                   author: { login: "dennispassway" },
                   bodyText: "met datum",
+                  body: "met datum",
                   createdAt: "2026-08-02T00:00:00Z",
                 },
               ],
@@ -192,6 +211,7 @@ describe("fetchPrDetail", () => {
       {
         author: { kind: "human", login: "dennispassway" },
         bodyText: "met datum",
+        body: "met datum",
         createdAt: "2026-08-02T00:00:00Z",
       },
     ]);
