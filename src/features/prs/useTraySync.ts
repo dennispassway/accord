@@ -51,6 +51,10 @@ export function useTraySync(
   refreshRef.current = refresh;
   const expandLaterIfSnoozedRef = useRef(expandLaterIfSnoozed);
   expandLaterIfSnoozedRef.current = expandLaterIfSnoozed;
+  // usePrSelection geeft elke render een nieuwe setSelectedKey: als dep zou
+  // die de listeners bij elke render opnieuw laten registreren.
+  const setSelectedKeyRef = useRef(setSelectedKey);
+  setSelectedKeyRef.current = setSelectedKey;
 
   useEffect(() => {
     const unlistenRefresh = listen("tray-refresh", () => {
@@ -64,11 +68,11 @@ export function useTraySync(
       setSelectedRepoId((current) =>
         current === "all" || current === target.repoId ? current : "all",
       );
-      setSelectedKey(key);
+      setSelectedKeyRef.current(key);
     });
     return () => {
       void unlistenRefresh.then((fn) => fn());
       void unlistenSelect.then((fn) => fn());
     };
-  }, [setSelectedRepoId, setSelectedKey]);
+  }, [setSelectedRepoId]);
 }

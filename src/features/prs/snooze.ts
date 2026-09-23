@@ -112,7 +112,9 @@ export function isSnoozed(
 /** Verwijdert entries die niet meer snoozed zijn, en entries van PR's die
  * niet meer in de volledige, opgehaalde lijst voorkomen (gemerged/gesloten).
  * Roep dit alleen aan met de volledige lijst, niet met een gefilterde
- * subset. */
+ * subset. Valt er niets weg, dan komt dezelfde store terug: Cockpit zet de
+ * uitkomst als state in een effect, en een nieuw object zonder wijziging
+ * geeft daar een render-lus. */
 export function pruneSnoozes(
   store: SnoozeStore,
   allPrs: PullRequest[],
@@ -121,13 +123,16 @@ export function pruneSnoozes(
 ): SnoozeStore {
   const byKey = new Map(allPrs.map((pr) => [keyOfPr(pr), pr]));
   const out: SnoozeStore = {};
+  let removed = false;
   for (const [key, entry] of Object.entries(store)) {
     const pr = byKey.get(key);
-    if (pr == null) continue;
-    if (!isSnoozed(entry, pr, sectionKeyOf(pr), now)) continue;
+    if (pr == null || !isSnoozed(entry, pr, sectionKeyOf(pr), now)) {
+      removed = true;
+      continue;
+    }
     out[key] = entry;
   }
-  return out;
+  return removed ? out : store;
 }
 
 /** Amsterdamse wall-clock offset (in minuten, UTC min lokale tijd) op een

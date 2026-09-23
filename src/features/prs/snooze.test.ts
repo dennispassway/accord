@@ -162,6 +162,28 @@ describe("pruneSnoozes", () => {
     const pruned = pruneSnoozes(store, [wokenUp], () => "klaar", now);
     expect(Object.keys(pruned)).toEqual([]);
   });
+
+  // Cockpit zet de uitkomst als state in een effect dat op de store
+  // reageert: een nieuw object zonder wijziging geeft een render-lus.
+  it("geeft dezelfde store terug als er niets te verwijderen valt", () => {
+    const now = new Date("2026-08-01T00:00:00.000Z");
+    const stillSnoozed = pr({ number: toPrNumber(1) });
+    const store = {
+      "acme/widgets#1": {
+        until: "2026-09-01T00:00:00.000Z",
+        updatedAt: stillSnoozed.updatedAt,
+        sectionKey: "actie" as const,
+      },
+    };
+    expect(pruneSnoozes(store, [stillSnoozed], () => "actie", now)).toBe(store);
+  });
+
+  it("geeft dezelfde lege store terug", () => {
+    const store = {};
+    expect(
+      pruneSnoozes(store, [pr()], () => "actie", new Date("2026-08-01")),
+    ).toBe(store);
+  });
 });
 
 describe("localStorage-opslag", () => {

@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
 import type { Settings } from "../../lib/settings";
@@ -518,10 +518,16 @@ export function useAgentRuns(
     [runs],
   );
 
-  const runningPrKeys = new Set(
-    [...runs.values()]
-      .filter((run) => run.status === "running")
-      .map((run) => run.prKey),
+  // Stabiel per `runs`: sortCtx en de snooze-effecten in Cockpit hangen hiervan
+  // af, en een nieuwe Set per render liet die effecten eindeloos opnieuw lopen.
+  const runningPrKeys = useMemo(
+    () =>
+      new Set(
+        [...runs.values()]
+          .filter((run) => run.status === "running")
+          .map((run) => run.prKey),
+      ),
+    [runs],
   );
 
   return {
