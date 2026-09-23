@@ -5,7 +5,7 @@ import { computeStackInfo } from "../../lib/github/stacks";
 import { keyOfPr } from "./PrList";
 
 /** Matcht op titel, repo-naam en nummer (case-insensitive, ook "#123"). */
-function matchesSearch(pr: PullRequest, query: string): boolean {
+export function matchesSearch(pr: PullRequest, query: string): boolean {
   const q = query.trim().toLowerCase().replace(/^#/, "");
   if (q === "") return true;
   return (
