@@ -53,6 +53,151 @@ fn push_marker(run_id: &str) -> PathBuf {
 /// plek voor het getal, hergebruikt door `emit_log`.
 const MAX_LOG_LINES: usize = 500;
 
+/// Boven deze grootte geeft `read_run_log` alleen de staart terug: een agent
+/// die uren doorlogt mag de webview niet met megabytes tekst laten vastlopen.
+const MAX_LOG_FILE_BYTES: usize = 2 * 1024 * 1024;
+
+/// Logbestanden ouder dan dit blijven achter een gecrashte of hard afgesloten
+/// sessie; `cleanup_old_logs` ruimt ze op zodra een volgende run start.
+const LOG_MAX_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+
+/// Eén bestand per run, buiten de worktree (die wordt opgeruimd): de volledige
+/// log overleeft zo de 500-regel-cap die alleen voor de live stream naar de
+/// webview geldt.
+fn log_file_path(run_id: &str) -> PathBuf {
+    std::env::temp_dir()
+        .join("pr-cockpit")
+        .join("logs")
+        .join(format!("{run_id}.log"))
+}
+
+/// `/tmp` is op Linux een gedeelde map: een andere gebruiker kan `pr-cockpit/logs`
+/// al hebben klaargezet als symlink, of als map van een ander account. Bestaat
+/// de map nog niet, dan zetten we hem neer met mode 0700 zodat alleen wij erin
+/// kunnen; bestaat hij al maar is hij een symlink of van een ander uid, dan
+/// weigeren we, want anders schrijven agent-output (mogelijk secrets) ergens
+/// leesbaar voor andere gebruikers.
+#[cfg(unix)]
+fn ensure_private_logs_dir(dir: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+
+    // Geen libc-dependency nodig: getuid() is altijd gelinkt op unix, dus dit
+    // volstaat zonder een nieuwe crate toe te voegen.
+    extern "C" {
+        fn getuid() -> u32;
+    }
+
+    match std::fs::symlink_metadata(dir) {
+        Ok(meta) => {
+            if meta.file_type().is_symlink() {
+                return Err(std::io::Error::other("logmap is een symlink"));
+            }
+            let current_uid = unsafe { getuid() };
+            if meta.uid() != current_uid {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "logmap behoort niet toe aan de huidige gebruiker",
+                ));
+            }
+            Ok(())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(dir),
+        Err(e) => Err(e),
+    }
+}
+
+#[cfg(not(unix))]
+fn ensure_private_logs_dir(dir: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)
+}
+
+/// Best-effort: een IO-fout op de logfile mag de run zelf nooit laten falen,
+/// dus alle fouten hier verdwijnen stil.
+fn append_log_file(run_id: &str, lines: &[String]) {
+    let path = log_file_path(run_id);
+    let Some(dir) = path.parent() else { return };
+    if ensure_private_logs_dir(dir).is_err() {
+        return;
+    }
+    use std::io::Write;
+    #[cfg_attr(not(unix), allow(unused_mut))]
+    let mut open_options = std::fs::OpenOptions::new();
+    open_options.create(true).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        open_options.mode(0o600);
+    }
+    if let Ok(mut file) = open_options.open(&path) {
+        for line in lines {
+            let _ = writeln!(file, "{line}");
+        }
+    }
+}
+
+/// Ruimt logbestanden op die ouder zijn dan `LOG_MAX_AGE`. Ontbreekt de map of
+/// faalt een losse `remove_file`, dan gaat dat stil door: dit is opruimwerk,
+/// geen onderdeel van een run.
+fn cleanup_old_logs() {
+    let dir = std::env::temp_dir().join("pr-cockpit").join("logs");
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return;
+    };
+    let Some(cutoff) = std::time::SystemTime::now().checked_sub(LOG_MAX_AGE) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        let Ok(modified) = metadata.modified() else {
+            continue;
+        };
+        if modified < cutoff {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
+/// Puur om zonder bestanden te testen: geeft de volledige tekst terug als hij
+/// binnen `max_bytes` past, anders de staart, met een newline-grens zodat er
+/// nooit midden in een regel wordt afgekapt.
+fn truncate_log(data: &[u8], max_bytes: usize) -> String {
+    if data.len() <= max_bytes {
+        return String::from_utf8_lossy(data).into_owned();
+    }
+    let cut = data.len() - max_bytes;
+    let cut = data[cut..]
+        .iter()
+        .position(|&b| b == b'\n')
+        .map(|i| cut + i + 1)
+        .unwrap_or(cut);
+    format!(
+        "[log afgekapt tot de laatste {} MB]\n{}",
+        max_bytes / (1024 * 1024),
+        String::from_utf8_lossy(&data[cut..])
+    )
+}
+
+fn read_run_log_blocking(run_id: &str) -> Result<String, String> {
+    checked_run_id(run_id)?;
+    let path = log_file_path(run_id);
+    let data = std::fs::read(&path).map_err(|e| format!("kon het logbestand niet lezen: {e}"))?;
+    Ok(truncate_log(&data, MAX_LOG_FILE_BYTES))
+}
+
+/// Volledige log van één run, van schijf: de 500-regel-cap in het geheugen is
+/// alleen voor de live stream, dit commando levert wat er echt gebeurd is.
+#[tauri::command]
+pub async fn read_run_log(run_id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || read_run_log_blocking(&run_id))
+        .await
+        .map_err(|e| format!("kon het logbestand niet lezen: {e}"))?
+}
+
 /// Onbegrensd afgeronde runs bewaren laat de HashMap groeien; lopende runs
 /// tellen nooit mee voor deze cap.
 const MAX_FINISHED_RUNS: usize = 20;
@@ -100,6 +245,11 @@ pub struct RunInfo {
     /// Gebufferde regels voor `list_runs`, zodat een (her)mount van de
     /// frontend een lopende of net afgeronde run weer kan tonen.
     log: Vec<String>,
+    /// Hierna gevuld met het resultaat van de push/cleanup-stap; blijft op de
+    /// startwaarden zolang de run nog loopt.
+    pushed_commits: u32,
+    unpushed_commits: u32,
+    kept_worktree: Option<String>,
 }
 
 impl RunInfo {
@@ -119,6 +269,9 @@ pub struct RunSnapshot {
     lines: Vec<String>,
     exit_code: Option<i32>,
     started_at: u64,
+    pushed_commits: u32,
+    unpushed_commits: u32,
+    kept_worktree: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -151,6 +304,11 @@ struct DoneEvent {
     /// exitcode is dan 0 en zegt dus niets; zonder dit veld zou de UI hem als
     /// geslaagd tonen.
     review_missing: bool,
+    /// U4: commits die de push wel/niet haalden, plus het pad van de worktree
+    /// als die bewaard bleef (zie `commit_outcome` en `cleanup_run`).
+    pushed_commits: u32,
+    unpushed_commits: u32,
+    kept_worktree: Option<String>,
 }
 
 fn find_binary(name: &str) -> Option<PathBuf> {
@@ -441,6 +599,7 @@ fn emit_log(app: &AppHandle, run_id: &str, lines: Vec<String>) {
     if lines.is_empty() {
         return;
     }
+    append_log_file(run_id, &lines);
     with_runs(app, |runs| {
         if let Some(run) = runs.get_mut(run_id) {
             push_capped(&mut run.log, &lines, MAX_LOG_LINES);
@@ -494,6 +653,9 @@ pub async fn list_runs(app: AppHandle) -> Vec<RunSnapshot> {
                     lines: run.log.clone(),
                     exit_code: run.exit_code,
                     started_at: run.started_at,
+                    pushed_commits: run.pushed_commits,
+                    unpushed_commits: run.unpushed_commits,
+                    kept_worktree: run.kept_worktree.clone(),
                 })
                 .collect();
             snapshots.sort_by_key(|snapshot| snapshot.started_at);
@@ -809,6 +971,28 @@ fn push_outcome(
     }
 }
 
+/// Verdeelt de lokale-commit-telling (gemeten vóór de push, dus ongevoelig voor
+/// de asynchrone `refs/pull/<n>/head`-vertraging die `unpushed_commits`
+/// beschrijft) over `pushed_commits`/`unpushed_commits` in het afloop-event: bij
+/// een geslaagde push zijn ze allemaal meegegaan, anders staan ze allemaal nog
+/// lokaal (ook als dat er 0 zijn).
+fn commit_outcome(pushed: PushOutcome, commit_count: u32) -> (u32, u32) {
+    match pushed {
+        PushOutcome::Pushed => (commit_count, 0),
+        PushOutcome::NotPushed => (0, commit_count),
+    }
+}
+
+/// Aantal lokale commits t.o.v. de gefetchte PR-head, gemeten vóór een
+/// eventuele push. `run_ref` verandert niet door de push zelf (alleen
+/// `unpushed_commits` met `refresh_pr` haalt hem opnieuw op), dus deze telling
+/// is na een geslaagde push exact het aantal meegepushte commits.
+fn count_local_commits(worktree: &Path, run_ref: &str) -> u32 {
+    run_git(worktree, &["log", "--oneline", &format!("{run_ref}..HEAD")])
+        .map(|log| count_commits(&log) as u32)
+        .unwrap_or(0)
+}
+
 /// De push die de agent zelf niet meer mag doen. De refspec bouwt de app uit de
 /// PR-data, dus de bestemming staat vast: geen force, geen `+`-refspec, niets wat
 /// een agent kan omleiden. Een niet-fast-forward laat git falen, en dan blijven
@@ -933,6 +1117,10 @@ fn keep_reason(
 /// De agent commit bewust niet-gepushte werk (bijvoorbeeld bij rode tests); dat
 /// weggooien is dataverlies. Blijft de worktree staan, dan markeren we hem
 /// zodat het opruimen van zwerfresten hem later met rust laat.
+///
+/// Geeft het pad van de worktree terug als die bewaard bleef (`None` zodra hij
+/// is opgeruimd), zodat de aanroeper dat als `kept_worktree` in het
+/// afloop-event kan zetten in plaats van de keep-beslissing te herhalen.
 fn cleanup_run(
     app: &AppHandle,
     run_id: &str,
@@ -940,11 +1128,11 @@ fn cleanup_run(
     worktree: &Path,
     refresh_pr: Option<u64>,
     pushed: PushOutcome,
-) {
+) -> Option<PathBuf> {
     if !worktree.exists() {
         log_cleanup_error(app, run_id, run_git(repo_path, &["worktree", "prune"]));
         remove_ref(app, run_id, repo_path);
-        return;
+        return None;
     }
     let keep = keep_reason(pushed, || {
         unpushed_commits(repo_path, worktree, &run_ref_for(run_id), refresh_pr)
@@ -959,7 +1147,7 @@ fn cleanup_run(
                 worktree.to_string_lossy()
             )],
         );
-        return;
+        return Some(worktree.to_path_buf());
     }
     log_cleanup_error(
         app,
@@ -983,6 +1171,7 @@ fn cleanup_run(
             );
         }
     }
+    None
 }
 
 /// Run-id's uit `refs/pr-cockpit/*` die bij geen enkele lopende run horen. Een
@@ -998,6 +1187,7 @@ fn stray_run_ids(refs: &str, active: &HashSet<String>) -> Vec<String> {
 /// `git worktree prune` alleen is niet genoeg zolang de directory nog bestaat:
 /// git blijft hem dan als geldige worktree zien. Dus eerst weg met de map.
 fn cleanup_strays(app: &AppHandle, repo_path: &Path) {
+    cleanup_old_logs();
     let active: HashSet<String> =
         with_runs(app, |runs| runs.keys().cloned().collect()).unwrap_or_default();
     let Ok(refs) = run_git(
@@ -1051,7 +1241,7 @@ pub fn stop_all_runs(app: &AppHandle) {
         // false: claim hem hier expliciet zodat een wait-thread die
         // ondertussen dezelfde run afrondt, zijn eigen cleanup overslaat.
         if !info.cleaned {
-            cleanup_run(
+            let _ = cleanup_run(
                 app,
                 &run_id,
                 &info.repo_path,
@@ -1180,6 +1370,9 @@ fn start_review_blocking(
                 exit_code: None,
                 started_at: next_started_at(),
                 log: Vec::new(),
+                pushed_commits: 0,
+                unpushed_commits: 0,
+                kept_worktree: None,
             },
         )
     })
@@ -1196,7 +1389,7 @@ fn start_review_blocking(
     let prepare = prepare_worktree(&repo_path, &worktree, &run_ref, pr_number);
     if let Err(error) = prepare {
         with_runs(&app, |runs| runs.remove(&run_id));
-        cleanup_run(
+        let _ = cleanup_run(
             &app,
             &run_id,
             &repo_path,
@@ -1234,7 +1427,7 @@ fn start_review_blocking(
         Ok(command) => command,
         Err(error) => {
             with_runs(&app, |runs| runs.remove(&run_id));
-            cleanup_run(
+            let _ = cleanup_run(
                 &app,
                 &run_id,
                 &repo_path,
@@ -1259,7 +1452,7 @@ fn start_review_blocking(
         Ok(child) => child,
         Err(e) => {
             with_runs(&app, |runs| runs.remove(&run_id));
-            cleanup_run(
+            let _ = cleanup_run(
                 &app,
                 &run_id,
                 &repo_path,
@@ -1362,11 +1555,16 @@ fn start_review_blocking(
             runs.get(&run_id).map(|run| run.cancelled).unwrap_or(true)
         })
         .unwrap_or(true);
+        // Vóór de push: `run_ref` staat nog op de PR-head van vóór deze run,
+        // dus dit is het aantal commits dat de agent hier lokaal maakte, ook
+        // als de push zelf faalt of overgeslagen wordt.
+        let commit_count = count_local_commits(&worktree, &run_ref);
         let pushed = if exit_code == 0 && !cancelled {
             push_if_marked(&app_for_wait, &run_id, &worktree, &head_ref)
         } else {
             PushOutcome::NotPushed
         };
+        let (pushed_commits, unpushed_commit_count) = commit_outcome(pushed, commit_count);
         let _ = std::fs::remove_file(push_marker(&run_id));
         // Exit 0 is voor commentsOnly geen bewijs: die mode laat niets in de
         // worktree achter, dus de enige uitkomst staat op GitHub. Daar kijken we
@@ -1379,8 +1577,9 @@ fn start_review_blocking(
         }
         // Een gelijktijdige stop_all_runs (app-exit) kan deze run net vóór ons
         // geclaimd en opgeruimd hebben; claim_cleanup zorgt dat precies één
-        // van beiden cleanup_run daadwerkelijk draait.
-        if claim_cleanup(&app_for_wait, &run_id) {
+        // van beiden cleanup_run daadwerkelijk draait. Draaide de andere kant
+        // hem al op, dan is niet meer te achterhalen of hij bewaard bleef.
+        let kept_worktree = if claim_cleanup(&app_for_wait, &run_id) {
             cleanup_run(
                 &app_for_wait,
                 &run_id,
@@ -1388,8 +1587,10 @@ fn start_review_blocking(
                 &worktree,
                 Some(pr_number),
                 pushed,
-            );
-        }
+            )
+        } else {
+            None
+        };
         // Blijft in de state staan (met eindstatus en log) zodat `list_runs`
         // een afgeronde run nog kan tonen na een (her)mount van de frontend.
         with_runs(&app_for_wait, |runs| {
@@ -1403,6 +1604,11 @@ fn start_review_blocking(
                 };
                 run.exit_code = Some(exit_code);
                 run.pid = None;
+                run.pushed_commits = pushed_commits;
+                run.unpushed_commits = unpushed_commit_count;
+                run.kept_worktree = kept_worktree
+                    .as_ref()
+                    .map(|p| p.to_string_lossy().into_owned());
             }
         });
         let _ = app_for_wait.emit(
@@ -1411,6 +1617,9 @@ fn start_review_blocking(
                 run_id,
                 exit_code,
                 review_missing: !review_ok,
+                pushed_commits,
+                unpushed_commits: unpushed_commit_count,
+                kept_worktree: kept_worktree.map(|p| p.to_string_lossy().into_owned()),
             },
         );
     });
@@ -1463,7 +1672,7 @@ fn abort_prepared_run(app: &AppHandle, run_id: &str, repo_path: &Path, worktree:
             run.pid = None;
         }
     });
-    cleanup_run(
+    let _ = cleanup_run(
         app,
         run_id,
         repo_path,
@@ -1477,6 +1686,9 @@ fn abort_prepared_run(app: &AppHandle, run_id: &str, repo_path: &Path, worktree:
             run_id: run_id.to_string(),
             exit_code: -1,
             review_missing: false,
+            pushed_commits: 0,
+            unpushed_commits: 0,
+            kept_worktree: None,
         },
     );
 }
@@ -2132,6 +2344,73 @@ mod tests {
     }
 
     #[test]
+    fn commit_outcome_credits_a_successful_push_with_all_local_commits() {
+        assert_eq!(commit_outcome(PushOutcome::Pushed, 3), (3, 0));
+    }
+
+    #[test]
+    fn commit_outcome_leaves_local_commits_unpushed_without_a_push() {
+        assert_eq!(commit_outcome(PushOutcome::NotPushed, 2), (0, 2));
+        // Geen lokale commits: dan is er ook niets om als bewaard te melden.
+        assert_eq!(commit_outcome(PushOutcome::NotPushed, 0), (0, 0));
+    }
+
+    #[test]
+    fn truncate_log_keeps_short_logs_intact() {
+        assert_eq!(
+            truncate_log(b"regel een\nregel twee\n", 1024),
+            "regel een\nregel twee\n"
+        );
+    }
+
+    #[test]
+    fn truncate_log_cuts_on_a_line_boundary_and_says_so() {
+        let data = b"kop die weg moet\nmiddenregel\nstaart die blijft\n";
+        let truncated = truncate_log(data, 20);
+        assert!(truncated.starts_with("[log afgekapt tot de laatste 0 MB]\n"));
+        assert!(truncated.ends_with("staart die blijft\n"));
+        assert!(!truncated.contains("kop die weg moet"));
+        // Geen halve regel: de afkap valt altijd net ná een newline.
+        assert!(!truncated.contains("iddenregel\nstaart"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ensure_private_logs_dir_creates_a_fresh_dir_as_owner_only() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        let dir = std::env::temp_dir().join("pr-cockpit-test-secure-logs-fresh");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        ensure_private_logs_dir(&dir).expect("nieuwe map aanmaken");
+        let mode = std::fs::metadata(&dir)
+            .expect("metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o700);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ensure_private_logs_dir_refuses_a_symlink() {
+        let dir = std::env::temp_dir().join("pr-cockpit-test-secure-logs-symlink");
+        let target = std::env::temp_dir().join("pr-cockpit-test-secure-logs-symlink-target");
+        let _ = std::fs::remove_file(&dir);
+        let _ = std::fs::remove_dir_all(&target);
+        std::fs::create_dir_all(&target).expect("targetmap");
+        std::os::unix::fs::symlink(&target, &dir).expect("symlink aanmaken");
+
+        let result = ensure_private_logs_dir(&dir);
+        assert!(result.is_err());
+
+        std::fs::remove_file(&dir).ok();
+        std::fs::remove_dir_all(&target).ok();
+    }
+
+    #[test]
     fn log_lines_are_read_whole_until_the_stream_ends() {
         let mut reader = std::io::Cursor::new("eerste\r\ntweede\nrest zonder newline");
         assert_eq!(read_capped_line(&mut reader).as_deref(), Some("eerste"));
@@ -2181,6 +2460,9 @@ mod tests {
             lines: vec!["klaar".to_string()],
             exit_code: Some(0),
             started_at: 7,
+            pushed_commits: 2,
+            unpushed_commits: 0,
+            kept_worktree: None,
         };
         let json = serde_json::to_string(&snapshot).expect("serialize");
         assert!(json.contains("\"runId\":\"abc\""));
@@ -2188,6 +2470,9 @@ mod tests {
         assert!(json.contains("\"status\":\"done\""));
         assert!(json.contains("\"startedAt\":7"));
         assert!(json.contains("\"exitCode\":0"));
+        assert!(json.contains("\"pushedCommits\":2"));
+        assert!(json.contains("\"unpushedCommits\":0"));
+        assert!(json.contains("\"keptWorktree\":null"));
     }
 
     fn test_run_info(status: RunStatus, started_at: u64) -> RunInfo {
@@ -2205,6 +2490,9 @@ mod tests {
             exit_code: None,
             started_at,
             log: Vec::new(),
+            pushed_commits: 0,
+            unpushed_commits: 0,
+            kept_worktree: None,
         }
     }
 
