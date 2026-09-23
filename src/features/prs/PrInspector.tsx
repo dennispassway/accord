@@ -1,5 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import { CommentsView } from "./CommentsView";
 import { DiffView } from "./DiffView";
@@ -28,12 +28,40 @@ export function PrInspector({
   onAuthError,
 }: PrInspectorProps) {
   const [tab, setTab] = useState<InspectorTab>(initialTab);
-  const { status, detail, error, retry } = usePrDetail(pr, onAuthError);
+  const { status, detail, error, retry, reply, setResolved } = usePrDetail(
+    pr,
+    onAuthError,
+  );
 
   const commentCount =
     detail != null
       ? detail.issueComments.length + detail.reviewThreads.length
       : null;
+
+  // U6: 1/2 wisselen van tab zolang de inspector open is, behalve als de
+  // focus in een invoerveld staat (bijvoorbeeld de reply-textarea).
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        (event.target instanceof HTMLElement &&
+          ["INPUT", "TEXTAREA"].includes(event.target.tagName))
+      ) {
+        return;
+      }
+      if (event.key === "1") {
+        event.preventDefault();
+        setTab("diff");
+      } else if (event.key === "2") {
+        event.preventDefault();
+        setTab("comments");
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <>
@@ -130,6 +158,8 @@ export function PrInspector({
                 issueComments={detail.issueComments}
                 reviewThreads={detail.reviewThreads}
                 url={pr.url}
+                onReply={reply}
+                onSetResolved={setResolved}
               />
             ))}
         </div>
