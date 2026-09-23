@@ -34,6 +34,24 @@ export function mergeReasons(
   if (pr.reviewState.state === "changesRequested") {
     reasons.push("changes requested");
   }
+  if (pr.reviewState.state === "reviewRequested") {
+    reasons.push("goedkeuring ontbreekt");
+  }
+  if (pr.mergeStateStatus === "BEHIND") {
+    reasons.push(`branch loopt achter op ${pr.baseRef}`);
+  }
+  // BLOCKED is GitHubs verzamelwoord; alleen melden als geen andere reden
+  // hierboven de blokkade al verklaart.
+  if (
+    pr.mergeStateStatus === "BLOCKED" &&
+    pr.reviewState.state !== "reviewRequested" &&
+    pr.reviewState.state !== "changesRequested" &&
+    pr.ciStatus.state !== "failure" &&
+    pr.ciStatus.state !== "pending" &&
+    pr.mergeable !== "CONFLICTING"
+  ) {
+    reasons.push("geblokkeerd door branch protection");
+  }
   if (stackInfo && stackInfo.blockedByPrNumbers.length > 0) {
     reasons.push(
       `eerst ${stackInfo.blockedByPrNumbers.map((n) => `#${n}`).join(", ")} mergen`,

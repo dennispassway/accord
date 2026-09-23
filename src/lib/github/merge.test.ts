@@ -19,11 +19,13 @@ function pr(overrides: Partial<PullRequest> = {}): PullRequest {
     reviewState: { state: "none" },
     isDraft: false,
     mergeable: "MERGEABLE",
+    mergeStateStatus: "CLEAN",
     createdAt: "2026-07-01T09:00:00Z",
     updatedAt: "2026-07-01T09:00:00Z",
     additions: 3,
     deletions: 1,
     comments: 0,
+    openThreads: 0,
     reviewers: [],
     agentReviews: [],
     assignees: [],
@@ -97,6 +99,78 @@ describe("mergeReasons", () => {
         stackInfo({ blockedByPrNumbers: [toPrNumber(40), toPrNumber(41)] }),
       ),
     ).toContain("eerst #40, #41 mergen");
+  });
+
+  it("flags a missing required approval", () => {
+    expect(
+      mergeReasons(
+        pr({ reviewState: { state: "reviewRequested" } }),
+        stackInfo(),
+      ),
+    ).toEqual(["goedkeuring ontbreekt"]);
+  });
+
+  it("flags a branch that is behind its base", () => {
+    expect(
+      mergeReasons(pr({ mergeStateStatus: "BEHIND" }), stackInfo()),
+    ).toEqual(["branch loopt achter op main"]);
+  });
+
+  it("flags branch protection when nothing else explains BLOCKED", () => {
+    expect(
+      mergeReasons(pr({ mergeStateStatus: "BLOCKED" }), stackInfo()),
+    ).toEqual(["geblokkeerd door branch protection"]);
+  });
+
+  it("does not add branch protection when a missing approval explains BLOCKED", () => {
+    expect(
+      mergeReasons(
+        pr({
+          mergeStateStatus: "BLOCKED",
+          reviewState: { state: "reviewRequested" },
+        }),
+        stackInfo(),
+      ),
+    ).toEqual(["goedkeuring ontbreekt"]);
+  });
+
+  it("does not add branch protection when CI explains BLOCKED", () => {
+    expect(
+      mergeReasons(
+        pr({ mergeStateStatus: "BLOCKED", ciStatus: { state: "pending" } }),
+        stackInfo(),
+      ),
+    ).toEqual(["CI draait nog"]);
+    expect(
+      mergeReasons(
+        pr({
+          mergeStateStatus: "BLOCKED",
+          ciStatus: { state: "failure", failedChecks: ["build"] },
+        }),
+        stackInfo(),
+      ),
+    ).toEqual(["CI is rood"]);
+  });
+
+  it("does not add branch protection when changes requested explains BLOCKED", () => {
+    expect(
+      mergeReasons(
+        pr({
+          mergeStateStatus: "BLOCKED",
+          reviewState: { state: "changesRequested" },
+        }),
+        stackInfo(),
+      ),
+    ).toEqual(["changes requested"]);
+  });
+
+  it("does not add branch protection when merge conflicts explain BLOCKED", () => {
+    expect(
+      mergeReasons(
+        pr({ mergeStateStatus: "BLOCKED", mergeable: "CONFLICTING" }),
+        stackInfo(),
+      ),
+    ).toEqual(["merge-conflicten"]);
   });
 
   it("returns multiple reasons at once", () => {

@@ -22,11 +22,13 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     reviewState: { state: "none" },
     isDraft: false,
     mergeable: "MERGEABLE",
+    mergeStateStatus: "CLEAN",
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     additions: 1,
     deletions: 1,
     comments: 0,
+    openThreads: 0,
     reviewers: [],
     agentReviews: [],
     assignees: [],
@@ -42,9 +44,15 @@ describe("availableFixModes", () => {
     expect(availableFixModes(makePr())).toEqual([]);
   });
 
-  it("geeft fixComments en distillLearnings bij openstaande comments", () => {
-    expect(availableFixModes(makePr({ comments: 3 }))).toEqual([
+  it("geeft fixComments en distillLearnings bij openstaande threads", () => {
+    expect(availableFixModes(makePr({ comments: 3, openThreads: 1 }))).toEqual([
       "fixComments",
+      "distillLearnings",
+    ]);
+  });
+
+  it("geeft geen fixComments als alle threads opgelost zijn, wel lessen (B4)", () => {
+    expect(availableFixModes(makePr({ comments: 3, openThreads: 0 }))).toEqual([
       "distillLearnings",
     ]);
   });
@@ -70,6 +78,7 @@ describe("availableFixModes", () => {
           mergeable: "CONFLICTING",
           ciStatus: { state: "failure", failedChecks: ["build"] },
           comments: 2,
+          openThreads: 2,
         }),
       ),
     ).toEqual(["fixConflicts", "fixChecks", "fixComments", "distillLearnings"]);
