@@ -19,6 +19,14 @@ const SHORTCUTS: ShortcutEntry[] = [
   { keys: mod("R"), label: "Verversen" },
   { keys: "Esc", label: "Sluiten / zoekveld leegmaken" },
   { keys: "?", label: "Deze hulp" },
+  { keys: "J / K", label: "Navigeren door de lijst (alternatief)" },
+  { keys: "Shift + ↑ ↓", label: "Selectie uitbreiden" },
+  { keys: "⌘-klik / Shift-klik", label: "Meerdere PR's selecteren" },
+  { keys: "A", label: "Goedkeuren (als jouw review gevraagd is)" },
+  { keys: "L", label: "Later: PR snoozen" },
+  { keys: mod("⏎"), label: "Mergen" },
+  { keys: mod(","), label: "Instellingen" },
+  { keys: "1 / 2", label: "Diff of reacties (in de inspector)" },
 ];
 
 interface ShortcutHelpProps {
