@@ -519,14 +519,17 @@ fn run_ref_for(run_id: &str) -> String {
 /// Alle git in het runpad loopt hierlangs: `GIT_TERMINAL_PROMPT=0` zodat git
 /// nooit om een wachtwoord vraagt (een GUI-app heeft geen terminal om op te
 /// antwoorden) en een harde timeout zodat een hangende fetch de run niet
-/// eeuwig op "reviewt" laat staan.
+/// eeuwig op "reviewt" laat staan. `child_path` omdat git zelf hooks en filters
+/// start (de post-checkout van Git LFS roept `git-lfs` aan), en die staan niet in
+/// de launchd-PATH van een uit Finder gestarte app.
 pub(crate) fn run_git(repo_path: &Path, args: &[&str]) -> Result<String, String> {
     let mut command = Command::new("git");
     command
         .arg("-C")
         .arg(repo_path)
         .args(args)
-        .env("GIT_TERMINAL_PROMPT", "0");
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("PATH", child_path());
     run_tool(command, &format!("git {}", args.join(" ")))
 }
 
