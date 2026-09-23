@@ -5,6 +5,8 @@ import type { MergeMethod } from "../../lib/github/merge";
 import { mergePullRequest } from "../../lib/github/merge";
 import { isTransientKind, NetworkError } from "../../lib/github/networkError";
 import { AuthError, fetchAllPrs } from "../../lib/github/queries";
+import type { ReviewEvent } from "../../lib/github/review";
+import { submitReview as submitReviewMutation } from "../../lib/github/review";
 import { tauriFetch } from "../../lib/github/tauriFetch";
 import { MOCK_ME, MOCK_PRS } from "../../lib/mock/fixtures";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
@@ -29,6 +31,12 @@ export type PrsState =
       /** True zodra een van de drie "@me"-searches meer dan 100 treffers
        * had: de lijst is dan afgekapt, zie Cockpit's banner. */
       truncated: boolean;
+      /** True zolang deze `prs` nog de bewaarde snapshot van de vorige
+       * sessie zijn (U2b) en geen echte fetch ze bevestigd heeft: een
+       * PR die intussen gemerged of gesloten is staat er dan nog in, en een
+       * snooze-prune mag daar niet op afgaan (zie pruneSnoozes-aanroep in
+       * Cockpit.tsx). */
+      fromSnapshot: boolean;
     };
 
 async function getToken(): Promise<string | null> {
@@ -39,6 +47,24 @@ async function getToken(): Promise<string | null> {
  * `ready`, dan wordt de fout ernaast getoond in plaats van de state te
  * vervangen. Alleen de allereerste load (nog geen data) toont het volledige
  * foutscherm. */
+/** Werkt een PR bij na een lokale review-uitkomst (mock): reviewState volgt
+ * wat GitHub's reviewDecision zou opleveren, en de eigen reviewer-entry
+ * krijgt dezelfde state. Puur, voor testbaarheid los van de hook. */
+export function applyReviewOutcome(
+  pr: PullRequest,
+  nextState: "approved" | "changesRequested",
+  meLogin: string,
+): PullRequest {
+  return {
+    ...pr,
+    reviewState: { state: nextState },
+    reviewRequestedFromMe: false,
+    reviewers: pr.reviewers.map((reviewer) =>
+      reviewer.login === meLogin ? { ...reviewer, state: nextState } : reviewer,
+    ),
+  };
+}
+
 export function nextStateOnLoadError(
   prev: PrsState,
   message: string,
@@ -138,6 +164,7 @@ function initialState(): PrsState {
       viewerLogin: MOCK_ME,
       // Visuele QA van de afkap-banner: ?mock=app&truncated
       truncated: new URLSearchParams(window.location.search).has("truncated"),
+      fromSnapshot: false,
     };
   }
   // U2b: bij een koude start toont de laatste snapshot meteen iets, terwijl
@@ -154,6 +181,7 @@ function initialState(): PrsState {
       // fetch zet 'm meteen goed; voeg toe als de banner ook op de
       // snapshot-weergave zichtbaar moet zijn.
       truncated: false,
+      fromSnapshot: true,
     };
   }
   return { status: "loading" };
@@ -238,6 +266,7 @@ export function usePrs(
           refreshError: null,
           viewerLogin,
           truncated,
+          fromSnapshot: false,
         });
         savePrsSnapshot({
           prs,
@@ -323,10 +352,50 @@ export function usePrs(
     [load],
   );
 
+  const submitReview = useCallback(
+    async (pr: PullRequest, event: ReviewEvent, body: string) => {
+      if (IS_MOCK) {
+        // ponytail: vaste vertraging i.p.v. een echte fetch, alleen om de
+        // busy-state van ReviewActions zichtbaar te maken in ?mock=app.
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        if (event === "COMMENT") return;
+        const nextState = event === "APPROVE" ? "approved" : "changesRequested";
+        setState((prev) =>
+          prev.status === "ready"
+            ? {
+                ...prev,
+                prs: prev.prs.map((p) =>
+                  p.id === pr.id
+                    ? applyReviewOutcome(p, nextState, MOCK_ME)
+                    : p,
+                ),
+              }
+            : prev,
+        );
+        return;
+      }
+      const token = await getToken();
+      if (token == null || token === "") {
+        throw new Error("Niet ingelogd");
+      }
+      try {
+        await submitReviewMutation(token, pr.id, event, body, tauriFetch);
+      } catch (error) {
+        if (error instanceof AuthError) {
+          onAuthErrorRef.current();
+        }
+        throw error;
+      }
+      void load();
+    },
+    [load],
+  );
+
   return {
     state,
     refresh: load,
     mergePr,
+    submitReview,
     clearRefreshError,
     refreshing,
   };

@@ -40,6 +40,10 @@ interface MergeSectionProps {
   onMergePr: (pr: PullRequest, method: MergeMethod) => Promise<void>;
   /** Uit als een sheet of menu open staat: dan mogen M/⌘⏎ niet mergen. */
   shortcutsEnabled: boolean;
+  /** "secondary" tekent de mergeknop in de secundaire stijl, voor als
+   * ReviewActions de primaire actie is (U1: review gevraagd van jou). M en
+   * het methodemenu blijven ongewijzigd werken. Default "primary". */
+  variant?: "primary" | "secondary";
 }
 
 /**
@@ -52,6 +56,7 @@ export function MergeSection({
   stackInfo,
   onMergePr,
   shortcutsEnabled,
+  variant = "primary",
 }: MergeSectionProps) {
   const [method, setMethod] = useState<MergeMethod>(loadMethod);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -131,7 +136,11 @@ export function MergeSection({
         <div className="detail-merge-row">
           <button
             type="button"
-            className="detail-merge-button"
+            className={
+              variant === "secondary"
+                ? "detail-merge-button detail-merge-button-secondary"
+                : "detail-merge-button"
+            }
             disabled={busy}
             onClick={merge}
           >
@@ -142,7 +151,11 @@ export function MergeSection({
           <button
             type="button"
             ref={chevronRef}
-            className="detail-merge-chevron"
+            className={
+              variant === "secondary"
+                ? "detail-merge-chevron detail-merge-chevron-secondary"
+                : "detail-merge-chevron"
+            }
             title="Merge-methode kiezen"
             onClick={() => setMenuOpen((open) => !open)}
           >
