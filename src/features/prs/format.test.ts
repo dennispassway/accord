@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { formatRelative, formatSnoozeUntil } from "./format";
+import {
+  formatRelative,
+  formatSnoozeUntil,
+  formatSnoozeUntilCompact,
+} from "./format";
 
 const NOW = new Date("2026-07-31T12:00:00Z");
 
@@ -49,6 +53,36 @@ describe("formatSnoozeUntil", () => {
   it("verder weg: 'dd-mm HH:mm'", () => {
     expect(formatSnoozeUntil("2026-10-12T12:00:00.000Z", now)).toBe(
       "12-10 14:00",
+    );
+  });
+});
+
+describe("formatSnoozeUntilCompact", () => {
+  // NOW = 2026-07-31T12:00Z = 2026-07-31T14:00 Amsterdam (zomertijd), vrijdag.
+  const now = NOW;
+
+  it("zelfde dag: 'HH:mm'", () => {
+    expect(formatSnoozeUntilCompact("2026-07-31T18:00:00.000Z", now)).toBe(
+      "20:00",
+    );
+  });
+
+  it("morgen: 'morgen'", () => {
+    expect(formatSnoozeUntilCompact("2026-08-01T07:00:00.000Z", now)).toBe(
+      "morgen",
+    );
+  });
+
+  it("binnen een week: weekdag-afkorting", () => {
+    // 2026-08-03 is een maandag.
+    expect(formatSnoozeUntilCompact("2026-08-03T07:00:00.000Z", now)).toBe(
+      "ma",
+    );
+  });
+
+  it("verder weg: 'dd-mm'", () => {
+    expect(formatSnoozeUntilCompact("2026-10-12T12:00:00.000Z", now)).toBe(
+      "12-10",
     );
   });
 });

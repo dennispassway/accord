@@ -83,3 +83,25 @@ export function formatSnoozeUntil(
   const month = String(untilParts.month).padStart(2, "0");
   return `${day}-${month} ${time}`;
 }
+
+/**
+ * Compacte terugkeertijd van een snooze, voor de smalle tijdkolom: "HH:mm" op
+ * dezelfde Amsterdamse dag, "morgen" op de dag erna, een weekdag-afkorting
+ * binnen de eerstvolgende week, en anders "dd-mm". Voor de volledige tekst
+ * (tooltip, toasts, detailchip) blijft formatSnoozeUntil de bron.
+ */
+export function formatSnoozeUntilCompact(
+  until: string,
+  now: Date = new Date(),
+): string {
+  const untilDate = new Date(until);
+  const untilParts = amsterdamDayParts(untilDate);
+  const dayDiff = untilParts.dayNumber - amsterdamDayParts(now).dayNumber;
+
+  if (dayDiff === 0) return hourMinuteFormatter.format(untilDate);
+  if (dayDiff === 1) return "morgen";
+  if (dayDiff >= 2 && dayDiff <= 6) return `${untilParts.weekday}`;
+  const day = String(untilParts.day).padStart(2, "0");
+  const month = String(untilParts.month).padStart(2, "0");
+  return `${day}-${month}`;
+}

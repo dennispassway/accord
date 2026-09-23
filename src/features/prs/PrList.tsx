@@ -10,7 +10,11 @@ import {
   effectiveColumns,
   maxColumnWidth,
 } from "./columnLayout";
-import { formatAmsterdam, formatRelative, formatSnoozeUntil } from "./format";
+import {
+  formatAmsterdam,
+  formatRelative,
+  formatSnoozeUntilCompact,
+} from "./format";
 import {
   AgentIcon,
   AlertIcon,
@@ -333,10 +337,10 @@ export function PrList({
           )}
           {snoozeUntil != null ? (
             <span
-              className="pl-cell pl-cell-tijd pl-cell-tijd-snooze"
+              className="pl-cell pl-cell-tijd"
               title={`Terug op ${formatAmsterdam(snoozeUntil)}`}
             >
-              tot {formatSnoozeUntil(snoozeUntil)}
+              {formatSnoozeUntilCompact(snoozeUntil)}
             </span>
           ) : (
             <span
@@ -406,13 +410,15 @@ export function PrList({
                   aria-expanded={!laterCollapsed}
                   onClick={onToggleLater}
                 >
-                  <ChevronIcon
-                    className={
-                      laterCollapsed
-                        ? "pl-later-chevron"
-                        : "pl-later-chevron pl-later-chevron-open"
-                    }
-                  />
+                  <span className="pl-group-icon">
+                    <ChevronIcon
+                      className={
+                        laterCollapsed
+                          ? "pl-later-chevron"
+                          : "pl-later-chevron pl-later-chevron-open"
+                      }
+                    />
+                  </span>
                   <span className="pl-group-title">{section.titel}</span>
                   <span className="pl-group-count">{section.prs.length}</span>
                 </button>

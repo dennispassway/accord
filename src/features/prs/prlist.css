@@ -107,22 +107,25 @@ li:first-child > .pl-group-header {
   border: none;
   background: none;
   cursor: pointer;
-  font: inherit;
-  color: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
+  text-align: left;
 }
 
+/* Rechtsgericht (">") is de ingeklapte stand, gelijk aan het icoon in rust;
+   pl-later-chevron-open draait 'm naar beneden voor de uitgeklapte stand. */
 .pl-later-chevron {
   flex: 0 0 auto;
   width: 12px;
   height: 12px;
-  transform: rotate(-90deg);
-  transition: transform 0.1s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pl-later-chevron {
+    transition: transform 0.1s ease;
+  }
 }
 
 .pl-later-chevron-open {
-  transform: rotate(0deg);
+  transform: rotate(90deg);
 }
 
 .pl-group-icon {
@@ -285,16 +288,6 @@ li:first-child > .pl-group-header {
   white-space: nowrap;
   font-size: 11px;
   color: var(--text-3);
-}
-
-/* De terugkeertijd van een snooze ("tot morgen 09:00") is langer dan de
-   relatieve tijd die deze kolom verder toont; clippen met een ellipsis
-   voorkomt dat hij over de omvang-/reacties-kolom heen loopt (zie
-   css-flex-rijen.md). De volledige datum staat in de title-tooltip. */
-.pl-cell-tijd-snooze {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .pl-title {
