@@ -11,6 +11,7 @@ import type { PullRequest, RepoId } from "../../lib/github/domain";
 import type { MergeMethod } from "../../lib/github/merge";
 import { mergeReasons } from "../../lib/github/merge";
 import { groupByRepo } from "../../lib/github/organize";
+import type { ReviewEvent } from "../../lib/github/review";
 import { computeStackInfo } from "../../lib/github/stacks";
 import { decideNotification } from "../../lib/notifications";
 import {
@@ -28,6 +29,7 @@ import { SettingsSheet } from "../settings/SettingsSheet";
 import { UpdateBanner } from "../update/UpdateBanner";
 import { useUpdate } from "../update/useUpdate";
 import "./contextmenu.css";
+import { MODE_LABEL } from "./AgentButtons";
 import {
   loadRepoFilter,
   loadSortMode,
@@ -35,8 +37,9 @@ import {
   saveSortMode,
 } from "./cockpitPrefs";
 import { DetailPanel } from "./DetailPanel";
-import { formatRelative } from "./format";
+import { formatRelative, formatSnoozeUntil } from "./format";
 import { AlertIcon, CloseIcon } from "./icons";
+import { isTypingTarget, listKeyToMove } from "./listKeyToMove";
 import { loadMethod } from "./MergeSection";
 import { isAnyMenuOverlayOpen } from "./menuOverlay";
 import { PrContextMenu } from "./PrContextMenu";
@@ -44,9 +47,19 @@ import { PrInspector } from "./PrInspector";
 import { keyOfPr, PrList } from "./PrList";
 import { PANEL_BOUNDS } from "./panelLayout";
 import { ResizeHandle } from "./ResizeHandle";
+import { prStatus } from "./rank";
+import { refreshIntervalMs } from "./refreshPolicy";
 import { ShortcutHelp } from "./ShortcutHelp";
 import { Sidebar } from "./Sidebar";
 import type { StackRebaseStatus } from "./StackRail";
+import {
+  isSnoozed,
+  loadSnoozes,
+  pruneSnoozes,
+  type SnoozeStore,
+  saveSnoozes,
+  tomorrowAt9,
+} from "./snooze";
 import type { SortCtx, SortMode } from "./sort";
 import { buildSections } from "./sort";
 import { Toast, useToast } from "./Toast";
@@ -55,6 +68,7 @@ import { usePanelWidths } from "./usePanelWidths";
 import { usePrSelection } from "./usePrSelection";
 import { shouldRefreshOnVisible, usePrs } from "./usePrs";
 import { useTraySync } from "./useTraySync";
+import { visibleSectionsFor } from "./visibleSections";
 
 const MERGE_METHOD_LABEL: Record<MergeMethod, string> = {
   SQUASH: "squash",
@@ -135,28 +149,32 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     enabled: settings.notifications,
     windowFocused,
   };
-  const { state, refresh, mergePr, clearRefreshError, refreshing } = usePrs(
-    onAuthError,
-    (flippedPrs) => {
-      // U: CI-omslag naar rood op een eigen PR, gedetecteerd bij deze refresh
-      // (usePrs' snapshotvergelijking); alleen zichtbaar als het venster niet
-      // gefocust is (zie decideNotification), anders ziet de gebruiker het al
-      // in de lijst zelf.
-      for (const pr of flippedPrs) {
-        const payload = decideNotification(
-          {
-            type: "ciFlippedRed",
-            prKey: keyOfPr(pr),
-            prNumber: pr.number,
-            repoName: pr.repoId,
-          },
-          notifyContextRef.current,
-        );
-        if (payload != null) void sendAppNotification(payload);
-        else logSuppressedNotification(notifyContextRef.current);
-      }
-    },
-  );
+  const {
+    state,
+    refresh,
+    mergePr,
+    submitReview,
+    clearRefreshError,
+    refreshing,
+  } = usePrs(onAuthError, (flippedPrs) => {
+    // U: CI-omslag naar rood op een eigen PR, gedetecteerd bij deze refresh
+    // (usePrs' snapshotvergelijking); alleen zichtbaar als het venster niet
+    // gefocust is (zie decideNotification), anders ziet de gebruiker het al
+    // in de lijst zelf.
+    for (const pr of flippedPrs) {
+      const payload = decideNotification(
+        {
+          type: "ciFlippedRed",
+          prKey: keyOfPr(pr),
+          prNumber: pr.number,
+          repoName: pr.repoId,
+        },
+        notifyContextRef.current,
+      );
+      if (payload != null) void sendAppNotification(payload);
+      else logSuppressedNotification(notifyContextRef.current);
+    }
+  });
   const update = useUpdate(settings.review.refreshMinutes);
   const {
     clis,
@@ -172,10 +190,12 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     // zonder een aparte polling-loop toe te voegen. Cancelled runs melden
     // zich hier bewust niet (die stopte je zelf al bewust).
     const [, number] = prKey.split("#");
+    // U3: de toast noemt de modus die echt draaide in plaats van altijd
+    // "Review", zodat een fix-, checks- of conflict-run herkenbaar is.
     showToast(
       status === "done"
-        ? `Review klaar: #${number}`
-        : `Review mislukt: #${number}`,
+        ? `${MODE_LABEL[mode]} klaar: #${number}`
+        : `${MODE_LABEL[mode]} mislukt: #${number}`,
       status === "done" ? "ok" : "fout",
     );
     // Comment-/fix-commit-aantallen komen pas via GitHub binnen (agentReviews
@@ -198,7 +218,11 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     // dezelfde agent automatisch de lessen, inline op de PR-branch zelf (een
     // aparte lessen-PR is er alleen via de handmatige actie); de prompt stopt
     // zelf als er geen generaliseerbare les in de comments zit.
-    if (status === "done" && chainsIntoLearnings(mode)) {
+    if (
+      status === "done" &&
+      settings.review.autoDistillLearnings &&
+      chainsIntoLearnings(mode)
+    ) {
       const pr = prs.find((candidate) => keyOfPr(candidate) === prKey);
       if (pr != null) {
         showToast(`Lessen vastleggen gestart: #${number}`, "ok");
@@ -232,6 +256,26 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     saveSortMode(mode);
   }, []);
   const [sortOpen, setSortOpen] = useState(false);
+  const [laterCollapsed, setLaterCollapsed] = useState(true);
+  const [snoozeStoreState, setSnoozeStoreState] =
+    useState<SnoozeStore>(loadSnoozes);
+  const setSnoozeStore = useCallback(
+    (updater: (current: SnoozeStore) => SnoozeStore) => {
+      setSnoozeStoreState((current) => {
+        const next = updater(current);
+        saveSnoozes(next);
+        return next;
+      });
+    },
+    [],
+  );
+  // Minuten-tick: een snooze mag ook tot leven komen zonder dat de gebruiker
+  // intussen iets anders doet dat een re-render triggert.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [inspector, setInspector] = useState<null | {
@@ -312,9 +356,84 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           0) > 0,
     };
   }, [prs, runningPrKeys]);
+  const sectionKeyOf = useCallback(
+    (pr: PullRequest) =>
+      prStatus(pr, {
+        agentBezig: sortCtx.isAgentBezig(pr),
+        stackBlocked: sortCtx.isStackBlocked(pr),
+      }).key,
+    [sortCtx],
+  );
+  const snoozeUntilOf = useCallback(
+    (pr: PullRequest): string | undefined => {
+      const entry = snoozeStoreState[keyOfPr(pr)];
+      if (entry == null) return undefined;
+      return isSnoozed(entry, pr, sectionKeyOf(pr), now)
+        ? entry.until
+        : undefined;
+    },
+    [snoozeStoreState, sectionKeyOf, now],
+  );
+  // Alleen aanroepen met de volledige, ongefilterde lijst (organize.ts'
+  // groepering, niet scopedPrs): pruneSnoozes moet ook een PR zien die de
+  // repo-/zoekfilter net verbergt, anders verwijdert een filter per ongeluk
+  // een nog geldige snooze.
+  // F4: niet prunen op de koude-start snapshot (kan een intussen gemergede
+  // of gesloten PR nog bevatten) of op een afgekapte fetch (dan ontbreekt
+  // een deel van de echte lijst, en zou pruneSnoozes een geldige snooze
+  // aanzien voor "PR niet meer gevonden").
+  const canPruneSnoozes =
+    state.status === "ready" && !state.fromSnapshot && !state.truncated;
+  useEffect(() => {
+    if (!canPruneSnoozes) return;
+    setSnoozeStore((current) => pruneSnoozes(current, prs, sectionKeyOf, now));
+  }, [prs, sectionKeyOf, now, canPruneSnoozes, setSnoozeStore]);
+  const handleSnooze = useCallback(
+    (prsToSnooze: PullRequest[], until: Date) => {
+      const untilIso = until.toISOString();
+      setSnoozeStore((current) => {
+        const next = { ...current };
+        for (const pr of prsToSnooze) {
+          next[keyOfPr(pr)] = {
+            until: untilIso,
+            updatedAt: pr.updatedAt,
+            sectionKey: sectionKeyOf(pr),
+          };
+        }
+        return next;
+      });
+      const label = formatSnoozeUntil(untilIso, now);
+      const first = prsToSnooze[0];
+      if (prsToSnooze.length === 1 && first != null) {
+        showToast(`#${first.number} staat op Later tot ${label}`, "ok");
+      } else if (prsToSnooze.length > 1) {
+        showToast(
+          `${prsToSnooze.length} PR's staan op Later tot ${label}`,
+          "ok",
+        );
+      }
+    },
+    [setSnoozeStore, sectionKeyOf, now, showToast],
+  );
+  const handleUnsnooze = useCallback(
+    (prsToUnsnooze: PullRequest[]) => {
+      setSnoozeStore((current) => {
+        const next = { ...current };
+        for (const pr of prsToUnsnooze) delete next[keyOfPr(pr)];
+        return next;
+      });
+      const first = prsToUnsnooze[0];
+      if (prsToUnsnooze.length === 1 && first != null) {
+        showToast(`#${first.number} is terug`, "ok");
+      } else if (prsToUnsnooze.length > 1) {
+        showToast(`${prsToUnsnooze.length} PR's zijn terug`, "ok");
+      }
+    },
+    [setSnoozeStore, showToast],
+  );
   const sections = useMemo(
-    () => buildSections(scopedPrs, sortMode, sortCtx),
-    [scopedPrs, sortMode, sortCtx],
+    () => buildSections(scopedPrs, sortMode, sortCtx, snoozeUntilOf),
+    [scopedPrs, sortMode, sortCtx, snoozeUntilOf],
   );
   // Kop tonen: in triage-modus altijd, in project-modus alleen als alle
   // repo's zichtbaar zijn (bij één geselecteerd project vervalt de kop).
@@ -325,9 +444,14 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         : sections,
     [sections, sortMode, selectedRepoId],
   );
+  // De ingeklapte "Later"-sectie telt niet mee voor toetsenbordnavigatie en
+  // selectie: die rijen zijn niet zichtbaar.
   const visiblePrs = useMemo(
-    () => sections.flatMap((section) => section.prs),
-    [sections],
+    () =>
+      sections
+        .filter((section) => !(section.key === "later" && laterCollapsed))
+        .flatMap((section) => section.prs),
+    [sections, laterCollapsed],
   );
   const {
     filteredPrs,
@@ -352,6 +476,13 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   selectFromNotificationRef.current = (prKey: string) => {
     setSelectedRepoId("all");
     setSearch("");
+    // F5: staat de doel-PR gesnoozed en "Later" ingeklapt, dan telt hij niet
+    // mee voor visiblePrs en valt usePrSelection stilzwijgend terug op een
+    // andere PR; klap "Later" dus eerst uit.
+    const target = prs.find((pr) => keyOfPr(pr) === prKey);
+    if (target != null && snoozeUntilOf(target) != null) {
+      setLaterCollapsed(false);
+    }
     setSelectedKey(prKey);
   };
   useEffect(() => {
@@ -374,19 +505,14 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       current != null && current.key !== selectedKey ? null : current,
     );
   }, [selectedKey]);
-  const filteredKeys = useMemo(
-    () => new Set(filteredPrs.map(keyOfPr)),
-    [filteredPrs],
-  );
+  // F1: filtert elke sectie (óók "Later") rechtstreeks op de zoekopdracht,
+  // los van laterCollapsed; filteredKeys (via visiblePrs) sloot ingeklapte
+  // Later-rijen uit, waardoor de hele sectie hier leeg en dus onzichtbaar
+  // werd zodra hij dicht stond, en een gesnoozede PR nergens meer te
+  // bereiken was.
   const visibleSections = useMemo(
-    () =>
-      sectionsForDisplay
-        .map((section) => ({
-          ...section,
-          prs: section.prs.filter((pr) => filteredKeys.has(keyOfPr(pr))),
-        }))
-        .filter((section) => section.prs.length > 0),
-    [sectionsForDisplay, filteredKeys],
+    () => visibleSectionsFor(sectionsForDisplay, search),
+    [sectionsForDisplay, search],
   );
 
   // "Alles"-volgorde: alle PR's ongeacht de huidige sidebar-filter, want de
@@ -395,7 +521,28 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     () => groups.flatMap((group) => group.prs),
     [groups],
   );
-  useTraySync(allPrsSorted, refresh, setSelectedRepoId, setSelectedKey);
+  // Zelfde secties als de lijst in "Alles"/triage, zodat het menubalkgetal
+  // gelijk is aan de kop van "Jouw review nodig" (een lopende agent-run of
+  // een concept telt daar niet mee).
+  const trayReviewCount = useMemo(
+    () =>
+      buildSections(prs, "triage", sortCtx, snoozeUntilOf).find(
+        (section) => section.key === "review",
+      )?.prs.length ?? 0,
+    [prs, sortCtx, snoozeUntilOf],
+  );
+  useTraySync(
+    trayReviewCount,
+    allPrsSorted,
+    refresh,
+    setSelectedRepoId,
+    setSelectedKey,
+    // F5: zelfde reden als selectFromNotificationRef hierboven, maar dan
+    // voor een selectie vanuit het tray-menu.
+    (pr) => {
+      if (snoozeUntilOf(pr) != null) setLaterCollapsed(false);
+    },
+  );
 
   // B5: sheet, sortmenu, contextmenu of de sneltoetsen-hulp open: dan mogen
   // M/R/⌘⏎ niet triggeren. Het merge-methode-/agent-modusmenu telt hier
@@ -498,6 +645,21 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           ["INPUT", "TEXTAREA"].includes(event.target.tagName)
         ) &&
         selectedPr != null &&
+        runningPrKeys.has(keyOfPr(selectedPr))
+      ) {
+        event.preventDefault();
+        showToast(`Er loopt al een run op #${selectedPr.number}`, "fout");
+      } else if (
+        !event.metaKey &&
+        !event.ctrlKey &&
+        event.key.toLowerCase() === "r" &&
+        shortcutsEnabled &&
+        !isAnyMenuOverlayOpen(document) &&
+        !(
+          event.target instanceof HTMLElement &&
+          ["INPUT", "TEXTAREA"].includes(event.target.tagName)
+        ) &&
+        selectedPr != null &&
         !runningPrKeys.has(keyOfPr(selectedPr))
       ) {
         const agent = preferredReviewer(selectedPr.author);
@@ -532,6 +694,28 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       ) {
         event.preventDefault();
         setInspector({ tab: "diff", key: keyOfPr(selectedPr) });
+      } else if (
+        !event.metaKey &&
+        !event.ctrlKey &&
+        event.key.toLowerCase() === "l" &&
+        shortcutsEnabled &&
+        !isAnyMenuOverlayOpen(document) &&
+        !(
+          event.target instanceof HTMLElement &&
+          ["INPUT", "TEXTAREA"].includes(event.target.tagName)
+        ) &&
+        selectedPr != null
+      ) {
+        event.preventDefault();
+        const selectedPrs =
+          selectedKeys.size > 1
+            ? filteredPrs.filter((pr) => selectedKeys.has(keyOfPr(pr)))
+            : [selectedPr];
+        if (selectedPrs.every((pr) => snoozeUntilOf(pr) != null)) {
+          handleUnsnooze(selectedPrs);
+        } else {
+          handleSnooze(selectedPrs, tomorrowAt9(now));
+        }
       }
     }
     window.addEventListener("keydown", handleWindowKeyDown);
@@ -555,21 +739,36 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     settings.review.primaryMode,
     showToast,
     setSortMode,
+    filteredPrs,
+    snoozeUntilOf,
+    now,
+    handleSnooze,
+    handleUnsnooze,
   ]);
 
-  // Ververst op het ingestelde interval (0 = handmatig); pauzeert als de app
-  // op de achtergrond draait zodat een verborgen venster geen API-budget kost.
+  // Ververst op het ingestelde interval (0 = handmatig: nooit automatisch).
+  // Blijft ook doorlopen als het venster verborgen is (menubalkmodus), met
+  // een ruimer interval: anders verouderen de tellerbadge en de "CI is
+  // rood"-notificatie precies wanneer de app op de achtergrond leeft.
+  const [hidden, setHidden] = useState(() => document.hidden);
   useEffect(() => {
-    if (settings.review.refreshMinutes === 0) return;
-    const timer = setInterval(
-      () => {
-        if (document.hidden) return;
-        void refresh();
-      },
-      settings.review.refreshMinutes * 60 * 1000,
-    );
+    function handleHiddenChange() {
+      setHidden(document.hidden);
+    }
+    document.addEventListener("visibilitychange", handleHiddenChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleHiddenChange);
+  }, []);
+
+  useEffect(() => {
+    const intervalMs = refreshIntervalMs({
+      refreshMinutes: settings.review.refreshMinutes,
+      hidden,
+    });
+    if (intervalMs === null) return;
+    const timer = setInterval(() => void refresh(), intervalMs);
     return () => clearInterval(timer);
-  }, [settings.review.refreshMinutes, refresh]);
+  }, [settings.review.refreshMinutes, hidden, refresh]);
 
   // Ververst als het venster weer zichtbaar wordt (venster sluiten = tab
   // verbergen, geen unmount), met een guard tegen te frequente refreshes.
@@ -768,6 +967,24 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     return mergeWithAutoRebase(pr, method);
   }
 
+  const REVIEW_TOAST: Record<
+    ReviewEvent,
+    (n: PullRequest["number"]) => string
+  > = {
+    APPROVE: (n) => `#${n} goedgekeurd`,
+    REQUEST_CHANGES: (n) => `Changes gevraagd op #${n}`,
+    COMMENT: (n) => `Reactie geplaatst op #${n}`,
+  };
+
+  async function handleSubmitReview(
+    pr: PullRequest,
+    event: ReviewEvent,
+    body: string,
+  ) {
+    await submitReview(pr, event, body);
+    showToast(REVIEW_TOAST[event](pr.number), "ok");
+  }
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: keyboard nav for the PR list
     <div
@@ -795,17 +1012,17 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         ) {
           return;
         }
-        // Typen in het zoekveld mag de selectie niet verplaatsen.
-        if (event.target instanceof HTMLInputElement) return;
-        if (event.key === "ArrowDown") {
+        // F2: typen in het zoekveld óf in een textarea (bv. het
+        // reactieveld van ReviewActions) mag de selectie niet verplaatsen;
+        // "kijk" typen bevatte anders J/K en remountte het formulier.
+        if (event.target instanceof HTMLElement && isTypingTarget(event.target))
+          return;
+        const move = listKeyToMove(event.key);
+        if (move != null && !event.metaKey && !event.ctrlKey && !event.altKey) {
           event.preventDefault();
-          moveSelection(1, event.shiftKey);
+          moveSelection(move, event.shiftKey);
           // Focus/selectie-desync: DOM-focus moet de selectie volgen, anders
           // herselecteert een latere Enter de rij die nog muis-focus had.
-          cockpitRef.current?.focus();
-        } else if (event.key === "ArrowUp") {
-          event.preventDefault();
-          moveSelection(-1, event.shiftKey);
           cockpitRef.current?.focus();
         } else if (event.key === "Enter" && selectedPr) {
           // Alleen afvangen als de cockpit-container zelf of een rij de
@@ -938,6 +1155,11 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                 showRepoMeta={selectedRepoId === "all"}
                 runningPrKeys={runningPrKeys}
                 hasActiveSearch={search.trim() !== ""}
+                snoozeUntilOf={snoozeUntilOf}
+                laterCollapsed={laterCollapsed}
+                onToggleLater={() =>
+                  setLaterCollapsed((collapsed) => !collapsed)
+                }
               />
             </div>
             <ResizeHandle
@@ -961,6 +1183,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                 setInspector({ tab, key: keyOfPr(selectedPr) });
               }}
               onMergePr={handleMergePr}
+              onSubmitReview={handleSubmitReview}
               clis={clis}
               repoPath={selectedPr ? repoPaths[selectedPr.repoId] : undefined}
               run={selectedPr ? runForPr(prKeyOf(selectedPr)) : undefined}
@@ -993,6 +1216,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                 }))
               }
               stackRebaseStatus={stackRebaseStatus}
+              snoozeUntil={selectedPr ? snoozeUntilOf(selectedPr) : undefined}
             />
           </div>
         </div>
@@ -1056,6 +1280,9 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
               showToast(String(error), "fout");
             });
           }}
+          onSnooze={handleSnooze}
+          onUnsnooze={handleUnsnooze}
+          isSnoozed={(pr) => snoozeUntilOf(pr) != null}
         />
       )}
     </div>
