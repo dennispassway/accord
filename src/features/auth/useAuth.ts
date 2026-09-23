@@ -157,6 +157,9 @@ export function useAuth() {
       let consecutiveErrors = 0;
 
       const poll = async (intervalSeconds: number) => {
+        // Annuleren of uitloggen tijdens een lopende invoke of tijdens
+        // openUrl: stopPolling mist dan de timer die daarna nog gezet wordt.
+        if (generationRef.current !== generation) return;
         if (Date.now() >= deadline) {
           setState({ status: "error", message: EXPIRED_MESSAGE });
           return;
@@ -169,6 +172,7 @@ export function useAuth() {
             deviceCode: start.deviceCode,
           });
         } catch (error) {
+          if (generationRef.current !== generation) return;
           // Transient invoke/network failure: keep polling up to a limit
           // instead of ending the login attempt on the first hiccup.
           consecutiveErrors += 1;
