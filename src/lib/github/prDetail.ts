@@ -16,10 +16,10 @@ import {
 } from "./queries";
 
 /** Eén reactie: issue-comment of review-comment. bodyText is de platte-tekst
- * variant (fallback); body is de ruwe markdown. body is veilig te renderen
- * zonder sanitizer omdat markdown-to-jsx React-elementen bouwt in plaats van
- * HTML te injecteren, en raw HTML-parsing daarbij uitstaat
- * (disableParsingRawHTML in CommentsView.tsx). */
+ * variant (fallback); body is de ruwe markdown, inclusief rauwe HTML uit
+ * bot-reacties. Render hem alleen via `CommentBody` (commentMarkdown.tsx):
+ * raw HTML-parsing staat daar aan, de veiligheid komt uit de tag-allowlist en
+ * `sanitizeCreateElement`. */
 export interface PrComment {
   author: Author;
   bodyText: string;
