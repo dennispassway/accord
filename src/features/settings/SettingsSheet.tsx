@@ -444,6 +444,29 @@ export function SettingsSheet({
                 }
               />
             </div>
+            <div className="settings-row">
+              <span className="settings-row-label">
+                <span className="settings-row-k">
+                  Lessen vastleggen na fixes
+                </span>
+                <span className="settings-row-hint">
+                  destilleert automatisch lessen na een geslaagde fix-run
+                </span>
+              </span>
+              <Segmented
+                value={settings.review.autoDistillLearnings ? "aan" : "uit"}
+                options={["aan", "uit"] as const}
+                onChange={(value) =>
+                  onUpdate((s) => ({
+                    ...s,
+                    review: {
+                      ...s.review,
+                      autoDistillLearnings: value === "aan",
+                    },
+                  }))
+                }
+              />
+            </div>
           </div>
 
           <div className="settings-section">
@@ -502,6 +525,7 @@ export function SettingsSheet({
                         await onRepoLinked();
                         setLinkingRepo(null);
                       }}
+                      onOtherRepoFound={() => void onRepoLinked()}
                     />
                   )}
                 </div>
