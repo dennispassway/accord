@@ -1,5 +1,45 @@
 # Changelog
 
+## [1.3.0](https://github.com/dennispassway/accord/compare/v1.2.0...v1.3.0) (2026-09-23)
+
+
+### Nieuw
+
+* **agents:** bewaar de volledige runlog en meld gepushte en lokale commits ([ca5beb8](https://github.com/dennispassway/accord/commit/ca5beb8d25fb2c5ddd9fcf3510efaa3dec420d37))
+* **agents:** samenvatting per run en volledig uitklapbare log ([92a57cb](https://github.com/dennispassway/accord/commit/92a57cbbac8ea77bbcc661a56e4e053c779ad7a3))
+* **auth:** toon waarom je uitgelogd bent en laat inloggen annuleren ([0ea0c4c](https://github.com/dennispassway/accord/commit/0ea0c4c397a707ed3749f47d7f521553f9ff25f3))
+* **cockpit:** koppel indeling, review, snooze en runs aan cockpit en detailpaneel ([2b0af73](https://github.com/dennispassway/accord/commit/2b0af730fd4acf874adf44078175bd7df18b8fc1))
+* **detail:** goedkeuren, changes vragen en reageren vanuit de app ([3232a67](https://github.com/dennispassway/accord/commit/3232a670abe04427850ce822ef19ca725db17824))
+* **github:** beantwoord, sluit en heropen review-threads ([90f7304](https://github.com/dennispassway/accord/commit/90f7304c42d617a1815fa9c11a3aa1f1a6416a11))
+* **github:** gedeelde helper voor GraphQL-mutaties ([4f3ec09](https://github.com/dennispassway/accord/commit/4f3ec09f56806c60792cdeabf82b4b4567704a4a))
+* **github:** haal mergeStateStatus en het aantal open threads op ([d804884](https://github.com/dennispassway/accord/commit/d804884aa51b1346738bf83c8f21883033b74368))
+* **github:** plaats een review via addPullRequestReview ([45831fa](https://github.com/dennispassway/accord/commit/45831fae44c26af416d003071a1a38fc18e9597b))
+* **inspector:** reageer op threads en toon reacties als markdown ([d87f23d](https://github.com/dennispassway/accord/commit/d87f23d689157745b6f30a6996e417a76e308b28))
+* **prs:** probleem-pill, inklapbare Later-sectie en snooze in het rechtsklikmenu ([1dd1706](https://github.com/dennispassway/accord/commit/1dd17061f836afcea14ca8a06bf0001127f39372))
+* **prs:** secties op rol, 'Wacht op review' en 'Later' ([66cfa55](https://github.com/dennispassway/accord/commit/66cfa552a99bab02360b85e91fd66961532dddfa))
+* **prs:** snooze-logica met Amsterdamse tijden ([547603b](https://github.com/dennispassway/accord/commit/547603b0623ceded5366c9e6fa53b6e18fb312eb))
+* **prs:** verversbeleid voor een verborgen venster en J/K-navigatie ([814b2db](https://github.com/dennispassway/accord/commit/814b2db5d3e16500fa3a7aac235fceea56fd0b8d))
+* **settings:** instelling voor de automatische lessen-run na een fix ([27892f8](https://github.com/dennispassway/accord/commit/27892f82964c96bd4acf81b6d7899f2a608d57de))
+* **tauri:** sta het openen van een map in Finder toe ([d024061](https://github.com/dennispassway/accord/commit/d024061e0206abd7219158d5c65e3cc770ba08aa))
+
+
+### Opgelost
+
+* **agents:** logopruiming volgt geen symlink of map van een ander account ([a889c27](https://github.com/dennispassway/accord/commit/a889c2704aba5e58badd3aacc6c823d5e9602f62))
+* **agents:** logpaneel per run opnieuw mounten zodat een volledige log niet onder een andere PR blijft staan ([7fca86a](https://github.com/dennispassway/accord/commit/7fca86ade426859ba84968d1571f3c80c68d4453))
+* **auth:** een geannuleerde login pollt niet door na een mislukte poll ([edae15b](https://github.com/dennispassway/accord/commit/edae15b6aecc64e9ae180915452e8cddfd73d9f5))
+* **detail:** klikbare statuschip houdt de chip-opmaak ([8930de6](https://github.com/dennispassway/accord/commit/8930de6c2e353ef5f663fc3ea480a6121a2f54b4))
+* **prs:** bepaal de status van een PR vanuit jouw rol ([84987b4](https://github.com/dennispassway/accord/commit/84987b486bd74775f989e24e1112109f45f58fae))
+* **prs:** eigen snoozetijd op een DST-nacht valt niet een uur verschoven ([4c327e1](https://github.com/dennispassway/accord/commit/4c327e1faf15a0cc40ec545b2f83a310ae3b8f03))
+* **prs:** L ingedrukt houden snoozet geen reeks PR's en rekent morgen vanaf de echte klok ([bd0a46c](https://github.com/dennispassway/accord/commit/bd0a46c623faf77ee110993ac0afffa30f5c4fad))
+* **prs:** Later-knop houdt zijn label bij één geselecteerd project ([8876d2d](https://github.com/dennispassway/accord/commit/8876d2d660eab959b80cb7f425b93a02aeb9b6ec))
+* **prs:** Later-kop in de stijl van de andere secties, korte terugkomtijd in de rij ([86969cf](https://github.com/dennispassway/accord/commit/86969cf4eef89319ab1a5d4fafedf01b1414a7b6))
+* **prs:** Later-rijen niet meer als li binnen een li ([0d9f7a3](https://github.com/dennispassway/accord/commit/0d9f7a380b1973b4d28b0ca3f4ea1adf7783590b))
+* **prs:** refetch na een threadmutatie overschrijft geen nieuwere detail of die van een andere PR ([dfd294b](https://github.com/dennispassway/accord/commit/dfd294ba76a0f0dec5dc8bd5a9791bc589f452cd))
+* **prs:** snooze-picker krijgt focus en weigert een inmiddels verstreken moment ([9641a9c](https://github.com/dennispassway/accord/commit/9641a9cbe904fd4344294b10b0c6b750101f18b8))
+* **prs:** voorkom een render-loop via het opschonen van snoozes ([14fc79c](https://github.com/dennispassway/accord/commit/14fc79c73bab76e15bb1bd5f964f6cdf5f71c036))
+* **settings:** toon de uitkomst van 'Map zoeken' en voeg de lessen-schakelaar toe ([0da6ecd](https://github.com/dennispassway/accord/commit/0da6ecdcd8df943d24e9c9e5c790f76dcdb15d9c))
+
 ## [1.2.0](https://github.com/dennispassway/accord/compare/v1.1.1...v1.2.0) (2026-09-21)
 
 
