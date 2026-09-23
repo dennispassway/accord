@@ -129,6 +129,12 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
   const prKey = keyOfPr(pr);
   const onAuthErrorRef = useRef(onAuthError);
   onAuthErrorRef.current = onAuthError;
+  // Een refetch na een mutatie mag de state alleen zetten als hij de laatste
+  // is en de gebruiker nog op dezelfde PR staat: anders landt een trager
+  // antwoord over een nieuwer, of de detail van PR A onder PR B.
+  const currentKeyRef = useRef(prKey);
+  currentKeyRef.current = prKey;
+  const mutationSeqRef = useRef(0);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: retryToken triggert alleen een herfetch, de body leest 'm niet; pr zelf wordt via repoId/number bewaakt zodat een nieuw pr-object per poll-refresh geen onnodige herfetch triggert
   useEffect(() => {
@@ -211,7 +217,7 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
    * hij wordt verwijderd en de detail opnieuw gefetcht zodat het antwoord
    * altijd de servertoestand toont. */
   const refetchAfterMutation = useCallback(
-    async (token: string) => {
+    async (token: string, seq: number) => {
       cacheRef.current.delete(prKey);
       const detail = await fetchPrDetail(
         token,
@@ -219,7 +225,9 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
         pr.number,
         tauriFetch,
       );
+      if (seq !== mutationSeqRef.current) return;
       cacheRef.current.set(prKey, detail);
+      if (currentKeyRef.current !== prKey) return;
       setState({ status: "ready", detail, error: null });
     },
     [prKey, pr.repoId, pr.number],
@@ -245,9 +253,12 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
       // De mutatie is al geslaagd; de refetch is best-effort. Faalt hij, dan
       // mag dat niet als mutatiefout naar de gebruiker (zie
       // stateAfterFailedRefetch hierboven).
+      const seq = ++mutationSeqRef.current;
+      const mutatedKey = currentKeyRef.current;
       try {
-        await refetchAfterMutation(token);
+        await refetchAfterMutation(token, seq);
       } catch {
+        if (currentKeyRef.current !== mutatedKey) return;
         setState(
           (prev) => stateAfterFailedRefetch(prev.detail, applyLocally) ?? prev,
         );
