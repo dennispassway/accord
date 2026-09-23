@@ -50,6 +50,37 @@
   background: var(--line);
 }
 
+.ctx-snooze-picker {
+  gap: 8px;
+  padding: 10px;
+}
+
+.ctx-snooze-picker-label {
+  font: 500 11px / 1 var(--font);
+  color: var(--text-2);
+}
+
+.ctx-snooze-picker-input {
+  height: 27px;
+  border-radius: 6px;
+  border: 1px solid var(--line-2);
+  background: var(--fill-1);
+  color: var(--text-1);
+  font: 400 12px / 1 var(--font);
+  padding: 0 6px;
+}
+
+.ctx-snooze-picker-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.ctx-snooze-picker-actions .ctx-menu-item {
+  width: auto;
+  padding: 0 10px;
+}
+
 /* "N geselecteerd"-chip boven de lijst */
 
 .pl-selection-chip {

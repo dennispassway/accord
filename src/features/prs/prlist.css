@@ -82,6 +82,10 @@ li:first-child > .pl-group-header {
   color: var(--err);
 }
 
+.pl-group-header-wachtReview {
+  color: var(--warn);
+}
+
 .pl-group-header-agent {
   color: var(--agent);
 }
@@ -92,6 +96,33 @@ li:first-child > .pl-group-header {
 
 .pl-group-header-concept {
   color: var(--text-3);
+}
+
+.pl-group-header-later {
+  color: var(--text-3);
+}
+
+.pl-group-header-toggle {
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.pl-later-chevron {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  transform: rotate(-90deg);
+  transition: transform 0.1s ease;
+}
+
+.pl-later-chevron-open {
+  transform: rotate(0deg);
 }
 
 .pl-group-icon {
@@ -256,6 +287,16 @@ li:first-child > .pl-group-header {
   color: var(--text-3);
 }
 
+/* De terugkeertijd van een snooze ("tot morgen 09:00") is langer dan de
+   relatieve tijd die deze kolom verder toont; clippen met een ellipsis
+   voorkomt dat hij over de omvang-/reacties-kolom heen loopt (zie
+   css-flex-rijen.md). De volledige datum staat in de title-tooltip. */
+.pl-cell-tijd-snooze {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .pl-title {
   flex: 1 1 auto;
   min-width: 0;
@@ -328,10 +369,20 @@ li:first-child > .pl-group-header {
   color: var(--warn);
 }
 
+.pl-status-pill-wachtReview {
+  color: var(--warn);
+}
+
 /* --text-2 en niet --text-3: op zijn eigen 11%-tint haalt --text-3 maar
    3,47:1, en dit is 10,5px tekst. Zie themeContrast.test.ts. */
 .pl-status-pill-concept {
   color: var(--text-2);
+}
+
+/* Na de key-regels, zodat een review-PR met conflict rood wordt en niet
+   de accentkleur van zijn sectie houdt. */
+.pl-status-pill-problem {
+  color: var(--err);
 }
 
 .pl-running-dot {

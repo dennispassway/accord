@@ -18,23 +18,30 @@ function trayLabel(pr: PullRequest): string {
 /**
  * Houdt de macOS-tray in sync met alle PR's (los van de sidebar-filter) en
  * verwerkt tray-acties: verversen en een PR selecteren vanuit het tray-menu.
+ * `reviewCount` is het aantal PR's in de ongefilterde sectie "Jouw review
+ * nodig", zodat de menubalk hetzelfde getal toont als die sectiekop.
  */
 export function useTraySync(
+  reviewCount: number,
   allPrsSorted: PullRequest[],
   refresh: () => Promise<void>,
   setSelectedRepoId: (
     update: (current: RepoId | "all") => RepoId | "all",
   ) => void,
   setSelectedKey: (key: string) => void,
+  /** Klapt de "Later"-sectie uit als de PR die de tray selecteert gesnoozed
+   * is: anders selecteert usePrSelection stilzwijgend een andere PR, want
+   * een ingeklapte "Later" telt niet mee voor de zichtbare/navigeerbare
+   * lijst. */
+  expandLaterIfSnoozed: (pr: PullRequest) => void,
 ) {
   useEffect(() => {
-    const count = allPrsSorted.filter((pr) => pr.reviewRequestedFromMe).length;
     const items = allPrsSorted.slice(0, TRAY_ITEM_LIMIT).map((pr) => ({
       key: keyOfPr(pr),
       label: trayLabel(pr),
     }));
-    void invoke("update_tray", { count, items });
-  }, [allPrsSorted]);
+    void invoke("update_tray", { count: reviewCount, items });
+  }, [reviewCount, allPrsSorted]);
 
   // Refs zodat de event-listeners hieronder maar één keer opgezet hoeven te
   // worden en toch de laatste data zien.
@@ -42,6 +49,8 @@ export function useTraySync(
   allPrsSortedRef.current = allPrsSorted;
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
+  const expandLaterIfSnoozedRef = useRef(expandLaterIfSnoozed);
+  expandLaterIfSnoozedRef.current = expandLaterIfSnoozed;
 
   useEffect(() => {
     const unlistenRefresh = listen("tray-refresh", () => {
@@ -51,6 +60,7 @@ export function useTraySync(
       const key = event.payload;
       const target = allPrsSortedRef.current.find((pr) => keyOfPr(pr) === key);
       if (!target) return;
+      expandLaterIfSnoozedRef.current(target);
       setSelectedRepoId((current) =>
         current === "all" || current === target.repoId ? current : "all",
       );
