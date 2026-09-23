@@ -402,7 +402,9 @@ export function PrList({
       <ul className="pl-list" role="listbox" aria-multiselectable="true">
         {sections.map((section) => {
           if (section.key === "later") {
-            return (
+            // De rijen zijn broers van de kop, niet zijn kinderen: renderRow
+            // levert zelf een <li>, en een <li> in een <li> is ongeldige DOM.
+            return [
               <li key="later" role="presentation">
                 <button
                   type="button"
@@ -422,10 +424,11 @@ export function PrList({
                   <span className="pl-group-title">{section.titel}</span>
                   <span className="pl-group-count">{section.prs.length}</span>
                 </button>
-                {!laterCollapsed &&
-                  section.prs.map((pr) => renderRow(pr, section, false))}
-              </li>
-            );
+              </li>,
+              ...(laterCollapsed
+                ? []
+                : section.prs.map((pr) => renderRow(pr, section, false))),
+            ];
           }
           return section.prs.map((pr, index) =>
             renderRow(pr, section, index === 0),
