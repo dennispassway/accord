@@ -73,10 +73,10 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent);
 }
 
+/* Alleen de font-family erven: grootte, gewicht en hoofdletters komen van
+   .detail-chip, en een `font: inherit` hier zou die overschrijven. */
 .detail-chip-status-button {
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
+  font-family: inherit;
   border: none;
   cursor: pointer;
 }
