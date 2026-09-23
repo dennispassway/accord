@@ -15,20 +15,30 @@ import {
   responseErrorDetail,
 } from "./queries";
 
-/** Eén reactie: issue-comment of review-comment. bodyText is platte tekst
- * (geen markdown/HTML), bewust: veilig te renderen zonder sanitizer. */
+/** Eén reactie: issue-comment of review-comment. bodyText is de platte-tekst
+ * variant (fallback); body is de ruwe markdown. body is veilig te renderen
+ * zonder sanitizer omdat markdown-to-jsx React-elementen bouwt in plaats van
+ * HTML te injecteren, en raw HTML-parsing daarbij uitstaat
+ * (disableParsingRawHTML in CommentsView.tsx). */
 export interface PrComment {
   author: Author;
   bodyText: string;
+  body: string;
   createdAt: string;
 }
 
 /** Eén review-thread op een bestand(:regel). line is null bij een thread op
- * een verouderde diff-positie of op bestandsniveau. */
+ * een verouderde diff-positie of op bestandsniveau. viewerCanReply/
+ * viewerCanResolve/viewerCanUnresolve bepalen welke acties CommentsView
+ * toont voor de ingelogde gebruiker. */
 export interface ReviewThread {
+  id: string;
   path: string;
   line: number | null;
   isResolved: boolean;
+  viewerCanReply: boolean;
+  viewerCanResolve: boolean;
+  viewerCanUnresolve: boolean;
   comments: PrComment[];
 }
 
@@ -45,13 +55,17 @@ const PR_DETAIL_QUERY = `
 query PrDetail($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      comments(first: 100) { nodes { author { login } bodyText createdAt } }
+      comments(first: 100) { nodes { author { login } bodyText body createdAt } }
       reviewThreads(first: 100) {
         nodes {
+          id
           path
           line
           isResolved
-          comments(first: 50) { nodes { author { login } bodyText createdAt } }
+          viewerCanReply
+          viewerCanResolve
+          viewerCanUnresolve
+          comments(first: 50) { nodes { author { login } bodyText body createdAt } }
         }
       }
     }
@@ -64,6 +78,7 @@ const FETCH_TIMEOUT_MS = 15_000;
 interface RawCommentNode {
   author?: { login?: string } | null;
   bodyText?: string;
+  body?: string;
   createdAt?: string;
 }
 
@@ -76,6 +91,7 @@ function parseComment(node: unknown): PrComment | null {
   return {
     author: deriveAuthor(raw.author?.login ?? "ghost"),
     bodyText: raw.bodyText ?? "",
+    body: raw.body ?? "",
     createdAt: raw.createdAt,
   };
 }
@@ -88,9 +104,13 @@ function parseComments(nodes: unknown): PrComment[] {
 }
 
 interface RawThreadNode {
+  id?: string;
   path?: string;
   line?: number | null;
   isResolved?: boolean;
+  viewerCanReply?: boolean;
+  viewerCanResolve?: boolean;
+  viewerCanUnresolve?: boolean;
   comments?: { nodes?: unknown };
 }
 
@@ -99,9 +119,13 @@ function parseThread(node: unknown): ReviewThread | null {
   const raw = node as RawThreadNode;
   if (raw.path == null) return null;
   return {
+    id: raw.id ?? "",
     path: raw.path,
     line: raw.line ?? null,
     isResolved: raw.isResolved ?? false,
+    viewerCanReply: raw.viewerCanReply ?? false,
+    viewerCanResolve: raw.viewerCanResolve ?? false,
+    viewerCanUnresolve: raw.viewerCanUnresolve ?? false,
     comments: parseComments(raw.comments?.nodes),
   };
 }
