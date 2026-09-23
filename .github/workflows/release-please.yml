@@ -26,6 +26,18 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      # De action kent geen assignees; wijs de release-PR aan de repo-eigenaar
+      # toe. Draait bij elke update opnieuw, dat is idempotent. Mag nooit de
+      # build van een release blokkeren, vandaar continue-on-error.
+      - name: Release-PR aan de eigenaar toewijzen
+        if: steps.release.outputs.pr != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+          OWNER: ${{ github.repository_owner }}
+        run: gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-assignee "$OWNER"
+
   build:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
