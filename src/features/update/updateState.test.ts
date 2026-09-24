@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { checkIntervalMs, toUpdateState } from "./updateState";
+import {
+  checkIntervalMs,
+  manualCheckMessage,
+  toUpdateState,
+} from "./updateState";
 
 describe("toUpdateState", () => {
   it("maakt van een gevonden update een zichtbare 'available'-toestand", () => {
@@ -51,5 +55,25 @@ describe("checkIntervalMs", () => {
 
   it("geeft null bij handmatig verversen (0): dan alleen de check bij opstarten", () => {
     expect(checkIntervalMs(0)).toBeNull();
+  });
+});
+
+describe("manualCheckMessage", () => {
+  it("meldt dat de app bijgewerkt is als er geen update is", () => {
+    expect(manualCheckMessage({ kind: "none" })).toBe(
+      "Je hebt de nieuwste versie",
+    );
+  });
+
+  it("maakt een check-fout zichtbaar, anders dan de stille automatische check", () => {
+    expect(manualCheckMessage({ kind: "error", message: "offline" })).toBe(
+      "Update-check mislukt: offline",
+    );
+  });
+
+  it("geeft geen melding bij een update: dan verschijnt de banner", () => {
+    expect(
+      manualCheckMessage({ kind: "update", version: "1.4.0", notes: "" }),
+    ).toBeNull();
   });
 });

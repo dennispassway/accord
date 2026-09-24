@@ -1,3 +1,4 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import { type AgentModels, loadAgentModels } from "../../lib/agentModels";
@@ -34,6 +35,7 @@ interface SettingsSheetProps {
   repoIds: RepoId[];
   repoPaths: Record<string, string>;
   onRepoLinked: () => Promise<void>;
+  onCheckUpdate: () => Promise<void>;
 }
 
 function Segmented<T extends string | number>({
@@ -117,7 +119,11 @@ export function SettingsSheet({
   repoIds,
   repoPaths,
   onRepoLinked,
+  onCheckUpdate,
 }: SettingsSheetProps) {
+  const [version, setVersion] = useState<string | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const checkingUpdateRef = useRef(false);
   const [linkingRepo, setLinkingRepo] = useState<RepoId | null>(null);
   const [cliModels, setCliModels] = useState<AgentModels>({
     claude: [],
@@ -187,6 +193,28 @@ export function SettingsSheet({
         ...current,
         [repoId]: String(error),
       }));
+    }
+  }
+
+  // Buiten Tauri (mockmodus in de browser) faalt getVersion; dan geen versie.
+  useEffect(() => {
+    if (open && version == null) {
+      getVersion()
+        .then(setVersion)
+        .catch(() => {});
+    }
+  }, [open, version]);
+
+  async function handleCheckUpdate() {
+    // disabled alleen is geen controle: een dubbelklik kan vóór de render landen.
+    if (checkingUpdateRef.current) return;
+    checkingUpdateRef.current = true;
+    setCheckingUpdate(true);
+    try {
+      await onCheckUpdate();
+    } finally {
+      checkingUpdateRef.current = false;
+      setCheckingUpdate(false);
     }
   }
 
@@ -531,6 +559,28 @@ export function SettingsSheet({
                 </div>
               );
             })}
+          </div>
+
+          <div className="settings-section">
+            <div className="settings-section-head">
+              <span className="settings-section-title">Over Accord</span>
+            </div>
+            <div className="settings-row">
+              <span className="settings-row-label">
+                <span className="settings-row-k">Versie</span>
+                {version != null && (
+                  <span className="settings-row-hint mono">{version}</span>
+                )}
+              </span>
+              <button
+                type="button"
+                className="settings-repo-action"
+                disabled={checkingUpdate}
+                onClick={() => void handleCheckUpdate()}
+              >
+                {checkingUpdate ? "Zoeken…" : "Zoek naar updates"}
+              </button>
+            </div>
           </div>
 
           <div className="settings-account">
