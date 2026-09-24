@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.0](https://github.com/dennispassway/accord/compare/v1.3.1...v1.4.0) (2026-09-24)
+
+
+### Nieuw
+
+* knop "Zoek naar updates" in de instellingen ([6c9ec6b](https://github.com/dennispassway/accord/commit/6c9ec6babd7f601bda2dae1da86bc34b2a144014))
+* **settings:** knop "Zoek naar updates" met appversie onder Over Accord ([e8f12fa](https://github.com/dennispassway/accord/commit/e8f12faef08f259f6c0f5255b525553858fce59c))
+* **update:** handmatige update-check met zichtbare uitkomst ([75d1476](https://github.com/dennispassway/accord/commit/75d14762d10de5f37ed22a14f01938d60c420965))
+
 ## [1.3.1](https://github.com/dennispassway/accord/compare/v1.3.0...v1.3.1) (2026-09-23)
 
 
