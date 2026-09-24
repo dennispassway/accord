@@ -27,6 +27,7 @@ import { chainsIntoLearnings, preferredReviewer } from "../agents/crossReview";
 import { prKeyOf, useAgentRuns } from "../agents/useAgentRuns";
 import { SettingsSheet } from "../settings/SettingsSheet";
 import { UpdateBanner } from "../update/UpdateBanner";
+import { manualCheckMessage } from "../update/updateState";
 import { useUpdate } from "../update/useUpdate";
 import "./contextmenu.css";
 import { MODE_LABEL } from "./AgentButtons";
@@ -1237,6 +1238,12 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         repoIds={groups.map((group) => group.repoId)}
         repoPaths={repoPaths}
         onRepoLinked={refreshRepoPaths}
+        onCheckUpdate={async () => {
+          const outcome = await update.checkNow();
+          const message = outcome == null ? null : manualCheckMessage(outcome);
+          if (message == null) return;
+          showToast(message, outcome?.kind === "error" ? "fout" : "ok");
+        }}
       />
       <Toast toasts={toasts} />
       <UpdateBanner

@@ -235,6 +235,11 @@
   cursor: pointer;
 }
 
+/* Een losse knop in de waardekolom houdt zijn eigen breedte. */
+.settings-row > .settings-repo-action {
+  justify-self: start;
+}
+
 .settings-repo-action:hover {
   background: var(--fill-2);
 }

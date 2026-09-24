@@ -291,7 +291,9 @@ Accord checks for a new version at startup and then on the PR refresh interval
 (`plugins.updater` in `src-tauri/tauri.conf.json`, pointing at `latest.json` on the
 newest GitHub Release). If there is one, a card appears in the corner with the
 release notes; "Update and restart" downloads, installs and relaunches. A failed
-check (offline, or no release yet) stays silent.
+check (offline, or no release yet) stays silent. To check by hand, open Settings
+and click "Zoek naar updates" under "Over Accord"; that check does report when you
+are up to date or when it failed.
 
 Bundles are signed with a minisign key: the public half sits in `tauri.conf.json`,
 the private half and its password are GitHub secrets
