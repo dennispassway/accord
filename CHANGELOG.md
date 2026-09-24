@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0](https://github.com/dennispassway/accord/compare/v1.4.0...v1.5.0) (2026-09-24)
+
+
+### Nieuw
+
+* **prs:** status 'nog een Accord agent review' voor klare PR's zonder agent-review ([bca184e](https://github.com/dennispassway/accord/commit/bca184e880299542a1371a020436790111c26173))
+* **prs:** status 'nog een Accord agent review' voor klare PR's zonder agent-review ([6f90fd7](https://github.com/dennispassway/accord/commit/6f90fd729fb46e75cd2be825c36e85c9ee706042))
+
 ## [1.4.0](https://github.com/dennispassway/accord/compare/v1.3.1...v1.4.0) (2026-09-24)
 
 
