@@ -51,6 +51,7 @@ const VISUALLY_HIDDEN_STYLE = {
 
 const STATUS_COLOR: Record<PrStatusKey, string> = {
   klaar: "var(--ok)",
+  agentReview: "var(--agent)",
   review: "var(--accent)",
   actie: "var(--err)",
   wachtReview: "var(--warn)",

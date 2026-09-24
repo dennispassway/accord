@@ -26,7 +26,17 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     comments: 0,
     openThreads: 0,
     reviewers: [],
-    agentReviews: [],
+    // Standaard al door een Accord-agent gereviewd, zodat een PR zonder
+    // blokkade in "klaar" valt en niet in "agentReview".
+    agentReviews: [
+      {
+        agent: "claude",
+        mode: "commentsOnly",
+        commentCount: 0,
+        commitCount: 0,
+        submittedAt: "2026-01-01T00:00:00Z",
+      },
+    ],
     assignees: [],
     reviewRequestedFromMe: false,
     assignedToMe: false,
@@ -106,6 +116,7 @@ describe("buildSections", () => {
     const voorbeeld: Record<PrStatusKey, Partial<PullRequest>> = {
       review: { reviewRequestedFromMe: true },
       klaar: {},
+      agentReview: { agentReviews: [] },
       actie: { mergeable: "CONFLICTING" },
       wachtReview: { reviewState: { state: "reviewRequested" } },
       agent: {},
@@ -125,6 +136,7 @@ describe("buildSections", () => {
     expect(sections.map((s) => s.key)).toEqual([
       "review",
       "klaar",
+      "agentReview",
       "actie",
       "wachtReview",
       "agent",
@@ -134,6 +146,7 @@ describe("buildSections", () => {
     expect(sections.map((s) => s.titel)).toEqual([
       "Jouw review nodig",
       "Klaar om te mergen",
+      "Nog een Accord agent review",
       "Actie nodig",
       "Wacht op review",
       "Agent bezig",
@@ -237,7 +250,7 @@ describe("buildSections", () => {
   });
 
   it("project: sectie per repo, beste (laagste rank-nummer) repo eerst", () => {
-    // rank 1 (klaar om te mergen) is lager dan rank 3 (actie nodig), dus
+    // rank 1 (klaar om te mergen) is lager dan rank 4 (actie nodig), dus
     // acme/aaa wint de groupKey-vergelijking (Math.min over de rijen).
     const repoA1 = makePr({
       id: "a1",

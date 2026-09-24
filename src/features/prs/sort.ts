@@ -32,6 +32,7 @@ export interface PrSection {
 const TRIAGE_TITEL: Record<PrStatusKey, string> = {
   review: "Jouw review nodig",
   klaar: "Klaar om te mergen",
+  agentReview: "Nog een Accord agent review",
   actie: "Actie nodig",
   wachtReview: "Wacht op review",
   agent: "Agent bezig",
