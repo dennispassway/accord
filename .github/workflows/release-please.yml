@@ -19,6 +19,7 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
       release_body: ${{ steps.release.outputs.body }}
+      pr: ${{ steps.release.outputs.pr }}
     steps:
       - uses: googleapis/release-please-action@v5
         id: release
@@ -26,17 +27,32 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-      # De action kent geen assignees; wijs de release-PR aan de repo-eigenaar
-      # toe. Draait bij elke update opnieuw, dat is idempotent. Mag nooit de
-      # build van een release blokkeren, vandaar continue-on-error.
+  # De action kent geen assignees; wijs de release-PR aan de repo-eigenaar toe.
+  # Een eigen job, zodat hij de build nooit kan blokkeren: een fout in een stap
+  # van de release-job (ook een template-fout, waar continue-on-error niet
+  # tegen helpt) liet `build` stil overslaan, en zo kregen v1.3.0 t/m v1.4.0
+  # geen installers en geen latest.json. De PR-JSON wordt daarom ook in de
+  # shell gelezen en niet met fromJSON in de template: op elke run die een
+  # release maakte faalde `fromJSON(...outputs.pr)` als ongeldige template,
+  # ondanks de if-guard op een lege output.
+  assign-release-pr:
+    needs: release-please
+    if: needs.release-please.outputs.pr != ''
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
       - name: Release-PR aan de eigenaar toewijzen
-        if: steps.release.outputs.pr != ''
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+          PR_JSON: ${{ needs.release-please.outputs.pr }}
           OWNER: ${{ github.repository_owner }}
-        run: gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-assignee "$OWNER"
+        run: |
+          pr_number="$(jq -r '.number // empty' <<<"$PR_JSON" 2>/dev/null || true)"
+          if [ -z "$pr_number" ]; then
+            echo "Geen release-PR in de output, niets toe te wijzen."
+            exit 0
+          fi
+          gh pr edit "$pr_number" --repo "$GITHUB_REPOSITORY" --add-assignee "$OWNER"
 
   build:
     needs: release-please
