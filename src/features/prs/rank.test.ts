@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { PullRequest } from "../../lib/github/domain";
+import type { AgentReview, PullRequest } from "../../lib/github/domain";
 import { toPrNumber, toRepoId } from "../../lib/github/domain";
 import { type PrStatusKey, prStatus } from "./rank";
+
+const AGENT_REVIEW: AgentReview = {
+  agent: "claude",
+  mode: "commentsOnly",
+  commentCount: 0,
+  commitCount: 0,
+  submittedAt: "2026-01-01T00:00:00Z",
+};
 
 function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
   return {
@@ -25,7 +33,9 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     comments: 0,
     openThreads: 0,
     reviewers: [],
-    agentReviews: [],
+    // Standaard al door een Accord-agent gereviewd, zodat een PR zonder
+    // blokkade "klaar" is; de agentReview-tests zetten dit expliciet leeg.
+    agentReviews: [AGENT_REVIEW],
     assignees: [],
     reviewRequestedFromMe: false,
     assignedToMe: false,
@@ -57,9 +67,45 @@ describe("prStatus: eigen PR", () => {
     });
   });
 
+  it("nog een Accord agent review als niets in de weg staat maar een agent-review ontbreekt", () => {
+    expect(prStatus(makePr({ agentReviews: [] }), idleCtx)).toEqual({
+      rank: 2,
+      key: "agentReview",
+      label: "nog een Accord agent review",
+      short: "accord",
+      problem: null,
+    });
+  });
+
+  it("zonder agent-review gaat een blokkade nog steeds voor", () => {
+    const pr = makePr({ agentReviews: [], mergeable: "CONFLICTING" });
+    expect(prStatus(pr, idleCtx).key).toBe("actie");
+  });
+
+  it("zonder agent-review blijft een gevraagde review van mij in review", () => {
+    expect(prStatus(reviewPr({ agentReviews: [] }), idleCtx).key).toBe(
+      "review",
+    );
+  });
+
+  it("zonder agent-review wint een lopende agent-run", () => {
+    const pr = makePr({ agentReviews: [] });
+    expect(prStatus(pr, { agentBezig: true, stackBlocked: false }).key).toBe(
+      "agent",
+    );
+  });
+
+  it("zonder agent-review blijft een PR die op review wacht in wachtReview", () => {
+    const pr = makePr({
+      agentReviews: [],
+      reviewState: { state: "reviewRequested" },
+    });
+    expect(prStatus(pr, idleCtx).key).toBe("wachtReview");
+  });
+
   it("conflicten: actie", () => {
     expect(prStatus(makePr({ mergeable: "CONFLICTING" }), idleCtx)).toEqual({
-      rank: 3,
+      rank: 4,
       key: "actie",
       label: "conflicten oplossen",
       short: "conflict",
@@ -72,7 +118,7 @@ describe("prStatus: eigen PR", () => {
       ciStatus: { state: "failure", failedChecks: ["build"] },
     });
     expect(prStatus(pr, idleCtx)).toEqual({
-      rank: 3,
+      rank: 4,
       key: "actie",
       label: "checks repareren",
       short: "checks",
@@ -83,7 +129,7 @@ describe("prStatus: eigen PR", () => {
   it("changes requested: actie", () => {
     const pr = makePr({ reviewState: { state: "changesRequested" } });
     expect(prStatus(pr, idleCtx)).toEqual({
-      rank: 3,
+      rank: 4,
       key: "actie",
       label: "changes requested",
       short: "changes",
@@ -94,7 +140,7 @@ describe("prStatus: eigen PR", () => {
   it("branch loopt achter (BEHIND): actie", () => {
     const pr = makePr({ mergeStateStatus: "BEHIND" });
     expect(prStatus(pr, idleCtx)).toEqual({
-      rank: 3,
+      rank: 4,
       key: "actie",
       label: "branch loopt achter",
       short: "achter",
@@ -105,7 +151,7 @@ describe("prStatus: eigen PR", () => {
   it("checks draaien: wachten", () => {
     const pr = makePr({ ciStatus: { state: "pending" } });
     expect(prStatus(pr, idleCtx)).toEqual({
-      rank: 6,
+      rank: 7,
       key: "wachten",
       label: "checks draaien",
       short: "draait",
@@ -117,7 +163,7 @@ describe("prStatus: eigen PR", () => {
     expect(
       prStatus(makePr(), { agentBezig: false, stackBlocked: true }),
     ).toEqual({
-      rank: 6,
+      rank: 7,
       key: "wachten",
       label: "wacht op de stapel",
       short: "stapel",
@@ -128,7 +174,7 @@ describe("prStatus: eigen PR", () => {
   it("mergeable onbekend: GitHub rekent nog, niet de stapel (B5)", () => {
     const pr = makePr({ mergeable: "UNKNOWN" });
     expect(prStatus(pr, idleCtx)).toEqual({
-      rank: 6,
+      rank: 7,
       key: "wachten",
       label: "GitHub berekent mergebaarheid",
       short: "rekent",
@@ -139,7 +185,7 @@ describe("prStatus: eigen PR", () => {
   it("verplichte review ontbreekt (REVIEW_REQUIRED): wacht op review, niet klaar (B1)", () => {
     const pr = makePr({ reviewState: { state: "reviewRequested" } });
     expect(prStatus(pr, idleCtx)).toEqual({
-      rank: 4,
+      rank: 5,
       key: "wachtReview",
       label: "wacht op review",
       short: "wacht",
@@ -150,7 +196,7 @@ describe("prStatus: eigen PR", () => {
   it("BLOCKED zonder REVIEW_REQUIRED: geblokkeerd door branch protection (B1)", () => {
     const pr = makePr({ mergeStateStatus: "BLOCKED" });
     expect(prStatus(pr, idleCtx)).toEqual({
-      rank: 4,
+      rank: 5,
       key: "wachtReview",
       label: "geblokkeerd door branch protection",
       short: "blokkade",
@@ -185,7 +231,7 @@ describe("prStatus: eigen PR", () => {
 describe("prStatus: jouw review gevraagd", () => {
   it("schone PR: jouw review nodig zonder probleem", () => {
     expect(prStatus(reviewPr(), idleCtx)).toEqual({
-      rank: 2,
+      rank: 3,
       key: "review",
       label: "jouw review nodig",
       short: "review",
@@ -196,7 +242,7 @@ describe("prStatus: jouw review gevraagd", () => {
   it("met conflict: blijft review, toont het conflict (B2)", () => {
     const pr = reviewPr({ mergeable: "CONFLICTING" });
     expect(prStatus(pr, idleCtx)).toEqual({
-      rank: 2,
+      rank: 3,
       key: "review",
       label: "jouw review nodig · conflicten",
       short: "conflict",
@@ -209,7 +255,7 @@ describe("prStatus: jouw review gevraagd", () => {
       ciStatus: { state: "failure", failedChecks: ["build"] },
     });
     expect(prStatus(pr, idleCtx)).toEqual({
-      rank: 2,
+      rank: 3,
       key: "review",
       label: "jouw review nodig · checks rood",
       short: "checks",
@@ -220,7 +266,7 @@ describe("prStatus: jouw review gevraagd", () => {
   it("met changes requested: blijft review, toont de changes", () => {
     const pr = reviewPr({ reviewState: { state: "changesRequested" } });
     expect(prStatus(pr, idleCtx)).toEqual({
-      rank: 2,
+      rank: 3,
       key: "review",
       label: "jouw review nodig · changes requested",
       short: "changes",
@@ -253,7 +299,7 @@ describe("prStatus: agent en concept gaan voor de rol", () => {
     expect(
       prStatus(reviewPr(), { agentBezig: true, stackBlocked: false }),
     ).toEqual({
-      rank: 5,
+      rank: 6,
       key: "agent",
       label: "agent reviewt",
       short: "agent",
@@ -271,7 +317,7 @@ describe("prStatus: agent en concept gaan voor de rol", () => {
   it("concept wint van conflicten en van een reviewverzoek", () => {
     const pr = reviewPr({ isDraft: true, mergeable: "CONFLICTING" });
     expect(prStatus(pr, idleCtx)).toEqual({
-      rank: 7,
+      rank: 8,
       key: "concept",
       label: "concept",
       short: "concept",
@@ -298,6 +344,7 @@ const EEN_PER_KEY: Record<
     [reviewPr({ reviewState: { state: "changesRequested" } }), idleCtx],
   ],
   klaar: [[makePr(), idleCtx]],
+  agentReview: [[makePr({ agentReviews: [] }), idleCtx]],
   actie: [
     [makePr({ mergeable: "CONFLICTING" }), idleCtx],
     [
