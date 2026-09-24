@@ -31,3 +31,16 @@ export function toUpdateState(
 export function checkIntervalMs(refreshMinutes: number): number | null {
   return refreshMinutes === 0 ? null : refreshMinutes * 60 * 1000;
 }
+
+/** Een handmatige check verdient wél feedback: wie op de knop drukt en niets
+ * ziet, weet niet of er gezocht is. Bij een update spreekt de banner. */
+export function manualCheckMessage(outcome: CheckOutcome): string | null {
+  switch (outcome.kind) {
+    case "none":
+      return "Je hebt de nieuwste versie";
+    case "error":
+      return `Update-check mislukt: ${outcome.message}`;
+    case "update":
+      return null;
+  }
+}

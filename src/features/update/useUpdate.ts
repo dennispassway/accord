@@ -39,7 +39,9 @@ export function useUpdate(refreshMinutes: number) {
       : sessionStorage.getItem(DISMISSED_KEY),
   );
 
-  const runCheck = useCallback(async () => {
+  /** Geeft de uitkomst terug, of null als een nieuwere check of een
+   * installatie deze inhaalde. */
+  const runCheck = useCallback(async (): Promise<CheckOutcome | null> => {
     const generation = ++checkGeneration.current;
     let outcome: CheckOutcome;
     if (mock) {
@@ -49,7 +51,7 @@ export function useUpdate(refreshMinutes: number) {
         const update = await check();
         if (generation !== checkGeneration.current || installing.current) {
           closeSilently(update);
-          return;
+          return null;
         }
         const previous = availableUpdate.current;
         outcome =
@@ -66,7 +68,7 @@ export function useUpdate(refreshMinutes: number) {
         closeSilently(previous);
         if (nextState.status !== "available") closeSilently(update);
       } catch (error) {
-        if (generation !== checkGeneration.current) return;
+        if (generation !== checkGeneration.current) return null;
         const previous = availableUpdate.current;
         availableUpdate.current = null;
         closeSilently(previous);
@@ -79,7 +81,20 @@ export function useUpdate(refreshMinutes: number) {
         ? current
         : toUpdateState(outcome, dismissed.current),
     );
+    return outcome;
   }, [mock]);
+
+  /** Wie zelf op "Zoek naar updates" drukt wil ook een eerder weggeklikte
+   * versie zien. Het wegklikken vervalt daarom helemaal: bleef het staan, dan
+   * verborg de volgende periodieke check de banner die net verscheen. */
+  const checkNow = useCallback(async (): Promise<CheckOutcome | null> => {
+    if (installing.current) return null;
+    dismissed.current = null;
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.removeItem(DISMISSED_KEY);
+    }
+    return runCheck();
+  }, [runCheck]);
 
   useEffect(() => {
     void runCheck();
@@ -142,5 +157,5 @@ export function useUpdate(refreshMinutes: number) {
     }
   }, [mock]);
 
-  return { state, dismiss, install };
+  return { state, dismiss, install, checkNow };
 }
