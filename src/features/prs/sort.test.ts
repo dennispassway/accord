@@ -250,7 +250,7 @@ describe("buildSections", () => {
   });
 
   it("project: sectie per repo, beste (laagste rank-nummer) repo eerst", () => {
-    // rank 1 (klaar om te mergen) is lager dan rank 3 (actie nodig), dus
+    // rank 1 (klaar om te mergen) is lager dan rank 4 (actie nodig), dus
     // acme/aaa wint de groupKey-vergelijking (Math.min over de rijen).
     const repoA1 = makePr({
       id: "a1",
