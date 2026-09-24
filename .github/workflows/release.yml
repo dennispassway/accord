@@ -1,7 +1,9 @@
 # Bouwt Accord voor macOS en Linux. Met een tag (van release-please, of een
 # handgezette v*-tag) worden de installers aan de GitHub Release van die tag
-# gehangen; een handmatige run (workflow_dispatch) bouwt alleen en hangt de
-# bundels als artifacts aan de run.
+# gehangen; een handmatige run (workflow_dispatch) zonder tag bouwt alleen en
+# hangt de bundels als artifacts aan de run. Met een tag herstelt hij een
+# release die zonder installers bleef:
+#   gh workflow run release.yml -f tag=v1.4.0
 name: release
 
 on:
@@ -9,6 +11,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Bestaande releasetag (bv. v1.4.0) om installers aan te hangen; leeg = alleen bouwen"
+        required: false
+        type: string
   # Aangeroepen door release.yml's tegenhanger release-please.yml: een tag die
   # een Action met de GITHUB_TOKEN pusht triggert namelijk geen workflows, dus
   # de release-PR-merge roept deze build direct aan in plaats van via de tag.
@@ -34,7 +41,12 @@ jobs:
     env:
       TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
     steps:
+      # Een handmatige run met tag bouwt de code van die tag, niet van main.
+      # Via workflow_call is event_name die van de aanroeper (push), en daar
+      # staat de checkout al op de releasecommit.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || '' }}
 
       - name: Linux systeemdependencies
         if: startsWith(matrix.os, 'ubuntu')
