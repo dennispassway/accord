@@ -78,6 +78,10 @@ li:first-child > .pl-group-header {
   color: var(--ok);
 }
 
+.pl-group-header-agentReview {
+  color: var(--agent);
+}
+
 .pl-group-header-actie {
   color: var(--err);
 }
@@ -350,6 +354,10 @@ li:first-child > .pl-group-header {
 
 .pl-status-pill-klaar {
   color: var(--ok);
+}
+
+.pl-status-pill-agentReview {
+  color: var(--agent);
 }
 
 .pl-status-pill-review {

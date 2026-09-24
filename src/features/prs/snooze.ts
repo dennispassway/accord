@@ -21,6 +21,7 @@ const STORAGE_KEY = "pr-cockpit.snoozes";
 const SECTION_KEYS: Record<PrStatusKey, true> = {
   review: true,
   klaar: true,
+  agentReview: true,
   actie: true,
   wachtReview: true,
   agent: true,

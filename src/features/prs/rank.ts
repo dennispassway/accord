@@ -3,6 +3,7 @@ import type { PullRequest } from "../../lib/github/domain";
 export type PrStatusKey =
   | "review"
   | "klaar"
+  | "agentReview"
   | "actie"
   | "wachtReview"
   | "agent"
@@ -13,7 +14,7 @@ export type PrStatusKey =
 type PrProblem = "conflict" | "checks" | "changes" | "achter";
 
 export interface PrStatus {
-  rank: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  rank: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   key: PrStatusKey;
   /** Volledige tekst voor het detailpaneel en tooltips. */
   label: string;
@@ -63,7 +64,7 @@ export function prStatus(
 ): PrStatus {
   if (ctx.agentBezig) {
     return {
-      rank: 5,
+      rank: 6,
       key: "agent",
       label: "agent reviewt",
       short: "agent",
@@ -72,7 +73,7 @@ export function prStatus(
   }
   if (pr.isDraft) {
     return {
-      rank: 7,
+      rank: 8,
       key: "concept",
       label: "concept",
       short: "concept",
@@ -82,7 +83,7 @@ export function prStatus(
   const blocking = blockingProblem(pr);
   if (pr.reviewRequestedFromMe) {
     return {
-      rank: 2,
+      rank: 3,
       key: "review",
       label:
         blocking == null
@@ -96,7 +97,7 @@ export function prStatus(
     blocking ?? (pr.mergeStateStatus === "BEHIND" ? "achter" : null);
   if (problem != null) {
     return {
-      rank: 3,
+      rank: 4,
       key: "actie",
       label: ACTIE_LABEL[problem],
       short: problem,
@@ -112,7 +113,7 @@ export function prStatus(
   }
   if (pr.reviewState.state === "reviewRequested") {
     return {
-      rank: 4,
+      rank: 5,
       key: "wachtReview",
       label: "wacht op review",
       short: "wacht",
@@ -121,10 +122,21 @@ export function prStatus(
   }
   if (pr.mergeStateStatus === "BLOCKED") {
     return {
-      rank: 4,
+      rank: 5,
       key: "wachtReview",
       label: "geblokkeerd door branch protection",
       short: "blokkade",
+      problem: null,
+    };
+  }
+  // agentReviews bevat alleen agent-reviews (via login of de Accord-marker,
+  // zie parseAgentReviews); een menselijke review telt hier dus niet mee.
+  if (pr.agentReviews.length === 0) {
+    return {
+      rank: 2,
+      key: "agentReview",
+      label: "nog een Accord agent review",
+      short: "accord",
       problem: null,
     };
   }
@@ -138,5 +150,5 @@ export function prStatus(
 }
 
 function wachten(label: string, short: string): PrStatus {
-  return { rank: 6, key: "wachten", label, short, problem: null };
+  return { rank: 7, key: "wachten", label, short, problem: null };
 }

@@ -39,6 +39,7 @@ import { useContainerWidth } from "./useContainerWidth";
 const SECTION_ICON: Record<PrStatusKey, typeof EyeIcon> = {
   review: EyeIcon,
   klaar: MergeIcon,
+  agentReview: AgentIcon,
   actie: AlertIcon,
   wachtReview: EyeIcon,
   agent: AgentIcon,
