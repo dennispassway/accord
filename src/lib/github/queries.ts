@@ -68,7 +68,7 @@ fragment PrFields on PullRequest {
   latestOpinionatedReviews(first: 20) {
     nodes { author { login } state }
   }
-  reviews(first: 20) {
+  reviews(last: 50) {
     nodes { author { login } submittedAt comments { totalCount } body }
   }
   commits(last: 1) {
