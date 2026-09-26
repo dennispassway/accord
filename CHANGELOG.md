@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/dennispassway/accord/compare/v1.5.0...v1.5.1) (2026-09-26)
+
+
+### Opgelost
+
+* **github:** lees de nieuwste reviews zodat agent-reviews op drukke PR's zichtbaar blijven ([f06fcd4](https://github.com/dennispassway/accord/commit/f06fcd4f9d47ab9f68b9b135f4362bd826822f49))
+* **github:** lees de nieuwste reviews zodat agent-reviews zichtbaar blijven ([ec21c7e](https://github.com/dennispassway/accord/commit/ec21c7ece87b58f4bc36a08155599385f38f7d42))
+
 ## [1.5.0](https://github.com/dennispassway/accord/compare/v1.4.0...v1.5.0) (2026-09-24)
 
 

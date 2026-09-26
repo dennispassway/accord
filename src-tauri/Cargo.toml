@@ -1,6 +1,6 @@
 [package]
 name = "accord"
-version = "1.5.0"
+version = "1.5.1"
 description = "Review, prioritise and merge your GitHub pull requests from one native window"
 authors = ["Dennis Passway"]
 license = "MIT"
