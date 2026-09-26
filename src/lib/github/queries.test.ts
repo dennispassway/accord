@@ -28,7 +28,9 @@ describe("SEARCH_PRS_QUERY", () => {
     expect(SEARCH_PRS_QUERY).toContain("assignees(first: 20)");
     expect(SEARCH_PRS_QUERY).toContain("reviewRequests(first: 20)");
     expect(SEARCH_PRS_QUERY).toContain("latestOpinionatedReviews(first: 20)");
-    expect(SEARCH_PRS_QUERY).toContain("reviews(first: 20)");
+    // De nieuwste reviews: Accord herkent zijn eigen reviews aan een marker,
+    // en op een PR met veel reviews vielen die met first: 20 buiten beeld.
+    expect(SEARCH_PRS_QUERY).toContain("reviews(last: 50)");
     expect(SEARCH_PRS_QUERY).toContain("agentCommits: commits(last: 10)");
   });
 
