@@ -339,32 +339,57 @@ describe("mergeChecklist: invariant met mergeReasons", () => {
     failedChecks: ["build", "lint"],
   };
 
-  const cases: Array<[string, PullRequest, PrStackInfo | undefined]> = [
-    ["alles groen", pr(), stackInfo()],
-    ["alles groen zonder stackinfo", pr(), undefined],
-    ["alleen open threads", pr({ openThreads: 4 }), stackInfo()],
-    ["conflict", pr({ mergeable: "CONFLICTING" }), undefined],
-    ["mergebaarheid onbekend", pr({ mergeable: "UNKNOWN" }), undefined],
-    ["draft", pr({ isDraft: true }), undefined],
-    ["rode CI", pr({ ciStatus: failing }), undefined],
-    ["CI draait", pr({ ciStatus: { state: "pending" } }), undefined],
+  const cases: Array<
+    [string, PullRequest, PrStackInfo | undefined, ChecklistKey[]]
+  > = [
+    ["alles groen", pr(), stackInfo(), []],
+    ["alles groen zonder stackinfo", pr(), undefined, []],
+    ["alleen open threads", pr({ openThreads: 4 }), stackInfo(), []],
+    ["conflict", pr({ mergeable: "CONFLICTING" }), undefined, ["conflict"]],
+    [
+      "mergebaarheid onbekend",
+      pr({ mergeable: "UNKNOWN" }),
+      undefined,
+      ["conflict"],
+    ],
+    ["draft", pr({ isDraft: true }), undefined, ["draft"]],
+    ["rode CI", pr({ ciStatus: failing }), undefined, ["checks"]],
+    [
+      "CI draait",
+      pr({ ciStatus: { state: "pending" } }),
+      undefined,
+      ["checks"],
+    ],
     [
       "changes requested",
       pr({ reviewState: { state: "changesRequested" } }),
       undefined,
+      ["review"],
     ],
     [
       "review gevraagd",
       pr({ reviewState: { state: "reviewRequested" } }),
       undefined,
+      ["review"],
     ],
-    ["achter op base", pr({ mergeStateStatus: "BEHIND" }), undefined],
-    ["branch protection", pr({ mergeStateStatus: "BLOCKED" }), undefined],
-    ["gestapeld", pr(), blockedBy],
+    [
+      "achter op base",
+      pr({ mergeStateStatus: "BEHIND" }),
+      undefined,
+      ["behind"],
+    ],
+    [
+      "branch protection",
+      pr({ mergeStateStatus: "BLOCKED" }),
+      undefined,
+      ["protection"],
+    ],
+    ["gestapeld", pr(), blockedBy, ["stack"]],
     [
       "BLOCKED verklaard door rode CI",
       pr({ mergeStateStatus: "BLOCKED", ciStatus: failing }),
       undefined,
+      ["checks"],
     ],
     [
       "BLOCKED verklaard door gevraagde review",
@@ -373,20 +398,29 @@ describe("mergeChecklist: invariant met mergeReasons", () => {
         reviewState: { state: "reviewRequested" },
       }),
       undefined,
+      ["review"],
     ],
     [
       "BLOCKED verklaard door conflict",
       pr({ mergeStateStatus: "BLOCKED", mergeable: "CONFLICTING" }),
       undefined,
+      ["conflict"],
     ],
     [
-      "combinatie: draft, achter, protection, stack, threads",
+      "combinatie: draft, achter, stack, threads (BEHIND is geen BLOCKED)",
       pr({
         isDraft: true,
         mergeStateStatus: "BEHIND",
         openThreads: 2,
       }),
       blockedBy,
+      ["draft", "behind", "stack"],
+    ],
+    [
+      "combinatie: BLOCKED, draft, stack (protection telt mee)",
+      pr({ isDraft: true, mergeStateStatus: "BLOCKED" }),
+      blockedBy,
+      ["draft", "protection", "stack"],
     ],
     [
       "combinatie: alles tegelijk",
@@ -399,11 +433,13 @@ describe("mergeChecklist: invariant met mergeReasons", () => {
         openThreads: 1,
       }),
       blockedBy,
+      ["conflict", "checks", "review", "draft", "stack"],
     ],
   ];
 
-  it.each(cases)("%s", (_naam, p, info) => {
+  it.each(cases)("%s", (_naam, p, info, expectedKeys) => {
     const blocking = mergeChecklist(p, info).filter((i) => i.blocking);
     expect(blocking).toHaveLength(mergeReasons(p, info).length);
+    expect(blocking.map((i) => i.key).sort()).toEqual([...expectedKeys].sort());
   });
 });
