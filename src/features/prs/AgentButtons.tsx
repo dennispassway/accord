@@ -88,7 +88,9 @@ export function AgentButtons({
       <span className="detail-agent-name">
         <span className="detail-agent-name-label">{agent}</span>
         {modelLine != null && (
-          <span className="detail-agent-model mono">{modelLine}</span>
+          <span className="detail-agent-model mono" title={modelLine}>
+            {modelLine}
+          </span>
         )}
       </span>
       {disabled ? (

@@ -134,7 +134,7 @@
   padding: 16px 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
 }
 
 /* Een kaart met een eigen overflow (het agent-log) krijgt als flex-kind
@@ -145,45 +145,41 @@
 }
 
 .detail-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 400;
   color: var(--text-3);
 }
 
-/* Kaart-stijl gedeeld door de detail-secties (CiStatus, meta, mensen,
-   agents, stack). */
-.detail-card,
-.detail-stack {
-  background: var(--card-2);
-  box-shadow:
-    var(--card-shadow),
-    0 0 0 1px var(--card-line);
-  border-radius: var(--r-3);
-  padding: 12px 13px;
+/* Sectiekop: de label in een kopregel is een kop, geen rij-label. */
+.detail-agents-head .detail-label,
+.detail-stack-head .detail-label {
+  font-weight: 600;
+  color: var(--text-2);
 }
 
-/* CI-kaart */
+/* Inspector-vorm: secties zonder vlak, gescheiden door een haarlijn
+   (CiStatus, meta, mensen, agents, stack). */
+.detail-card,
+.detail-stack {
+  padding: 12px 0;
+}
+
+.detail-body > :is(.detail-card, .detail-stack):not(:first-child) {
+  border-top: 1px solid var(--line);
+}
+
+/* Kinderen die geen sectie zijn (agent-log, RepoPathSetup) houden hun eigen
+   vlak en krijgen alleen ruimte erboven. */
+.detail-body > :not(.detail-card, .detail-stack):not(:first-child) {
+  margin-top: 12px;
+}
+
+/* CI-sectie */
 .detail-ci {
   display: flex;
   flex-direction: column;
   gap: 7px;
-}
-
-.detail-ci-success {
-  background: color-mix(in srgb, var(--ok) 9%, var(--card-2));
-  box-shadow:
-    var(--card-shadow),
-    0 0 0 1px color-mix(in srgb, var(--ok) 35%, transparent);
-}
-
-.detail-ci-failure {
-  background: color-mix(in srgb, var(--err) 9%, var(--card-2));
-  box-shadow:
-    var(--card-shadow),
-    0 0 0 1px color-mix(in srgb, var(--err) 35%, transparent);
 }
 
 .detail-ci-head {
@@ -461,10 +457,10 @@
   color: var(--ok);
 }
 
-/* Meta- en mensen-grid: label van 74px. */
+/* Meta- en mensen-grid: label van 84px. */
 .detail-meta {
   display: grid;
-  grid-template-columns: 74px 1fr;
+  grid-template-columns: 84px 1fr;
   gap: 6px 10px;
   align-items: baseline;
 }
@@ -497,7 +493,7 @@
 
 .detail-people {
   display: grid;
-  grid-template-columns: 74px 1fr;
+  grid-template-columns: 84px 1fr;
   gap: 8px 10px;
   align-items: start;
 }
@@ -584,23 +580,20 @@
 .detail-github-button {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 7px;
-  height: 28px;
+  height: 26px;
+  padding: 0;
   border: 0;
-  border-radius: var(--r-2);
-  background: var(--btn);
-  box-shadow:
-    var(--btn-shadow),
-    0 0 0 1px var(--btn-line);
-  color: var(--text-1);
+  background: none;
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
 }
 
 .detail-github-button:hover {
-  background: var(--fill-1);
+  color: var(--text-1);
 }
 
 .detail-github-kbd {
@@ -916,13 +909,8 @@
 .detail-agents-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
-}
-
-.detail-agents-rule {
-  flex: 1;
-  height: 1px;
-  background: var(--line);
 }
 
 .detail-agent-row {
