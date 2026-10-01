@@ -19,6 +19,21 @@ mutation MergePr($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
 `;
 
 /**
+ * BLOCKED is GitHubs verzamelwoord; alleen melden als geen andere reden de
+ * blokkade al verklaart.
+ */
+export function isBlockedByProtection(pr: PullRequest): boolean {
+  return (
+    pr.mergeStateStatus === "BLOCKED" &&
+    pr.reviewState.state !== "reviewRequested" &&
+    pr.reviewState.state !== "changesRequested" &&
+    pr.ciStatus.state !== "failure" &&
+    pr.ciStatus.state !== "pending" &&
+    pr.mergeable !== "CONFLICTING"
+  );
+}
+
+/**
  * Pure check: reasons mergen nu niet mag. Lege array betekent mergen mag.
  */
 export function mergeReasons(
@@ -40,16 +55,7 @@ export function mergeReasons(
   if (pr.mergeStateStatus === "BEHIND") {
     reasons.push(`branch loopt achter op ${pr.baseRef}`);
   }
-  // BLOCKED is GitHubs verzamelwoord; alleen melden als geen andere reden
-  // hierboven de blokkade al verklaart.
-  if (
-    pr.mergeStateStatus === "BLOCKED" &&
-    pr.reviewState.state !== "reviewRequested" &&
-    pr.reviewState.state !== "changesRequested" &&
-    pr.ciStatus.state !== "failure" &&
-    pr.ciStatus.state !== "pending" &&
-    pr.mergeable !== "CONFLICTING"
-  ) {
+  if (isBlockedByProtection(pr)) {
     reasons.push("geblokkeerd door branch protection");
   }
   if (stackInfo && stackInfo.blockedByPrNumbers.length > 0) {
