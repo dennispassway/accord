@@ -156,8 +156,9 @@
   border-top: 1px solid var(--line);
 }
 
-/* Kinderen die geen sectie zijn (agent-log, RepoPathSetup) houden hun eigen
-   vlak en krijgen alleen ruimte erboven. */
+/* Kinderen die geen sectie zijn (RepoPathSetup) houden hun eigen vlak en
+   krijgen alleen ruimte erboven. Het agent-log staat in de tijdlijn van de
+   Agents-sectie. */
 .detail-body > :not(.detail-card, .detail-stack):not(:first-child) {
   margin-top: 12px;
 }
