@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.6.0](https://github.com/dennispassway/accord/compare/v1.5.1...v1.6.0) (2026-10-01)
+
+
+### Nieuw
+
+* **detail:** agentknop per handeling met de andere agent in het menu ([cc0cefe](https://github.com/dennispassway/accord/commit/cc0cefe1560dde9ecf96713018cf3629c3c974e9))
+* **detail:** checklist bovenaan met de fix op de regel van het probleem ([ab8f00c](https://github.com/dennispassway/accord/commit/ab8f00c4aea1210be6f68128ea94d0c63041675f))
+* **detail:** merge-checklist die per punt de fix en de mergeblokkade kent ([60a6057](https://github.com/dennispassway/accord/commit/60a6057a0b828a4d6e16e6b780b5bf80654b1c72))
+* **detail:** run-log en reviewhistorie als één agenttijdlijn ([9428e0b](https://github.com/dennispassway/accord/commit/9428e0b037e367751ebbb386fa005932bda18613))
+* **detail:** toon auteur en assignee op één regel als het dezelfde persoon is ([c3700ea](https://github.com/dennispassway/accord/commit/c3700eaa1b1e79eb337cccabc465bcd345b99851))
+
+
+### Opgelost
+
+* **detail:** agentmenu bruikbaar met één CLI en R alleen bij de voorkeursagent ([b64c89f](https://github.com/dennispassway/accord/commit/b64c89f2a8044b5d3a2dd90d28e7bd36f80a9ed3))
+* **detail:** agentmenu mount per opening zodat de focus de actuele beschikbaarheid volgt ([814fad9](https://github.com/dennispassway/accord/commit/814fad92965f66399ff604bfe41cdc68fa7fc836))
+
+
+### Onder de motorkap
+
+* **agents:** verplaats modus- en agentlabels naar agentModes ([c9b9278](https://github.com/dennispassway/accord/commit/c9b9278c36e137e1e9fe767c8399d9bc1a9ebf66))
+* **detail:** reviewhistorie gebruikt de gedeelde agentlabels ([7163e4f](https://github.com/dennispassway/accord/commit/7163e4ff53a9bed965045bff2c43a95dcae26725))
+
 ## [1.5.1](https://github.com/dennispassway/accord/compare/v1.5.0...v1.5.1) (2026-09-26)
 
 
