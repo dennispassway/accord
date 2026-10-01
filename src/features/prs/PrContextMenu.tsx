@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import type { AgentMode, ReviewAgent, ReviewMode } from "../agents/crossReview";
 import { availableFixModes } from "../agents/crossReview";
-import { MODE_LABEL, MODE_TITLE } from "./AgentButtons";
+import { MODE_LABEL, MODE_TITLE } from "./agentModes";
 import "./contextmenu.css";
 import { useRovingMenu } from "./menuNav";
 import { keyOfPr } from "./PrList";

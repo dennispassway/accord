@@ -1,34 +1,14 @@
 import type { KeyboardEvent } from "react";
 import { useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
-import type { AgentMode, ReviewAgent, ReviewMode } from "../agents/crossReview";
+import type { AgentMode, ReviewAgent } from "../agents/crossReview";
+import { MODE_LABEL, MODE_TITLE } from "./agentModes";
 import "./detail.css";
 import { ChevronIcon } from "./icons";
 import { useRovingMenu } from "./menuNav";
 
-export const MODE_LABEL: Record<AgentMode, string> = {
-  commentsOnly: "Comments",
-  withFixes: "Comments + fixes",
-  fixComments: "Fix bevindingen",
-  fixChecks: "Fix checks",
-  fixConflicts: "Los conflict op",
-  distillLearnings: "Lessen vastleggen",
-  distillLearningsInline: "Lessen vastleggen (in PR)",
-};
-
-/** Uitleg voor modi waarvan het label alleen niet duidelijk maakt wat er
- * gebeurt; getoond als title-tooltip in beide menu's. */
-export const MODE_TITLE: Partial<Record<AgentMode, string>> = {
-  distillLearnings:
-    "Destilleert de lessen uit de review-comments en fixes naar CLAUDE.md of een skill, via een eigen PR",
-  distillLearningsInline:
-    "Destilleert de lessen uit de review-comments en fixes naar CLAUDE.md of een skill, als commit op de PR-branch zelf",
-};
-
-/** De andere reviewmodus, voor het menu naast de primaire reviewknop. */
-export function altReviewMode(mode: ReviewMode): ReviewMode {
-  return mode === "withFixes" ? "commentsOnly" : "withFixes";
-}
+// Tijdelijk voor DetailPanel; de bedrading-worker verwijdert dit bestand.
+export { altReviewMode } from "./agentModes";
 
 interface AgentButtonsProps {
   pr: PullRequest;

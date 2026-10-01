@@ -30,7 +30,7 @@ import { UpdateBanner } from "../update/UpdateBanner";
 import { manualCheckMessage } from "../update/updateState";
 import { useUpdate } from "../update/useUpdate";
 import "./contextmenu.css";
-import { MODE_LABEL } from "./AgentButtons";
+import { MODE_LABEL } from "./agentModes";
 import {
   loadRepoFilter,
   loadSortMode,
