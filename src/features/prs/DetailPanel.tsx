@@ -11,6 +11,8 @@ import { RepoPathSetup } from "../agents/RepoPathSetup";
 import type { AgentClis, AgentRun } from "../agents/useAgentRuns";
 import { AgentActionButton } from "./AgentActionButton";
 import { Avatar } from "./Avatar";
+import { planAgentAction } from "./agentAction";
+import { AGENT_LABEL } from "./agentModes";
 import { BulkReviewButton } from "./BulkReviewButton";
 import { Checklist } from "./Checklist";
 import "./detail.css";
@@ -211,12 +213,14 @@ export function DetailPanel({
   }
 
   // Kunnen beide agents niet, dan tonen de knoppen niets: de reden staat hier één keer.
-  const noAgentReason =
-    !runningHere &&
-    disabledReason("claude") != null &&
-    disabledReason("codex") != null
-      ? disabledReason(preferredReviewer(pr.author))
-      : null;
+  const noAgentReason = runningHere
+    ? null
+    : planAgentAction({
+        preferred: preferredReviewer(pr.author),
+        mode: primaryMode,
+        extraModes: [],
+        disabledReason,
+      }).unavailableReason;
 
   const people = peopleRows(pr, meLogin);
 
@@ -364,10 +368,9 @@ export function DetailPanel({
           {pr.comments > 0 && !runningHere && (
             <AgentActionButton
               pr={pr}
-              label={() => "Lessen vastleggen"}
+              label={(agent) => `Lessen vastleggen met ${AGENT_LABEL[agent]}`}
               preferred={preferredFixer(pr)}
               mode="distillLearnings"
-              extraModes={["distillLearningsInline"]}
               disabledReason={disabledReason}
               modelLine={(agent) =>
                 `${settings[agent].model} · ${settings[agent].effort}`

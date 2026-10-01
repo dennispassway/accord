@@ -46,7 +46,9 @@ export function AgentActionButton({
     plan.items.length,
     0,
     menuOpen,
+    plan.items.map((item) => item.disabledReason != null),
   );
+  const menuUsable = plan.items.some((item) => item.disabledReason == null);
 
   if (plan.primary == null) return null;
   const { agent, mode: primaryMode } = plan.primary;
@@ -70,13 +72,18 @@ export function AgentActionButton({
       <button
         type="button"
         className="agent-action-main"
-        title={MODE_TITLE[primaryMode]}
+        title={
+          `${MODE_LABEL[primaryMode]} · ${modelLine(agent, primaryMode)}` +
+          (MODE_TITLE[primaryMode] ? `. ${MODE_TITLE[primaryMode]}` : "")
+        }
         onClick={() => onStartRun(pr, agent, primaryMode)}
       >
         {label(agent)}
-        {kbd != null && <span className="agent-action-kbd mono">{kbd}</span>}
+        {kbd != null && agent === preferred && (
+          <span className="agent-action-kbd mono">{kbd}</span>
+        )}
       </button>
-      {plan.items.length > 0 && (
+      {menuUsable && (
         <div className="agent-action-menu-wrap">
           <button
             type="button"
@@ -117,7 +124,7 @@ export function AgentActionButton({
                   >
                     <span>{`${MODE_LABEL[item.mode]} · ${AGENT_LABEL[item.agent]}`}</span>
                     <span className="agent-action-model mono">
-                      {modelLine(item.agent, item.mode)}
+                      {item.disabledReason ?? modelLine(item.agent, item.mode)}
                     </span>
                   </button>
                 ))}
