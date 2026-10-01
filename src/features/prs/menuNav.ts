@@ -35,7 +35,7 @@ export function nextMenuIndex(
 export function useRovingMenu(
   itemCount: number,
   initialIndex = 0,
-  /** Voor menu's die niet zelf mounten/unmounten (MergeSection, AgentButtons:
+  /** Voor menu's die niet zelf mounten/unmounten (MergeSection, AgentActionButton:
    * hun menu is een conditionele render binnen een altijd gemount component)
    * moet de focus pas volgen zodra het menu écht open is, anders vuurt de
    * focus-effect bij het openen niet af omdat activeIndex niet wijzigt. */

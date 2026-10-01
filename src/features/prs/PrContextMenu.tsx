@@ -71,7 +71,7 @@ interface MenuAction {
  * Eigen HTML-contextmenu (geen Tauri native menu), stijl consistent met
  * .detail-agent-menu. Werkt zowel op één PR als op de hele selectie.
  * Roving-focus toetsenbordnavigatie (pijltjes/Enter/Escape) via useRovingMenu,
- * hetzelfde patroon als SortMenu, MergeSection en AgentButtons.
+ * hetzelfde patroon als SortMenu, MergeSection en AgentActionButton.
  */
 export function PrContextMenu({
   prs,

@@ -1,7 +1,7 @@
 import type { AgentMode, ReviewAgent } from "../agents/crossReview";
 import { otherAgent } from "./agentModes";
 
-export interface AgentActionChoice {
+interface AgentActionChoice {
   agent: ReviewAgent;
   mode: AgentMode;
   disabledReason: string | null;

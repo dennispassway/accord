@@ -73,19 +73,6 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent);
 }
 
-/* Alleen de font-family erven: grootte, gewicht en hoofdletters komen van
-   .detail-chip, en een `font: inherit` hier zou die overschrijven. */
-.detail-chip-status-button {
-  font-family: inherit;
-  border: none;
-  cursor: pointer;
-}
-
-.detail-chip-status-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
 .detail-chip-draft {
   display: flex;
   align-items: center;
@@ -159,7 +146,7 @@
 }
 
 /* Inspector-vorm: secties zonder vlak, gescheiden door een haarlijn
-   (CiStatus, meta, mensen, agents, stack). */
+   (checklist, meta, mensen, agents, stack). */
 .detail-card,
 .detail-stack {
   padding: 12px 0;
@@ -173,99 +160,6 @@
    vlak en krijgen alleen ruimte erboven. */
 .detail-body > :not(.detail-card, .detail-stack):not(:first-child) {
   margin-top: 12px;
-}
-
-/* CI-sectie */
-.detail-ci {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.detail-ci-head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.detail-ci-icon-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 26px;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-}
-
-.detail-ci-success .detail-ci-icon-wrap {
-  background: var(--ok);
-  color: var(--ok-ink);
-}
-
-.detail-ci-failure .detail-ci-icon-wrap {
-  background: var(--err);
-  color: #fff;
-}
-
-.detail-ci-success .detail-ci-icon-wrap .detail-ci-icon-ok {
-  color: var(--ok-ink);
-}
-
-.detail-ci-failure .detail-ci-icon-wrap .detail-ci-icon-err {
-  color: #fff;
-}
-
-.detail-ci-icon-pending {
-  color: var(--warn);
-  animation: sp 1.4s linear infinite;
-}
-
-.detail-ci-icon-none {
-  color: var(--text-3);
-}
-
-.detail-ci-label {
-  flex: 1;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-1);
-}
-
-.detail-ci-success .detail-ci-label {
-  color: var(--ok);
-  font-weight: 700;
-}
-
-.detail-ci-failure .detail-ci-label {
-  color: var(--err);
-  font-weight: 590;
-}
-
-.detail-ci-failed {
-  list-style: none;
-  margin: 0;
-  padding-top: 2px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.detail-ci-failed li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--text-2);
-}
-
-.detail-ci-dot {
-  flex: 0 0 4px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--err);
 }
 
 /* Stapel */
@@ -913,109 +807,6 @@
   gap: 6px;
 }
 
-.detail-agent-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.detail-agent-name {
-  flex: 0 0 60px;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.detail-agent-name-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 13px;
-  color: var(--text-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.detail-agent-model {
-  font-family: var(--mono);
-  font-size: 9px;
-  line-height: 11px;
-  color: var(--text-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.detail-agent-primary {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 26px;
-  border: 0;
-  border-radius: var(--r-2);
-  background: var(--btn);
-  box-shadow:
-    var(--btn-shadow),
-    0 0 0 1px var(--btn-line);
-  color: var(--text-1);
-  font-size: 11.5px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.detail-agent-primary:hover:not(:disabled) {
-  background: var(--fill-2);
-}
-
-.detail-agent-primary:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.detail-agent-kbd {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--text-3);
-}
-
-.detail-agent-menu-wrap {
-  position: relative;
-  flex: 0 0 auto;
-}
-
-.detail-agent-chevron {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 26px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--r-2);
-  background: var(--btn);
-  box-shadow:
-    var(--btn-shadow),
-    0 0 0 1px var(--btn-line);
-  color: var(--text-3);
-  cursor: pointer;
-}
-
-.detail-agent-chevron:hover:not(:disabled) {
-  background: var(--fill-2);
-  color: var(--text-1);
-}
-
-.detail-agent-chevron:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.detail-agent-chevron-icon {
-  transform: rotate(90deg);
-}
-
 .detail-agent-menu {
   position: absolute;
   top: 29px;
@@ -1030,55 +821,117 @@
     inset 0 0 0 1px var(--line-2);
 }
 
-.detail-agent-menu-item {
-  display: block;
-  width: 100%;
-  height: 27px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-1);
-  font-size: 12px;
-  line-height: 27px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.detail-agent-menu-item:hover {
-  background: var(--fill-2);
-}
-
-.detail-agent-disabled {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 26px;
-  border-radius: var(--r-2);
-  box-shadow: inset 0 0 0 1px var(--line);
-  color: var(--text-3);
+.detail-agents-unavailable {
+  margin: 0;
   font-size: 11px;
+  color: var(--text-3);
+}
+
+/* Checklist */
+.detail-checklist {
+  padding: 4px 0;
+}
+
+.detail-checklist-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-height: 36px;
+  padding: 6px 0;
+}
+
+.detail-checklist-row + .detail-checklist-row {
+  border-top: 1px solid var(--line);
+}
+
+.detail-checklist-mark {
+  display: grid;
+  place-items: center;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 11%, transparent);
+}
+
+.detail-checklist-mark svg {
+  width: 10px;
+  height: 10px;
+}
+
+.detail-checklist-dash {
+  width: 7px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+/* Basis 80px: de knop valt pas onder het label als de rij echt te smal is. */
+.detail-checklist-text {
+  flex: 1 1 80px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.detail-checklist-label {
+  font-size: 12.5px;
+  line-height: 16px;
+  color: var(--text-1);
+}
+
+.detail-checklist-label-none {
+  color: var(--text-2);
+}
+
+.detail-checklist-detail {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-checklist-action {
+  margin-left: auto;
+}
+
+.detail-checklist-stop {
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: var(--fill-2);
+  color: var(--text-1);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.detail-checklist-stop:hover {
+  background: var(--line-2);
 }
 
 /* BulkReviewButton */
 
+/* Tekstknop: een bulkactie hoort niet even zwaar te wegen als de acties op
+   deze PR. */
 .detail-bulk-review {
-  width: 100%;
-  height: 28px;
+  align-self: flex-start;
+  height: 24px;
+  padding: 0;
   border: 0;
-  border-radius: var(--r-2);
-  background: var(--btn);
-  box-shadow:
-    var(--btn-shadow),
-    0 0 0 1px var(--btn-line);
-  color: var(--text-1);
+  background: none;
+  color: var(--accent);
   font: 500 11.5px / 1 var(--font);
   cursor: pointer;
 }
 
 .detail-bulk-review:hover {
-  background: var(--fill-2);
+  text-decoration: underline;
 }
 
 /* AgentActionButton */
@@ -1090,7 +943,8 @@
 }
 
 .agent-action-main {
-  flex: 1;
+  flex: 0 0 auto;
+  padding: 0 10px;
   display: flex;
   align-items: center;
   justify-content: center;
