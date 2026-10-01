@@ -58,7 +58,6 @@ interface ChecklistProps {
   settings: Settings;
   disabledReason: (agent: ReviewAgent) => string | null;
   onStartRun: (pr: PullRequest, agent: ReviewAgent, mode: AgentMode) => void;
-  onCancelRun: (runId: string) => void;
 }
 
 /** De merge-checklist bovenaan het detailpaneel: elk punt met zijn fix op de
@@ -70,7 +69,6 @@ export function Checklist({
   settings,
   disabledReason,
   onStartRun,
-  onCancelRun,
 }: ChecklistProps) {
   const items = mergeChecklist(pr, stackInfo);
   const runningRun = run?.status === "running" ? run : undefined;
@@ -86,17 +84,8 @@ export function Checklist({
       : modelLine(agent);
 
   function action(item: ChecklistItem): ReactNode {
-    if (runningRun != null) {
-      return rowOwnsRun(item, runningRun) ? (
-        <button
-          type="button"
-          className="detail-checklist-stop"
-          onClick={() => onCancelRun(runningRun.runId)}
-        >
-          Stop
-        </button>
-      ) : null;
-    }
+    // Tijdens een run staat Stop in de tijdlijn (AgentLogPanel), niet hier.
+    if (runningRun != null) return null;
     if (item.key === "review") {
       return (
         <AgentActionButton

@@ -3,6 +3,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState } from "react";
 import "./agents.css";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
+import { AGENT_LABEL } from "../prs/agentModes";
 import { StopIcon } from "../prs/icons";
 import { summarizeRun } from "./runSummary";
 import type { AgentRun } from "./useAgentRuns";
@@ -107,7 +108,7 @@ export function AgentLogPanel({
   return (
     <div className="agent-log">
       <div className="agent-log-head">
-        {run.status === "running" ? <span className="agent-log-dot" /> : null}
+        <span className={`agent-log-node agent-log-node-${run.status}`} />
         <span
           className={
             run.status === "running"
@@ -115,7 +116,8 @@ export function AgentLogPanel({
               : `agent-log-label agent-log-status-${run.status}`
           }
         >
-          {run.agent} · {STATUS_LABEL[run.status]}
+          <strong className="agent-log-agent">{AGENT_LABEL[run.agent]}</strong>{" "}
+          · {STATUS_LABEL[run.status]}
           {run.status === "failed" && run.exitCode != null
             ? ` (code ${run.exitCode})`
             : ""}

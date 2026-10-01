@@ -1,7 +1,5 @@
 import type { AgentReview, PullRequest } from "../../lib/github/domain";
-import { avatarBg } from "./Avatar";
 import { formatRelative } from "./format";
-import { AgentIcon } from "./icons";
 import "./reviewhistory.css";
 
 const AGENT_NAME: Record<AgentReview["agent"], string> = {
@@ -45,12 +43,7 @@ export function ReviewHistory({ pr }: ReviewHistoryProps) {
     <div className="review-history">
       {sorted.map((review) => (
         <div key={review.agent} className="review-history-row">
-          <span
-            className="review-history-icon"
-            style={{ background: avatarBg(review.agent) }}
-          >
-            <AgentIcon size={10} />
-          </span>
+          <span className="review-history-node" />
           <span className="review-history-name">
             {AGENT_NAME[review.agent]}
           </span>

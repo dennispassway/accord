@@ -278,7 +278,6 @@ export function DetailPanel({
           settings={settings}
           disabledReason={disabledReason}
           onStartRun={onStartRun}
-          onCancelRun={onCancelRun}
         />
 
         <StackRail
@@ -365,6 +364,14 @@ export function DetailPanel({
           {noAgentReason != null && (
             <p className="detail-agents-unavailable">{noAgentReason}</p>
           )}
+          <div className="detail-timeline">
+            {/* key per run: anders blijft een uitgeklapte volledige log van de
+                vorige PR staan (en landt een late fetch) onder deze run. */}
+            {run && (
+              <AgentLogPanel key={run.runId} run={run} onCancel={onCancelRun} />
+            )}
+            <ReviewHistory pr={pr} />
+          </div>
           {pr.comments > 0 && !runningHere && (
             <AgentActionButton
               pr={pr}
@@ -378,7 +385,6 @@ export function DetailPanel({
               onStartRun={onStartRun}
             />
           )}
-          <ReviewHistory pr={pr} />
           <BulkReviewButton
             prs={allPrs}
             runningPrKeys={runningPrKeys}
@@ -390,12 +396,6 @@ export function DetailPanel({
             onStart={onBulkStart}
           />
         </div>
-
-        {/* key per run: anders blijft een uitgeklapte volledige log van de
-            vorige PR staan (en landt een late fetch) onder deze run. */}
-        {run && (
-          <AgentLogPanel key={run.runId} run={run} onCancel={onCancelRun} />
-        )}
 
         {(repoPath == null || repoPath === "") && (
           <RepoPathSetup repoId={pr.repoId} onLinked={onRepoLinked} />
