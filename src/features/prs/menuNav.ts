@@ -35,10 +35,13 @@ export function nextMenuIndex(
 export function useRovingMenu(
   itemCount: number,
   initialIndex = 0,
-  /** Voor menu's die niet zelf mounten/unmounten (MergeSection, AgentActionButton:
-   * hun menu is een conditionele render binnen een altijd gemount component)
-   * moet de focus pas volgen zodra het menu écht open is, anders vuurt de
-   * focus-effect bij het openen niet af omdat activeIndex niet wijzigt. */
+  /** Voor menu's die niet zelf mounten/unmounten (MergeSection: zijn menu is
+   * een conditionele render binnen een altijd gemount component) moet de
+   * focus pas volgen zodra het menu écht open is, anders vuurt de
+   * focus-effect bij het openen niet af omdat activeIndex niet wijzigt. Let
+   * op: de startindex en het `disabled`-masker tellen alleen bij de mount.
+   * Kan de beschikbaarheid van items wijzigen terwijl het component gemount
+   * blijft, laat het menu dan zelf mounten (zoals AgentActionMenu). */
   active = true,
   /** Per-index masker van disabled items (bv. "Merge" op een niet-mergebare
    * PR): pijltjes slaan die over in plaats van er focus op te proberen te
