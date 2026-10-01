@@ -1,10 +1,5 @@
-import { MODE_LABEL } from "../prs/AgentButtons";
+import { AGENT_LABEL, MODE_LABEL } from "../prs/agentModes";
 import type { AgentRun } from "./useAgentRuns";
-
-const AGENT_LABEL: Record<AgentRun["agent"], string> = {
-  claude: "Claude",
-  codex: "Codex",
-};
 
 function plural(count: number, singular: string, pluralWord: string): string {
   return count === 1 ? `1 ${singular}` : `${count} ${pluralWord}`;

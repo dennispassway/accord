@@ -1,24 +1,20 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useRef } from "react";
-import type { Author, PullRequest } from "../../lib/github/domain";
-import { deriveAuthor } from "../../lib/github/domain";
+import type { PullRequest } from "../../lib/github/domain";
 import type { MergeMethod } from "../../lib/github/merge";
 import type { ReviewEvent } from "../../lib/github/review";
 import type { PrStackInfo } from "../../lib/github/stacks";
 import type { Settings } from "../../lib/settings";
 import { AgentLogPanel } from "../agents/AgentLogPanel";
 import type { AgentMode, ReviewAgent } from "../agents/crossReview";
-import {
-  availableFixModes,
-  preferredFixer,
-  preferredReviewer,
-} from "../agents/crossReview";
+import { preferredFixer, preferredReviewer } from "../agents/crossReview";
 import { RepoPathSetup } from "../agents/RepoPathSetup";
 import type { AgentClis, AgentRun } from "../agents/useAgentRuns";
-import { AgentButtons, altReviewMode } from "./AgentButtons";
+import { AgentActionButton } from "./AgentActionButton";
 import { Avatar } from "./Avatar";
+import { planAgentAction } from "./agentAction";
+import { AGENT_LABEL } from "./agentModes";
 import { BulkReviewButton } from "./BulkReviewButton";
-import { CiStatus } from "./CiStatus";
+import { Checklist } from "./Checklist";
 import "./detail.css";
 import { formatAmsterdam, formatRelative, formatSnoozeUntil } from "./format";
 import {
@@ -28,6 +24,8 @@ import {
   StackIcon,
 } from "./icons";
 import { MergeSection } from "./MergeSection";
+import type { PersonEntry } from "./peopleRows";
+import { peopleRows } from "./peopleRows";
 import { ReviewActions } from "./ReviewActions";
 import { ReviewHistory } from "./ReviewHistory";
 import { sizeWord } from "./RowMetrics";
@@ -35,19 +33,6 @@ import type { PrStatusKey } from "./rank";
 import { prStatus } from "./rank";
 import type { StackRebaseStatus } from "./StackRail";
 import { StackRail } from "./StackRail";
-
-/** Verbergt tekst visueel maar houdt hem beschikbaar voor schermlezers. */
-const VISUALLY_HIDDEN_STYLE = {
-  position: "absolute",
-  width: 1,
-  height: 1,
-  padding: 0,
-  margin: -1,
-  overflow: "hidden",
-  clip: "rect(0, 0, 0, 0)",
-  whiteSpace: "nowrap",
-  border: 0,
-} as const;
 
 const STATUS_COLOR: Record<PrStatusKey, string> = {
   klaar: "var(--ok)",
@@ -58,28 +43,6 @@ const STATUS_COLOR: Record<PrStatusKey, string> = {
   agent: "var(--agent)",
   wachten: "var(--warn)",
   concept: "var(--text-3)",
-};
-
-const REVIEW_LABEL: Record<PullRequest["reviewState"]["state"], string> = {
-  reviewRequested: "review gevraagd",
-  approved: "goedgekeurd",
-  changesRequested: "changes requested",
-  none: "geen review",
-};
-
-interface PersonEntry {
-  author: Author;
-  note: string;
-  reviewerState?: PullRequest["reviewers"][number]["state"];
-}
-
-const REVIEWER_STATE_LABEL: Record<
-  PullRequest["reviewers"][number]["state"],
-  string
-> = {
-  approved: "goedgekeurd",
-  changesRequested: "changes requested",
-  pending: "in afwachting",
 };
 
 /** Eén persoon-rij: avatar (18px), naam, en een statusnotitie. Eigen avatar
@@ -219,8 +182,6 @@ export function DetailPanel({
   stackRebaseStatus,
   snoozeUntil,
 }: DetailPanelProps) {
-  const fixCardRef = useRef<HTMLDivElement>(null);
-
   if (!pr) {
     return (
       <aside className="detail-panel">
@@ -238,22 +199,7 @@ export function DetailPanel({
   const stackBlocked = (stackInfo?.blockedByPrNumbers.length ?? 0) > 0;
   const status = prStatus(pr, { agentBezig: runningHere, stackBlocked });
 
-  const preferred = preferredReviewer(pr.author);
-  const agentOrder: ReviewAgent[] =
-    preferred === "claude" ? ["claude", "codex"] : ["codex", "claude"];
-  // Fixen is een eigen stap met een eigen agentkeuze, zodat de ene agent kan
-  // reviewen en de andere de bevindingen verwerkt. Blokkerend werk eerst
-  // (conflict, checks), dan de comments; de rest achter het chevron.
-  const [primaryFix, ...menuFixes] = availableFixModes(pr);
-  const fixer = preferredFixer(pr);
-  const fixerOrder: ReviewAgent[] =
-    fixer === "claude" ? ["claude", "codex"] : ["codex", "claude"];
   const { primaryMode } = settings.review;
-  // De modelregel volgt de knop: Comments draait op het leesmodel.
-  const reviewModel = (agent: ReviewAgent) =>
-    primaryMode === "commentsOnly"
-      ? settings[agent].commentsOnlyModel
-      : settings[agent].model;
 
   function disabledReason(agent: ReviewAgent): string | null {
     if (!clis[agent]) {
@@ -262,48 +208,24 @@ export function DetailPanel({
     if (repoPath == null || repoPath === "") {
       return "koppel eerst de lokale map van dit project";
     }
-    if (run?.status === "running") {
-      return "er loopt al een review voor deze PR";
-    }
+    // Een lopende run hoeft hier niet: dan renderen er geen agentknoppen.
     return null;
   }
 
-  const authorEntry: PersonEntry = {
-    author: pr.author,
-    note: pr.authoredByMe ? "jij" : "",
-  };
-  const assigneeEntries: PersonEntry[] = pr.assignees.map((login) => ({
-    author: deriveAuthor(login),
-    note: login === meLogin ? "jij" : "",
-  }));
-  const reviewerEntries: PersonEntry[] = pr.reviewers.map((reviewer) => ({
-    author: deriveAuthor(reviewer.login),
-    note:
-      (reviewer.login === meLogin ? "jij · " : "") +
-      REVIEWER_STATE_LABEL[reviewer.state],
-    reviewerState: reviewer.state,
-  }));
+  // Kunnen beide agents niet, dan tonen de knoppen niets: de reden staat hier één keer.
+  const noAgentReason = runningHere
+    ? null
+    : planAgentAction({
+        preferred: preferredReviewer(pr.author),
+        mode: primaryMode,
+        extraModes: [],
+        disabledReason,
+      }).unavailableReason;
+
+  const people = peopleRows(pr, meLogin);
 
   const totalLines = pr.additions + pr.deletions;
   const reviewRequestedFromMe = pr.reviewRequestedFromMe && !pr.authoredByMe;
-
-  const canJumpToFix =
-    !runningHere &&
-    primaryFix != null &&
-    (status.problem != null || status.key === "actie");
-  const fixHintId = `detail-fix-hint-${pr.number}`;
-  function scrollToFixCard() {
-    const card = fixCardRef.current;
-    if (card == null) return;
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    card.scrollIntoView({
-      behavior: reduceMotion ? "auto" : "smooth",
-      block: "center",
-    });
-    card.querySelector<HTMLButtonElement>("button")?.focus();
-  }
 
   return (
     <aside className="detail-panel">
@@ -315,28 +237,12 @@ export function DetailPanel({
       )}
       <div className="detail-head">
         <div className="detail-chips">
-          {canJumpToFix ? (
-            <button
-              type="button"
-              className="detail-chip detail-chip-status detail-chip-status-button"
-              style={{ color: STATUS_COLOR[status.key] }}
-              title="Ga naar Laten fixen"
-              aria-describedby={fixHintId}
-              onClick={scrollToFixCard}
-            >
-              {status.label}
-              <span id={fixHintId} style={VISUALLY_HIDDEN_STYLE}>
-                , ga naar Laten fixen
-              </span>
-            </button>
-          ) : (
-            <span
-              className="detail-chip detail-chip-status"
-              style={{ color: STATUS_COLOR[status.key] }}
-            >
-              {status.label}
-            </span>
-          )}
+          <span
+            className="detail-chip detail-chip-status"
+            style={{ color: STATUS_COLOR[status.key] }}
+          >
+            {status.label}
+          </span>
           {pr.isDraft && (
             <span className="detail-chip detail-chip-draft">
               <ConceptIcon size={9} />
@@ -357,9 +263,6 @@ export function DetailPanel({
               later tot {formatSnoozeUntil(snoozeUntil)}
             </span>
           )}
-          <span className="detail-chip">
-            {REVIEW_LABEL[pr.reviewState.state]}
-          </span>
         </div>
         <h2 className="detail-title">{pr.title}</h2>
         <p className="detail-slug mono" title={`${pr.repoId} #${pr.number}`}>
@@ -368,7 +271,14 @@ export function DetailPanel({
       </div>
 
       <div className="detail-body">
-        <CiStatus ciStatus={pr.ciStatus} />
+        <Checklist
+          pr={pr}
+          stackInfo={stackInfo}
+          run={run}
+          settings={settings}
+          disabledReason={disabledReason}
+          onStartRun={onStartRun}
+        />
 
         <StackRail
           pr={pr}
@@ -419,92 +329,73 @@ export function DetailPanel({
         <div className="detail-people detail-card">
           <PeopleColumn
             label="Auteur"
-            entries={[authorEntry]}
+            entries={[people.author]}
             emptyLabel="onbekend"
             meLogin={meLogin}
           />
-          <PeopleColumn
-            label="Assignee"
-            entries={assigneeEntries}
-            emptyLabel="geen assignee"
-            meLogin={meLogin}
-          />
+          {!people.mergedAssignee && (
+            <PeopleColumn
+              label="Assignee"
+              entries={people.assignees}
+              emptyLabel="geen assignee"
+              meLogin={meLogin}
+            />
+          )}
           <PeopleColumn
             label="Reviewers"
-            entries={reviewerEntries}
+            entries={people.reviewers}
             emptyLabel="geen review gevraagd"
             meLogin={meLogin}
           />
         </div>
 
-        {runningHere ? null : (
-          <div className="detail-agents detail-card">
-            <div className="detail-agents-head">
-              <span className="detail-label">Laten reviewen</span>
-              <span className="detail-agents-rule" />
-              <button
-                type="button"
-                className="icon-button"
-                title="Model en effort instellen"
-                onClick={onOpenSettings}
-              >
-                <SettingsIcon />
-              </button>
-            </div>
-            {agentOrder.map((agent) => (
-              <AgentButtons
-                key={agent}
-                pr={pr}
-                agent={agent}
-                primary={agent === preferred}
-                primaryMode={primaryMode}
-                menuModes={[altReviewMode(primaryMode)]}
-                modelLine={`${reviewModel(agent)} · ${settings[agent].effort}`}
-                disabledReason={disabledReason(agent)}
-                onStartRun={onStartRun}
-              />
-            ))}
+        <div className="detail-agents detail-card">
+          <div className="detail-agents-head">
+            <span className="detail-label">Agents</span>
+            <button
+              type="button"
+              className="icon-button"
+              title="Model en effort instellen"
+              onClick={onOpenSettings}
+            >
+              <SettingsIcon />
+            </button>
+          </div>
+          {noAgentReason != null && (
+            <p className="detail-agents-unavailable">{noAgentReason}</p>
+          )}
+          <div className="detail-timeline">
+            {/* key per run: anders blijft een uitgeklapte volledige log van de
+                vorige PR staan (en landt een late fetch) onder deze run. */}
+            {run && (
+              <AgentLogPanel key={run.runId} run={run} onCancel={onCancelRun} />
+            )}
             <ReviewHistory pr={pr} />
-            <BulkReviewButton
-              prs={allPrs}
-              runningPrKeys={runningPrKeys}
-              mode={
-                primaryMode === "withFixes"
-                  ? "comments + fixes"
-                  : "alleen comments"
+          </div>
+          {pr.comments > 0 && !runningHere && (
+            <AgentActionButton
+              pr={pr}
+              label={(agent) => `Lessen vastleggen met ${AGENT_LABEL[agent]}`}
+              preferred={preferredFixer(pr)}
+              mode="distillLearnings"
+              disabledReason={disabledReason}
+              modelLine={(agent) =>
+                `${settings[agent].model} · ${settings[agent].effort}`
               }
-              onStart={onBulkStart}
+              onStartRun={onStartRun}
             />
-          </div>
-        )}
-
-        {runningHere || primaryFix == null ? null : (
-          <div className="detail-agents detail-card" ref={fixCardRef}>
-            <div className="detail-agents-head">
-              <span className="detail-label">Laten fixen</span>
-              <span className="detail-agents-rule" />
-            </div>
-            {fixerOrder.map((agent) => (
-              <AgentButtons
-                key={agent}
-                pr={pr}
-                agent={agent}
-                primary={false}
-                primaryMode={primaryFix}
-                menuModes={menuFixes}
-                modelLine={`${settings[agent].model} · ${settings[agent].effort}`}
-                disabledReason={disabledReason(agent)}
-                onStartRun={onStartRun}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* key per run: anders blijft een uitgeklapte volledige log van de
-            vorige PR staan (en landt een late fetch) onder deze run. */}
-        {run && (
-          <AgentLogPanel key={run.runId} run={run} onCancel={onCancelRun} />
-        )}
+          )}
+          <BulkReviewButton
+            prs={allPrs}
+            runningPrKeys={runningPrKeys}
+            mode={
+              primaryMode === "withFixes"
+                ? "comments + fixes"
+                : "alleen comments"
+            }
+            onStart={onBulkStart}
+          />
+        </div>
 
         {(repoPath == null || repoPath === "") && (
           <RepoPathSetup repoId={pr.repoId} onLinked={onRepoLinked} />

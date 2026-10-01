@@ -89,7 +89,7 @@ export function MergeSection({
     function handleKeyDown(event: KeyboardEvent) {
       if (!shortcutsEnabled) return;
       // B5: het eigen methodemenu (menuOpen) of het agent-modusmenu in
-      // AgentButtons staat open; beide renderen dezelfde overlay-klasse, dus
+      // AgentActionButton staat open; beide renderen dezelfde overlay-klasse, dus
       // deze live DOM-check (i.p.v. alleen `menuOpen`) dekt ook dat laatste
       // menu, dat vanuit hier niet als state bereikbaar is.
       if (isAnyMenuOverlayOpen(document)) return;
@@ -211,9 +211,7 @@ export function MergeSection({
             Merge
           </div>
           <ul className="detail-merge-reasons">
-            {reasons.map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
+            <li>Mergen kan na de checklist</li>
           </ul>
         </div>
       )}

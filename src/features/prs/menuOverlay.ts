@@ -1,7 +1,7 @@
 /**
  * Generieke, DOM-gebaseerde check op openstaande popup-menu's die niet in
  * Cockpit-state zitten (het merge-methodemenu in MergeSection en het
- * agent-modusmenu in AgentButtons; beide buiten de bestandsgrens van deze
+ * agent-modusmenu in AgentActionButton; beide buiten de bestandsgrens van deze
  * slice, dus geen state-lifting mogelijk via DetailPanel). Beide renderen
  * een klik-weg-overlay met dezelfde CSS-klasse (".detail-merge-menu-overlay",
  * hergebruikt uit MergeSection); zolang een toekomstig menu die klasse

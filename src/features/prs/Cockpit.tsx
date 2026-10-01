@@ -30,7 +30,7 @@ import { UpdateBanner } from "../update/UpdateBanner";
 import { manualCheckMessage } from "../update/updateState";
 import { useUpdate } from "../update/useUpdate";
 import "./contextmenu.css";
-import { MODE_LABEL } from "./AgentButtons";
+import { MODE_LABEL } from "./agentModes";
 import {
   loadRepoFilter,
   loadSortMode,
@@ -551,7 +551,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   // B5: sheet, sortmenu, contextmenu of de sneltoetsen-hulp open: dan mogen
   // M/R/⌘⏎ niet triggeren. Het merge-methode-/agent-modusmenu telt hier
   // bewust niet mee: die lokale menu-state leeft in MergeSection/
-  // AgentButtons zelf, dus een hier op rendertijd gelezen DOM-check zou na
+  // AgentActionButton zelf, dus een hier op rendertijd gelezen DOM-check zou na
   // het sluiten van dat menu stil blijven hangen tot een toevallige rerender.
   // De live DOM-check op het moment van de toetsaanslag zit al in de
   // handlers (hieronder en in MergeSection).
