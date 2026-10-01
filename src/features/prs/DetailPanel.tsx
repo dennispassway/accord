@@ -1,7 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useRef } from "react";
-import type { Author, PullRequest } from "../../lib/github/domain";
-import { deriveAuthor } from "../../lib/github/domain";
+import type { PullRequest } from "../../lib/github/domain";
 import type { MergeMethod } from "../../lib/github/merge";
 import type { ReviewEvent } from "../../lib/github/review";
 import type { PrStackInfo } from "../../lib/github/stacks";
@@ -28,6 +27,8 @@ import {
   StackIcon,
 } from "./icons";
 import { MergeSection } from "./MergeSection";
+import type { PersonEntry } from "./peopleRows";
+import { peopleRows } from "./peopleRows";
 import { ReviewActions } from "./ReviewActions";
 import { ReviewHistory } from "./ReviewHistory";
 import { sizeWord } from "./RowMetrics";
@@ -65,21 +66,6 @@ const REVIEW_LABEL: Record<PullRequest["reviewState"]["state"], string> = {
   approved: "goedgekeurd",
   changesRequested: "changes requested",
   none: "geen review",
-};
-
-interface PersonEntry {
-  author: Author;
-  note: string;
-  reviewerState?: PullRequest["reviewers"][number]["state"];
-}
-
-const REVIEWER_STATE_LABEL: Record<
-  PullRequest["reviewers"][number]["state"],
-  string
-> = {
-  approved: "goedgekeurd",
-  changesRequested: "changes requested",
-  pending: "in afwachting",
 };
 
 /** Eén persoon-rij: avatar (18px), naam, en een statusnotitie. Eigen avatar
@@ -268,21 +254,7 @@ export function DetailPanel({
     return null;
   }
 
-  const authorEntry: PersonEntry = {
-    author: pr.author,
-    note: pr.authoredByMe ? "jij" : "",
-  };
-  const assigneeEntries: PersonEntry[] = pr.assignees.map((login) => ({
-    author: deriveAuthor(login),
-    note: login === meLogin ? "jij" : "",
-  }));
-  const reviewerEntries: PersonEntry[] = pr.reviewers.map((reviewer) => ({
-    author: deriveAuthor(reviewer.login),
-    note:
-      (reviewer.login === meLogin ? "jij · " : "") +
-      REVIEWER_STATE_LABEL[reviewer.state],
-    reviewerState: reviewer.state,
-  }));
+  const people = peopleRows(pr, meLogin);
 
   const totalLines = pr.additions + pr.deletions;
   const reviewRequestedFromMe = pr.reviewRequestedFromMe && !pr.authoredByMe;
@@ -419,19 +391,21 @@ export function DetailPanel({
         <div className="detail-people detail-card">
           <PeopleColumn
             label="Auteur"
-            entries={[authorEntry]}
+            entries={[people.author]}
             emptyLabel="onbekend"
             meLogin={meLogin}
           />
-          <PeopleColumn
-            label="Assignee"
-            entries={assigneeEntries}
-            emptyLabel="geen assignee"
-            meLogin={meLogin}
-          />
+          {!people.mergedAssignee && (
+            <PeopleColumn
+              label="Assignee"
+              entries={people.assignees}
+              emptyLabel="geen assignee"
+              meLogin={meLogin}
+            />
+          )}
           <PeopleColumn
             label="Reviewers"
-            entries={reviewerEntries}
+            entries={people.reviewers}
             emptyLabel="geen review gevraagd"
             meLogin={meLogin}
           />
@@ -441,7 +415,6 @@ export function DetailPanel({
           <div className="detail-agents detail-card">
             <div className="detail-agents-head">
               <span className="detail-label">Laten reviewen</span>
-              <span className="detail-agents-rule" />
               <button
                 type="button"
                 className="icon-button"
@@ -482,7 +455,6 @@ export function DetailPanel({
           <div className="detail-agents detail-card" ref={fixCardRef}>
             <div className="detail-agents-head">
               <span className="detail-label">Laten fixen</span>
-              <span className="detail-agents-rule" />
             </div>
             {fixerOrder.map((agent) => (
               <AgentButtons
