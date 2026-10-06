@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.1](https://github.com/dennispassway/accord/compare/v1.6.0...v1.6.1) (2026-10-06)
+
+
+### Opgelost
+
+* **github:** haal PR's op via een id-search plus batches van 10 tegen 502's ([a6b46f9](https://github.com/dennispassway/accord/commit/a6b46f95e13fd9fe45fb37f2b3ea3770fc77fdb2))
+* **github:** PR's ophalen via id-search plus batches, tegen 502's van GitHub ([60d516f](https://github.com/dennispassway/accord/commit/60d516f9ec54eaa2a9f4ad7e147a445d813bd472))
+
 ## [1.6.0](https://github.com/dennispassway/accord/compare/v1.5.1...v1.6.0) (2026-10-01)
 
 
