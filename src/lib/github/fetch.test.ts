@@ -229,9 +229,11 @@ describe("fetchAllPrs", () => {
   });
 
   it("zet truncated op false als geen van de drie searches is afgekapt", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(jsonResponse(200, searchResponse));
+    const fetchImpl = fakeGithub({
+      reviewRequested: searchResponse.data.reviewRequested.nodes,
+      assigned: [],
+      authored: searchResponse.data.authored.nodes,
+    });
 
     const { truncated } = await fetchAllPrs("token-123", fetchImpl);
     expect(truncated).toBe(false);
