@@ -333,7 +333,7 @@ function parseNode(node: unknown): PullRequest | undefined {
 
 /**
  * True als een search-response meer resultaten had dan er `nodes` zijn
- * teruggegeven (afgekapt door de `first: 100` in SEARCH_PRS_QUERY). Ontbreekt
+ * teruggegeven (afgekapt door de `first: 100` in SEARCH_PR_IDS_QUERY). Ontbreekt
  * `issueCount` (oude fixtures/mocks), dan is er niets om af te kappen op.
  */
 export function isSearchTruncated(json: unknown): boolean {
@@ -350,6 +350,13 @@ export function parseSearchResponse(json: unknown): PullRequest[] {
     if (pr) prs.push(pr);
   }
   return prs;
+}
+
+/** De node-id's uit een search die alleen `{ id }` per PR opvraagt. */
+export function parseSearchIds(json: unknown): string[] {
+  return nodesOf(json).flatMap((node) =>
+    isRecord(node) && isNonEmptyString(node.id) ? [node.id] : [],
+  );
 }
 
 type PrSource = "reviewRequested" | "assigned" | "authored";
