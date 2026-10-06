@@ -1,4 +1,6 @@
 mod agents;
+#[cfg(target_os = "macos")]
+mod app_menu;
 mod auth;
 mod claude_stream;
 mod github;
@@ -16,6 +18,8 @@ pub fn run() {
         .manage(agents::AgentRuns::default())
         .setup(|app| {
             tray::setup(app)?;
+            #[cfg(target_os = "macos")]
+            app_menu::setup(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
