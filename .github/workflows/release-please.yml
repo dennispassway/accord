@@ -1,6 +1,9 @@
 # Houdt een release-PR bij op basis van de conventional commits op main. De
-# merge van die PR bumpt de versie, schrijft de CHANGELOG en maakt tag +
-# GitHub Release; daarna bouwt release.yml de installers erbij.
+# merge van die PR bumpt de versie, schrijft de CHANGELOG en maakt tag + een
+# draft-release; daarna bouwt release.yml de installers erbij en publiceert hem.
+# Draft, omdat de updater releases/latest/download/latest.json leest: een al
+# gepubliceerde release zonder latest.json gaf tijdens het bouwen bij iedereen
+# een 404 op de updatecheck. releases/latest slaat drafts over.
 name: release-please
 
 on:

@@ -6,6 +6,8 @@
       "package-name": "accord",
       "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": false,
+      "draft": true,
+      "force-tag-creation": true,
       "extra-files": [
         {
           "type": "toml",
