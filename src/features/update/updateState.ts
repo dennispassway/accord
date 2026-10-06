@@ -32,6 +32,10 @@ export function checkIntervalMs(refreshMinutes: number): number | null {
   return refreshMinutes === 0 ? null : refreshMinutes * 60 * 1000;
 }
 
+export function errorOutcome(error: unknown): CheckOutcome {
+  return { kind: "error", message: "TODO" };
+}
+
 /** Een handmatige check verdient wél feedback: wie op de knop drukt en niets
  * ziet, weet niet of er gezocht is. Bij een update spreekt de banner. */
 export function manualCheckMessage(outcome: CheckOutcome): string | null {
