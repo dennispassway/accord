@@ -285,6 +285,9 @@ export async function fetchAllPrs(
     ...new Set([...reviewRequestedIds, ...assignedIds, ...authoredIds]),
   ];
 
+  // ponytail: geen concurrency-limiet; 300 PR's (3 x first: 100) geeft 30
+  // requests tegelijk, onder GitHubs richtlijn van 100. Knelt een secondary
+  // rate limit, zet er dan een pool van een paar tegelijk op.
   const batches = await Promise.all(
     chunk(uniqueIds, PR_BATCH_SIZE).map(async (ids) => ({
       ids,
