@@ -1,3 +1,4 @@
+import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -27,7 +28,7 @@ import { chainsIntoLearnings, preferredReviewer } from "../agents/crossReview";
 import { prKeyOf, useAgentRuns } from "../agents/useAgentRuns";
 import { SettingsSheet } from "../settings/SettingsSheet";
 import { UpdateBanner } from "../update/UpdateBanner";
-import { manualCheckMessage } from "../update/updateState";
+import { errorMessage, manualCheckMessage } from "../update/updateState";
 import { useUpdate } from "../update/useUpdate";
 import "./contextmenu.css";
 import { MODE_LABEL } from "./agentModes";
@@ -177,6 +178,25 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     }
   });
   const update = useUpdate(settings.review.refreshMinutes);
+  const { checkNow } = update;
+  const checkForUpdates = useCallback(async () => {
+    const outcome = await checkNow();
+    const message = outcome == null ? null : manualCheckMessage(outcome);
+    if (message == null) return;
+    showToast(message, outcome?.kind === "error" ? "fout" : "ok");
+  }, [checkNow, showToast]);
+  // Ref zodat de listener één keer opgezet wordt en toch de laatste handler ziet.
+  const checkForUpdatesRef = useRef(checkForUpdates);
+  checkForUpdatesRef.current = checkForUpdates;
+  useEffect(() => {
+    // "Zoek naar updates…" in het Accord-menu (lib.rs).
+    const unlisten = listen("menu-check-updates", () => {
+      void checkForUpdatesRef.current();
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, []);
   const {
     clis,
     repoPaths,
@@ -1238,20 +1258,15 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         repoIds={groups.map((group) => group.repoId)}
         repoPaths={repoPaths}
         onRepoLinked={refreshRepoPaths}
-        onCheckUpdate={async () => {
-          const outcome = await update.checkNow();
-          const message = outcome == null ? null : manualCheckMessage(outcome);
-          if (message == null) return;
-          showToast(message, outcome?.kind === "error" ? "fout" : "ok");
-        }}
+        onCheckUpdate={checkForUpdates}
       />
       <Toast toasts={toasts} />
       <UpdateBanner
         state={update.state}
         onDismiss={update.dismiss}
         onInstall={() => {
-          update.install().catch((error: Error) => {
-            showToast(`Update mislukt: ${error.message}`, "fout");
+          update.install().catch((error: unknown) => {
+            showToast(`Update mislukt: ${errorMessage(error)}`, "fout");
           });
         }}
       />

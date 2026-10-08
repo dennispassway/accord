@@ -5,6 +5,7 @@ import { mockMode } from "../../lib/mock/mode";
 import {
   type CheckOutcome,
   checkIntervalMs,
+  errorOutcome,
   toUpdateState,
   type UpdateState,
 } from "./updateState";
@@ -72,7 +73,7 @@ export function useUpdate(refreshMinutes: number) {
         const previous = availableUpdate.current;
         availableUpdate.current = null;
         closeSilently(previous);
-        outcome = { kind: "error", message: (error as Error).message };
+        outcome = errorOutcome(error);
       }
     }
     setState((current) =>

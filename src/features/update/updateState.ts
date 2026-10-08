@@ -32,6 +32,15 @@ export function checkIntervalMs(refreshMinutes: number): number | null {
   return refreshMinutes === 0 ? null : refreshMinutes * 60 * 1000;
 }
 
+/** Tauri-plugins rejecten met een kale string, niet met een Error. */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function errorOutcome(error: unknown): CheckOutcome {
+  return { kind: "error", message: errorMessage(error) };
+}
+
 /** Een handmatige check verdient wél feedback: wie op de knop drukt en niets
  * ziet, weet niet of er gezocht is. Bij een update spreekt de banner. */
 export function manualCheckMessage(outcome: CheckOutcome): string | null {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   checkIntervalMs,
+  errorOutcome,
   manualCheckMessage,
   toUpdateState,
 } from "./updateState";
@@ -75,5 +76,25 @@ describe("manualCheckMessage", () => {
     expect(
       manualCheckMessage({ kind: "update", version: "1.4.0", notes: "" }),
     ).toBeNull();
+  });
+});
+
+describe("errorOutcome", () => {
+  it("geeft de tekst door die de updater-plugin als kale string gooit", () => {
+    // Tauri-plugins rejecten met een string, niet met een Error: `.message`
+    // gaf daar "Update-check mislukt: undefined".
+    expect(
+      errorOutcome("Could not fetch a valid release JSON from the remote"),
+    ).toEqual({
+      kind: "error",
+      message: "Could not fetch a valid release JSON from the remote",
+    });
+  });
+
+  it("neemt bij een Error de message", () => {
+    expect(errorOutcome(new Error("offline"))).toEqual({
+      kind: "error",
+      message: "offline",
+    });
   });
 });
