@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { PullRequest } from "../../lib/github/domain";
 import { toPrNumber, toRepoId } from "../../lib/github/domain";
+import { validPrNode } from "../../lib/github/fixtures/search-response";
+import { parseSearchResponse } from "../../lib/github/parse";
 import {
+  availableFixer,
   availableFixModes,
-  chainsIntoLearnings,
   preferredFixer,
   preferredReviewer,
+  shouldDistillAfterMerge,
 } from "./crossReview";
 
 function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
@@ -31,6 +34,7 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     openThreads: 0,
     reviewers: [],
     agentReviews: [],
+    agentCommitCount: 0,
     assignees: [],
     reviewRequestedFromMe: false,
     assignedToMe: false,
@@ -85,18 +89,91 @@ describe("availableFixModes", () => {
   });
 });
 
-describe("chainsIntoLearnings", () => {
-  it("chaint na runs die comments verwerken en fixes toepassen", () => {
-    expect(chainsIntoLearnings("fixComments")).toBe(true);
-    expect(chainsIntoLearnings("withFixes")).toBe(true);
+describe("shouldDistillAfterMerge", () => {
+  const agentReview = (commitCount: number) => ({
+    agent: "claude" as const,
+    mode: "commentsAndFixes" as const,
+    commentCount: 0,
+    commitCount,
+    submittedAt: "2026-01-01T00:00:00Z",
   });
 
-  it("chaint niet na distillLearnings zelf (geen loop) of modes zonder comments", () => {
-    expect(chainsIntoLearnings("distillLearnings")).toBe(false);
-    expect(chainsIntoLearnings("distillLearningsInline")).toBe(false);
-    expect(chainsIntoLearnings("commentsOnly")).toBe(false);
-    expect(chainsIntoLearnings("fixChecks")).toBe(false);
-    expect(chainsIntoLearnings("fixConflicts")).toBe(false);
+  it("is true bij aan en comments", () => {
+    expect(shouldDistillAfterMerge(makePr({ comments: 2 }), true)).toBe(true);
+  });
+
+  it("is true bij aan en alleen fix-commits van een agent", () => {
+    expect(shouldDistillAfterMerge(makePr({ agentCommitCount: 1 }), true)).toBe(
+      true,
+    );
+  });
+
+  it("is true bij een agent-fixcommit zonder review of comments, via de parser", () => {
+    const [pr] = parseSearchResponse({
+      nodes: [
+        {
+          ...validPrNode,
+          comments: { totalCount: 0 },
+          reviewThreads: { totalCount: 0, nodes: [] },
+          reviews: { nodes: [] },
+          agentCommits: {
+            nodes: [{ commit: { author: { user: { login: "codex[bot]" } } } }],
+          },
+        },
+      ],
+    });
+    expect(pr?.comments).toBe(0);
+    expect(pr?.agentReviews).toEqual([]);
+    expect(pr && shouldDistillAfterMerge(pr, true)).toBe(true);
+  });
+
+  it("is false bij aan, 0 comments en 0 commits", () => {
+    expect(
+      shouldDistillAfterMerge(makePr({ agentReviews: [agentReview(0)] }), true),
+    ).toBe(false);
+  });
+
+  it("is false als de instelling uit staat", () => {
+    expect(shouldDistillAfterMerge(makePr({ comments: 2 }), false)).toBe(false);
+  });
+});
+
+describe("shouldDistillAfterMerge met bestaande distill-run", () => {
+  it("is false als er al een distill-run actief of geslaagd is", () => {
+    expect(shouldDistillAfterMerge(makePr({ comments: 2 }), true, true)).toBe(
+      false,
+    );
+  });
+
+  it("is true zonder eerdere distill-run", () => {
+    expect(shouldDistillAfterMerge(makePr({ comments: 2 }), true, false)).toBe(
+      true,
+    );
+  });
+});
+
+describe("availableFixer", () => {
+  const both = { claude: true, codex: true };
+
+  it("kiest de voorkeursagent als die beschikbaar is", () => {
+    expect(availableFixer(makePr(), both, "/repo")).toBe("codex");
+  });
+
+  it("valt terug op de andere agent als de CLI van de voorkeur ontbreekt", () => {
+    expect(
+      availableFixer(makePr(), { claude: true, codex: false }, "/repo"),
+    ).toBe("claude");
+  });
+
+  it("geeft null als geen van beide CLI's beschikbaar is", () => {
+    expect(
+      availableFixer(makePr(), { claude: false, codex: false }, "/repo"),
+    ).toBeNull();
+  });
+
+  it("geeft null zonder repoPath", () => {
+    expect(availableFixer(makePr(), both, undefined)).toBeNull();
+    expect(availableFixer(makePr(), both, "")).toBeNull();
   });
 });
 

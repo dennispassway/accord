@@ -515,6 +515,19 @@ export function useAgentRuns(
     [runs],
   );
 
+  // Ref i.p.v. state: de merge-handler leest dit na een await, en een
+  // closure over `runs` zou dan een verouderde stand zien.
+  const hasDistillRun = useCallback(
+    (prKey: string): boolean =>
+      [...runsRef.current.values()].some(
+        (run) =>
+          run.prKey === prKey &&
+          run.mode === "distillLearnings" &&
+          (run.status === "running" || run.status === "done"),
+      ),
+    [],
+  );
+
   // Stabiel per `runs`: sortCtx en de snooze-effecten in Cockpit hangen hiervan
   // af, en een nieuwe Set per render liet die effecten eindeloos opnieuw lopen.
   const runningPrKeys = useMemo(
@@ -535,5 +548,7 @@ export function useAgentRuns(
     cancelRun,
     runForPr,
     runningPrKeys,
+    hasDistillRun,
+    runs,
   };
 }

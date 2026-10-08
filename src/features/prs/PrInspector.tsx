@@ -6,6 +6,7 @@ import { DiffView } from "./DiffView";
 import { CloseIcon, ExternalLinkIcon } from "./icons";
 import "./inspector.css";
 import { usePrDetail } from "./usePrDetail";
+import { latestVerdict, VerdictBadge } from "./VerdictBadge";
 
 type InspectorTab = "diff" | "comments";
 
@@ -14,6 +15,8 @@ interface PrInspectorProps {
   initialTab: InspectorTab;
   onClose: () => void;
   onAuthError: () => void;
+  /** Start een fixComments-run; afwezig als dat nu niet kan (run bezig). */
+  onFixComments?: () => void;
 }
 
 /**
@@ -26,6 +29,7 @@ export function PrInspector({
   initialTab,
   onClose,
   onAuthError,
+  onFixComments,
 }: PrInspectorProps) {
   const [tab, setTab] = useState<InspectorTab>(initialTab);
   const { status, detail, error, retry, reply, setResolved } = usePrDetail(
@@ -33,6 +37,7 @@ export function PrInspector({
     onAuthError,
   );
 
+  const verdict = latestVerdict(pr);
   const commentCount =
     detail != null
       ? detail.issueComments.length + detail.reviewThreads.length
@@ -77,6 +82,18 @@ export function PrInspector({
           <span className="inspector-head-slug mono">
             {pr.repoId} #{pr.number}
           </span>
+          {verdict && <VerdictBadge verdict={verdict} />}
+          {verdict?.fixes === "nodig" &&
+            pr.openThreads > 0 &&
+            onFixComments && (
+              <button
+                type="button"
+                className="inspector-github-button"
+                onClick={onFixComments}
+              >
+                Fix nu
+              </button>
+            )}
           <button
             type="button"
             className="icon-button"

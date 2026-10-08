@@ -128,6 +128,8 @@ export interface PullRequest {
   openThreads: number;
   reviewers: Reviewer[];
   agentReviews: AgentReview[];
+  /** Commits van agents op de head-branch, ook van een agent zonder review. */
+  agentCommitCount: number;
   assignees: string[];
   reviewRequestedFromMe: boolean;
   assignedToMe: boolean;
