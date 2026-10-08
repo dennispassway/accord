@@ -549,5 +549,6 @@ export function useAgentRuns(
     runForPr,
     runningPrKeys,
     hasDistillRun,
+    runs,
   };
 }

@@ -23,12 +23,14 @@ import {
 import { modKey } from "../../lib/platform";
 import { useSettings } from "../../lib/settings";
 import { useWindowFocused } from "../../lib/windowFocus";
+import { AgentLogPanel } from "../agents/AgentLogPanel";
 import type { AgentMode, ReviewAgent } from "../agents/crossReview";
 import {
   availableFixer,
   preferredReviewer,
   shouldDistillAfterMerge,
 } from "../agents/crossReview";
+import { detachedRuns } from "../agents/detachedRuns";
 import { prKeyOf, useAgentRuns } from "../agents/useAgentRuns";
 import { SettingsSheet } from "../settings/SettingsSheet";
 import { UpdateBanner } from "../update/UpdateBanner";
@@ -210,6 +212,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     runForPr,
     runningPrKeys,
     hasDistillRun,
+    runs,
   } = useAgentRuns(settings, (prKey, status, agent, mode) => {
     // U10: een afgeronde agent-run is verder onzichtbaar zolang je niet zelf
     // op die PR zit te kijken; één toast plus één refresh maakt 'm zichtbaar
@@ -301,6 +304,21 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
 
   const prs = state.status === "ready" ? state.prs : [];
   const groups = useMemo(() => groupByRepo(prs), [prs]);
+  const [dismissedRunIds, setDismissedRunIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  // Zonder geladen lijst lijkt elke run losgekoppeld; wacht dus op "ready".
+  const runsWithoutPr = useMemo(
+    () =>
+      state.status === "ready"
+        ? detachedRuns(
+            runs.values(),
+            new Set(prs.map(keyOfPr)),
+            dismissedRunIds,
+          )
+        : [],
+    [state.status, runs, prs, dismissedRunIds],
+  );
   // U2a: de app-start hoeft niet meer op een aparte /user-call te wachten
   // (useAuth kent de login-naam dan nog niet); zodra de PR-fetch of de
   // bewaarde snapshot een viewerLogin heeft, wint die van de lege prop.
@@ -1023,6 +1041,12 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     showToast(REVIEW_TOAST[event](pr.number), "ok");
   }
 
+  function handleCancelRun(runId: string) {
+    void cancelRun(runId).catch((error: unknown) => {
+      showToast(String(error), "fout");
+    });
+  }
+
   const inspectorFixer =
     selectedPr != null
       ? availableFixer(selectedPr, clis, repoPaths[selectedPr.repoId])
@@ -1172,6 +1196,31 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                   </button>
                 </div>
               )}
+              {runsWithoutPr.map((run) => (
+                <div key={run.runId} className="cockpit-detached-run">
+                  <div className="cockpit-detached-run-head">
+                    <span className="cockpit-banner-text">
+                      {MODE_LABEL[run.mode]} · {run.prKey}, niet meer in de
+                      lijst
+                    </span>
+                    {run.status !== "running" && (
+                      <button
+                        type="button"
+                        className="cockpit-banner-dismiss"
+                        aria-label="Sluiten"
+                        onClick={() =>
+                          setDismissedRunIds(
+                            (current) => new Set([...current, run.runId]),
+                          )
+                        }
+                      >
+                        <CloseIcon />
+                      </button>
+                    )}
+                  </div>
+                  <AgentLogPanel run={run} onCancel={handleCancelRun} />
+                </div>
+              ))}
               <PrList
                 sections={visibleSections}
                 stackInfoByKey={stackInfoByKey}
@@ -1235,11 +1284,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                   showToast(String(error), "fout");
                 });
               }}
-              onCancelRun={(runId) => {
-                void cancelRun(runId).catch((error: unknown) => {
-                  showToast(String(error), "fout");
-                });
-              }}
+              onCancelRun={handleCancelRun}
               onRepoLinked={refreshRepoPaths}
               settings={settings}
               // B4: filteredPrs (na zoekfilter), niet visiblePrs, anders telt
