@@ -74,6 +74,14 @@ export interface AgentReview {
   commentCount: number;
   commitCount: number;
   submittedAt: string;
+  /** Oordeel uit de marker van de nieuwste review van deze agent. */
+  verdict?: AgentVerdict;
+}
+
+/** Oordeel van de agent: zijn er fixes nodig en waar is de verificatie gedaan. */
+export interface AgentVerdict {
+  fixes: "nodig" | "geen";
+  verificatie: "ci" | "lokaal";
 }
 
 export type Mergeable = "MERGEABLE" | "CONFLICTING" | "UNKNOWN";

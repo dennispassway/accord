@@ -294,6 +294,141 @@ describe("parseSearchResponse - agentReviews", () => {
     ]);
   });
 
+  describe("verdict in de marker", () => {
+    function prWithReviews(
+      reviews: { submittedAt: string; body: string; login?: string }[],
+    ) {
+      const [pr] = parseSearchResponse({
+        nodes: [
+          {
+            ...validPrNode,
+            reviews: {
+              nodes: reviews.map((review) => ({
+                author: { login: review.login ?? "dennis" },
+                submittedAt: review.submittedAt,
+                comments: { totalCount: 1 },
+                body: review.body,
+              })),
+            },
+            agentCommits: { nodes: [] },
+          },
+        ],
+      });
+      return pr;
+    }
+
+    it("leest fixes en verificatie uit het nieuwe formaat", () => {
+      const pr = prWithReviews([
+        {
+          submittedAt: "2026-07-02T08:00:00Z",
+          body: "<!-- accord:claude:commentsOnly fixes=nodig verificatie=lokaal -->\nTekst",
+        },
+      ]);
+
+      expect(pr?.agentReviews[0]?.verdict).toEqual({
+        fixes: "nodig",
+        verificatie: "lokaal",
+      });
+      expect(pr?.agentReviews[0]?.mode).toBe("commentsOnly");
+    });
+
+    it("geeft geen verdict voor het oude formaat", () => {
+      const pr = prWithReviews([
+        {
+          submittedAt: "2026-07-02T08:00:00Z",
+          body: "<!-- accord:claude:commentsOnly -->\nTekst",
+        },
+      ]);
+
+      expect(pr?.agentReviews[0]?.agent).toBe("claude");
+      expect(pr?.agentReviews[0]?.verdict).toBeUndefined();
+    });
+
+    it("geeft geen verdict bij ongeldige waarden, maar herkent de agent wel", () => {
+      const pr = prWithReviews([
+        {
+          submittedAt: "2026-07-02T08:00:00Z",
+          body: "<!-- accord:codex:commentsOnly fixes=misschien verificatie=ci -->",
+        },
+      ]);
+
+      expect(pr?.agentReviews[0]?.agent).toBe("codex");
+      expect(pr?.agentReviews[0]?.verdict).toBeUndefined();
+    });
+
+    it.each([
+      "<!-- accord:claude:commentsOnly fixes=<nodig|geen> verificatie=<ci|lokaal> -->",
+      '<!-- accord:claude:commentsOnly fixes="nodig" verificatie="ci" -->',
+      "<!-- accord:claude:commentsOnly fixes=nodig,verificatie=ci -->",
+    ])(
+      "herkent een marker met rommelige attributen als agent-review: %s",
+      (body) => {
+        const pr = prWithReviews([
+          { submittedAt: "2026-07-02T08:00:00Z", body },
+        ]);
+
+        expect(pr?.agentReviews[0]?.agent).toBe("claude");
+        expect(pr?.agentReviews[0]?.verdict).toBeUndefined();
+      },
+    );
+
+    it("herkent geen agent als de naam direct doorloopt (accord:claudefoo)", () => {
+      const pr = prWithReviews([
+        {
+          submittedAt: "2026-07-02T08:00:00Z",
+          body: "<!-- accord:claudefoo -->",
+        },
+      ]);
+
+      expect(pr?.agentReviews).toEqual([]);
+    });
+
+    it("geeft geen verdict als een van de twee velden ontbreekt", () => {
+      const pr = prWithReviews([
+        {
+          submittedAt: "2026-07-02T08:00:00Z",
+          body: "<!-- accord:claude:commentsOnly fixes=geen -->",
+        },
+      ]);
+
+      expect(pr?.agentReviews[0]?.verdict).toBeUndefined();
+    });
+
+    it("gebruikt het verdict van de meest recente review, ongeacht volgorde", () => {
+      const pr = prWithReviews([
+        {
+          submittedAt: "2026-07-03T08:00:00Z",
+          body: "<!-- accord:claude:commentsOnly fixes=geen verificatie=ci -->",
+        },
+        {
+          submittedAt: "2026-07-02T08:00:00Z",
+          body: "<!-- accord:claude:commentsOnly fixes=nodig verificatie=lokaal -->",
+        },
+      ]);
+
+      expect(pr?.agentReviews).toHaveLength(1);
+      expect(pr?.agentReviews[0]?.verdict).toEqual({
+        fixes: "geen",
+        verificatie: "ci",
+      });
+    });
+
+    it("laat een nieuwere review zonder verdict het oude verdict vervangen", () => {
+      const pr = prWithReviews([
+        {
+          submittedAt: "2026-07-02T08:00:00Z",
+          body: "<!-- accord:claude:commentsOnly fixes=nodig verificatie=ci -->",
+        },
+        {
+          submittedAt: "2026-07-03T08:00:00Z",
+          body: "<!-- accord:claude:commentsOnly -->",
+        },
+      ]);
+
+      expect(pr?.agentReviews[0]?.verdict).toBeUndefined();
+    });
+  });
+
   it("laat een body zonder marker onder een menselijke login ongewijzigd", () => {
     const [pr] = parseSearchResponse({
       nodes: [
