@@ -66,7 +66,8 @@ export function shouldDistillAfterMerge(
   if (!autoDistillLearnings || hasDistillRun) return false;
   return (
     pr.comments > 0 ||
-    pr.agentReviews.some((r) => r.commentCount > 0 || r.commitCount > 0)
+    pr.agentCommitCount > 0 ||
+    pr.agentReviews.some((r) => r.commentCount > 0)
   );
 }
 

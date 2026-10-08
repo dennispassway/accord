@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { PullRequest } from "../../lib/github/domain";
 import { toPrNumber, toRepoId } from "../../lib/github/domain";
+import { validPrNode } from "../../lib/github/fixtures/search-response";
+import { parseSearchResponse } from "../../lib/github/parse";
 import {
   availableFixer,
   availableFixModes,
@@ -32,6 +34,7 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     openThreads: 0,
     reviewers: [],
     agentReviews: [],
+    agentCommitCount: 0,
     assignees: [],
     reviewRequestedFromMe: false,
     assignedToMe: false,
@@ -100,9 +103,28 @@ describe("shouldDistillAfterMerge", () => {
   });
 
   it("is true bij aan en alleen fix-commits van een agent", () => {
-    expect(
-      shouldDistillAfterMerge(makePr({ agentReviews: [agentReview(1)] }), true),
-    ).toBe(true);
+    expect(shouldDistillAfterMerge(makePr({ agentCommitCount: 1 }), true)).toBe(
+      true,
+    );
+  });
+
+  it("is true bij een agent-fixcommit zonder review of comments, via de parser", () => {
+    const [pr] = parseSearchResponse({
+      nodes: [
+        {
+          ...validPrNode,
+          comments: { totalCount: 0 },
+          reviewThreads: { totalCount: 0, nodes: [] },
+          reviews: { nodes: [] },
+          agentCommits: {
+            nodes: [{ commit: { author: { user: { login: "codex[bot]" } } } }],
+          },
+        },
+      ],
+    });
+    expect(pr?.comments).toBe(0);
+    expect(pr?.agentReviews).toEqual([]);
+    expect(pr && shouldDistillAfterMerge(pr, true)).toBe(true);
   });
 
   it("is false bij aan, 0 comments en 0 commits", () => {

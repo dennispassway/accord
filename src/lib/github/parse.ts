@@ -218,6 +218,29 @@ function deriveReviewAuthor(
   };
 }
 
+/** Commits per agent op de head-branch, los van of die agent ook reviewde. */
+function agentCommitCounts(
+  node: Record<string, unknown>,
+): Map<AgentReview["agent"], number> {
+  const commitCounts = new Map<AgentReview["agent"], number>();
+  for (const commitNode of nodesOf(node.agentCommits)) {
+    if (!isRecord(commitNode) || !isRecord(commitNode.commit)) continue;
+    const commitAuthor = isRecord(commitNode.commit.author)
+      ? commitNode.commit.author
+      : undefined;
+    const user =
+      commitAuthor && isRecord(commitAuthor.user)
+        ? commitAuthor.user
+        : undefined;
+    const login = user?.login;
+    if (!isNonEmptyString(login)) continue;
+    const author = deriveAuthor(login);
+    if (author.kind !== "agent") continue;
+    commitCounts.set(author.agent, (commitCounts.get(author.agent) ?? 0) + 1);
+  }
+  return commitCounts;
+}
+
 /**
  * Groepeert reviews en commits per agent-auteur (via deriveAuthor, met de
  * verborgen marker in de review-body als fallback zodra login zelf de
@@ -256,22 +279,7 @@ function parseAgentReviews(node: Record<string, unknown>): AgentReview[] {
     });
   }
 
-  const commitCounts = new Map<AgentReview["agent"], number>();
-  for (const commitNode of nodesOf(node.agentCommits)) {
-    if (!isRecord(commitNode) || !isRecord(commitNode.commit)) continue;
-    const commitAuthor = isRecord(commitNode.commit.author)
-      ? commitNode.commit.author
-      : undefined;
-    const user =
-      commitAuthor && isRecord(commitAuthor.user)
-        ? commitAuthor.user
-        : undefined;
-    const login = user?.login;
-    if (!isNonEmptyString(login)) continue;
-    const author = deriveAuthor(login);
-    if (author.kind !== "agent") continue;
-    commitCounts.set(author.agent, (commitCounts.get(author.agent) ?? 0) + 1);
-  }
+  const commitCounts = agentCommitCounts(node);
 
   return [...byAgent.entries()].map(
     ([agent, { commentCount, submittedAt, verdict }]) => {
@@ -344,6 +352,10 @@ function parseNode(node: unknown): PullRequest | undefined {
     openThreads: parseOpenThreads(node),
     reviewers: parseReviewers(node),
     agentReviews: parseAgentReviews(node),
+    agentCommitCount: [...agentCommitCounts(node).values()].reduce(
+      (sum, n) => sum + n,
+      0,
+    ),
     assignees: parseAssignees(node),
     reviewRequestedFromMe: false,
     assignedToMe: false,

@@ -44,6 +44,7 @@ function pr(): PullRequest {
     openThreads: 0,
     reviewers: [],
     agentReviews: [],
+    agentCommitCount: 0,
     assignees: [],
     reviewRequestedFromMe: false,
     assignedToMe: false,

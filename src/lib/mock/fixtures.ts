@@ -571,6 +571,10 @@ function toPullRequest(raw: RawPr): PullRequest {
     openThreads: raw.openThreads ?? 0,
     reviewers,
     agentReviews: (raw.aRuns ?? []).map(agentRun),
+    agentCommitCount: (raw.aRuns ?? []).reduce(
+      (sum, run) => sum + agentRun(run).commitCount,
+      0,
+    ),
     assignees: raw.assignees,
     reviewRequestedFromMe: reviewers.some(
       (r) => r.login === MOCK_ME && r.state === "pending",
