@@ -491,11 +491,10 @@ export function SettingsSheet({
             <div className="settings-row">
               <span className="settings-row-label">
                 <span className="settings-row-k">
-                  Lessen destilleren na merge
+                  Lessen vastleggen na fixes
                 </span>
                 <span className="settings-row-hint">
-                  Start na een merge via Accord één run die lessen uit de review
-                  haalt.
+                  destilleert automatisch lessen na een geslaagde fix-run
                 </span>
               </span>
               <Segmented
