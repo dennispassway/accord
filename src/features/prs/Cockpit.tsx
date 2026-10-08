@@ -23,8 +23,14 @@ import {
 import { modKey } from "../../lib/platform";
 import { useSettings } from "../../lib/settings";
 import { useWindowFocused } from "../../lib/windowFocus";
+import { AgentLogPanel } from "../agents/AgentLogPanel";
 import type { AgentMode, ReviewAgent } from "../agents/crossReview";
-import { chainsIntoLearnings, preferredReviewer } from "../agents/crossReview";
+import {
+  availableFixer,
+  preferredReviewer,
+  shouldDistillAfterMerge,
+} from "../agents/crossReview";
+import { detachedRuns } from "../agents/detachedRuns";
 import { prKeyOf, useAgentRuns } from "../agents/useAgentRuns";
 import { SettingsSheet } from "../settings/SettingsSheet";
 import { UpdateBanner } from "../update/UpdateBanner";
@@ -205,6 +211,8 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     cancelRun,
     runForPr,
     runningPrKeys,
+    hasDistillRun,
+    runs,
   } = useAgentRuns(settings, (prKey, status, agent, mode) => {
     // U10: een afgeronde agent-run is verder onzichtbaar zolang je niet zelf
     // op die PR zit te kijken; één toast plus één refresh maakt 'm zichtbaar
@@ -235,25 +243,6 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     if (notifyPayload != null) void sendAppNotification(notifyPayload);
     else logSuppressedNotification(notifyContextRef.current);
     void refresh();
-    // Lessen structureel: na een geslaagde run die fixes toepaste destilleert
-    // dezelfde agent automatisch de lessen, inline op de PR-branch zelf (een
-    // aparte lessen-PR is er alleen via de handmatige actie); de prompt stopt
-    // zelf als er geen generaliseerbare les in de comments zit.
-    if (
-      status === "done" &&
-      settings.review.autoDistillLearnings &&
-      chainsIntoLearnings(mode)
-    ) {
-      const pr = prs.find((candidate) => keyOfPr(candidate) === prKey);
-      if (pr != null) {
-        showToast(`Lessen vastleggen gestart: #${number}`, "ok");
-        void startRun(pr, agent, "distillLearningsInline").catch(
-          (error: unknown) => {
-            showToast(String(error), "fout");
-          },
-        );
-      }
-    }
   });
   const [selectedRepoId, setSelectedRepoIdState] = useState<RepoId | "all">(
     () => loadRepoFilter() as RepoId | "all",
@@ -315,6 +304,21 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
 
   const prs = state.status === "ready" ? state.prs : [];
   const groups = useMemo(() => groupByRepo(prs), [prs]);
+  const [dismissedRunIds, setDismissedRunIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  // Zonder geladen lijst lijkt elke run losgekoppeld; wacht dus op "ready".
+  const runsWithoutPr = useMemo(
+    () =>
+      state.status === "ready"
+        ? detachedRuns(
+            runs.values(),
+            new Set(prs.map(keyOfPr)),
+            dismissedRunIds,
+          )
+        : [],
+    [state.status, runs, prs, dismissedRunIds],
+  );
   // U2a: de app-start hoeft niet meer op een aparte /user-call te wachten
   // (useAuth kent de login-naam dan nog niet); zodra de PR-fetch of de
   // bewaarde snapshot een viewerLogin heeft, wint die van de lege prop.
@@ -938,52 +942,77 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         setSelectedKey(`${pr.repoId}#${firstStep.prNumber}`);
     }
 
-    if (shas == null || steps.length === 0 || repoPath == null) return;
-    const resolvedShas = shas;
-    const resolvedRepoPath = repoPath;
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      if (step == null) continue;
-      setStackRebaseStatus({
-        repoId: pr.repoId,
-        prNumber: step.prNumber,
-        label: `Stapel rebasen, stap ${i + 1} van ${steps.length}`,
-        isError: false,
+    // Lessen pas na de merge, en alleen als er iets te leren valt. `pr` is hier
+    // een snapshot (de PR verdwijnt zo uit de lijst); een mislukte start breekt
+    // de merge-flow niet. Pas ná de rebase-lus, anders strijden beide om de
+    // lock op dezelfde repo.
+    function distillAfterMerge() {
+      if (
+        !shouldDistillAfterMerge(
+          pr,
+          settings.review.autoDistillLearnings,
+          hasDistillRun(keyOfPr(pr)),
+        )
+      ) {
+        return;
+      }
+      const fixer = availableFixer(pr, clis, repoPath ?? undefined);
+      if (fixer == null) return;
+      void startRun(pr, fixer, "distillLearnings").catch((error: unknown) => {
+        showToast(String(error), "fout");
       });
-      try {
-        const result = await rebaseStackBranch(
-          resolvedRepoPath,
-          step.branch,
-          resolvedShas[step.parentBranch] ?? "",
-          resolvedShas[step.branch] ?? "",
-          step.newBase,
-        );
-        if (result === "conflict") {
-          setStackRebaseStatus({
-            repoId: pr.repoId,
-            prNumber: step.prNumber,
-            label: `Rebase-conflict in #${step.prNumber}, los dit handmatig op`,
-            isError: true,
-          });
-          showToast(
-            `Rebase-conflict in #${step.prNumber}, los dit handmatig op`,
-            "fout",
-          );
-          return;
-        }
-      } catch (error) {
+    }
+
+    try {
+      if (shas == null || steps.length === 0 || repoPath == null) return;
+      const resolvedShas = shas;
+      const resolvedRepoPath = repoPath;
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        if (step == null) continue;
         setStackRebaseStatus({
           repoId: pr.repoId,
           prNumber: step.prNumber,
-          label: `Rebase van #${step.prNumber} mislukt: ${String(error)}`,
-          isError: true,
+          label: `Stapel rebasen, stap ${i + 1} van ${steps.length}`,
+          isError: false,
         });
-        showToast(`Rebase van #${step.prNumber} mislukt`, "fout");
-        return;
+        try {
+          const result = await rebaseStackBranch(
+            resolvedRepoPath,
+            step.branch,
+            resolvedShas[step.parentBranch] ?? "",
+            resolvedShas[step.branch] ?? "",
+            step.newBase,
+          );
+          if (result === "conflict") {
+            setStackRebaseStatus({
+              repoId: pr.repoId,
+              prNumber: step.prNumber,
+              label: `Rebase-conflict in #${step.prNumber}, los dit handmatig op`,
+              isError: true,
+            });
+            showToast(
+              `Rebase-conflict in #${step.prNumber}, los dit handmatig op`,
+              "fout",
+            );
+            return;
+          }
+        } catch (error) {
+          setStackRebaseStatus({
+            repoId: pr.repoId,
+            prNumber: step.prNumber,
+            label: `Rebase van #${step.prNumber} mislukt: ${String(error)}`,
+            isError: true,
+          });
+          showToast(`Rebase van #${step.prNumber} mislukt`, "fout");
+          return;
+        }
       }
+      setStackRebaseStatus(null);
+      void refresh();
+    } finally {
+      distillAfterMerge();
     }
-    setStackRebaseStatus(null);
-    void refresh();
   }
 
   // U11: een merge-fout heeft met de merge-knop al een zichtbare plek
@@ -1011,6 +1040,17 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     await submitReview(pr, event, body);
     showToast(REVIEW_TOAST[event](pr.number), "ok");
   }
+
+  function handleCancelRun(runId: string) {
+    void cancelRun(runId).catch((error: unknown) => {
+      showToast(String(error), "fout");
+    });
+  }
+
+  const inspectorFixer =
+    selectedPr != null
+      ? availableFixer(selectedPr, clis, repoPaths[selectedPr.repoId])
+      : null;
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: keyboard nav for the PR list
@@ -1156,6 +1196,31 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                   </button>
                 </div>
               )}
+              {runsWithoutPr.map((run) => (
+                <div key={run.runId} className="cockpit-detached-run">
+                  <div className="cockpit-detached-run-head">
+                    <span className="cockpit-banner-text">
+                      {MODE_LABEL[run.mode]} · {run.prKey}, niet meer in de
+                      lijst
+                    </span>
+                    {run.status !== "running" && (
+                      <button
+                        type="button"
+                        className="cockpit-banner-dismiss"
+                        aria-label="Sluiten"
+                        onClick={() =>
+                          setDismissedRunIds(
+                            (current) => new Set([...current, run.runId]),
+                          )
+                        }
+                      >
+                        <CloseIcon />
+                      </button>
+                    )}
+                  </div>
+                  <AgentLogPanel run={run} onCancel={handleCancelRun} />
+                </div>
+              ))}
               <PrList
                 sections={visibleSections}
                 stackInfoByKey={stackInfoByKey}
@@ -1219,11 +1284,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                   showToast(String(error), "fout");
                 });
               }}
-              onCancelRun={(runId) => {
-                void cancelRun(runId).catch((error: unknown) => {
-                  showToast(String(error), "fout");
-                });
-              }}
+              onCancelRun={handleCancelRun}
               onRepoLinked={refreshRepoPaths}
               settings={settings}
               // B4: filteredPrs (na zoekfilter), niet visiblePrs, anders telt
@@ -1277,6 +1338,19 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           initialTab={inspector.tab}
           onClose={() => setInspector(null)}
           onAuthError={onAuthError}
+          onFixComments={
+            inspectorFixer == null || runningPrKeys.has(keyOfPr(selectedPr))
+              ? undefined
+              : () => {
+                  void startRun(
+                    selectedPr,
+                    inspectorFixer,
+                    "fixComments",
+                  ).catch((error: unknown) => {
+                    showToast(String(error), "fout");
+                  });
+                }
+          }
         />
       )}
       {contextMenu != null && (

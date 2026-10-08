@@ -34,6 +34,7 @@ import { prStatus } from "./rank";
 import type { PrSection } from "./sort";
 import { useColumnWidths } from "./useColumnWidths";
 import { useContainerWidth } from "./useContainerWidth";
+import { latestVerdict, VerdictBadge } from "./VerdictBadge";
 
 /** Icoon per status, zowel in de sectiekop als in de statuskolom. */
 const SECTION_ICON: Record<PrStatusKey, typeof EyeIcon> = {
@@ -193,6 +194,7 @@ export function PrList({
     const key = keyOfPr(pr);
     const stackInfo = stackInfoByKey.get(key);
     const running = runningPrKeys.has(key);
+    const verdict = latestVerdict(pr);
     const status = prStatus(pr, {
       agentBezig: running,
       stackBlocked: (stackInfo?.blockedByPrNumbers.length ?? 0) > 0,
@@ -268,6 +270,7 @@ export function PrList({
           <span className="pl-cell pl-cell-nr mono">#{pr.number}</span>
           <span className="pl-cell pl-cell-title">
             <span className="pl-title">{pr.title}</span>
+            {verdict && <VerdictBadge verdict={verdict} />}
             {stackInfo && stackInfo.stackSize > 1 && (
               <span className="pl-stack-chip mono" title="Positie in de stack">
                 <StackIcon />

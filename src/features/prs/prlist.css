@@ -487,3 +487,21 @@ li:first-child > .pl-group-header {
 .pl-row-selected .pl-cell-nr {
   color: var(--accent);
 }
+
+.verdict-badge {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font: 500 10px / 1 var(--mono);
+  white-space: nowrap;
+}
+
+.verdict-badge-nodig {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+
+.verdict-badge-geen {
+  color: var(--text-3);
+  background: color-mix(in srgb, var(--text-3) 12%, transparent);
+}

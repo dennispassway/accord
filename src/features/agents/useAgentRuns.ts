@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
-import type { Settings } from "../../lib/settings";
+import { modelForMode, type Settings } from "../../lib/settings";
 import type { AgentMode, ReviewAgent } from "./crossReview";
 
 const IS_MOCK = isMockApp(mockMode());
@@ -371,10 +371,7 @@ export function useAgentRuns(
       // Leeswerk (commentsOnly) mag op een lichter model dan fixwerk, dus de
       // modus bepaalt welk van de twee modellen meegaat en in de logregel staat.
       const agentSettings = settingsRef.current[agent];
-      const model =
-        mode === "commentsOnly"
-          ? agentSettings.commentsOnlyModel
-          : agentSettings.model;
+      const model = modelForMode(agentSettings, mode);
       const { effort } = agentSettings;
       const firstLine = `${model} · ${effort}`;
       setRuns((current) => {
@@ -518,6 +515,19 @@ export function useAgentRuns(
     [runs],
   );
 
+  // Ref i.p.v. state: de merge-handler leest dit na een await, en een
+  // closure over `runs` zou dan een verouderde stand zien.
+  const hasDistillRun = useCallback(
+    (prKey: string): boolean =>
+      [...runsRef.current.values()].some(
+        (run) =>
+          run.prKey === prKey &&
+          run.mode === "distillLearnings" &&
+          (run.status === "running" || run.status === "done"),
+      ),
+    [],
+  );
+
   // Stabiel per `runs`: sortCtx en de snooze-effecten in Cockpit hangen hiervan
   // af, en een nieuwe Set per render liet die effecten eindeloos opnieuw lopen.
   const runningPrKeys = useMemo(
@@ -538,5 +548,7 @@ export function useAgentRuns(
     cancelRun,
     runForPr,
     runningPrKeys,
+    hasDistillRun,
+    runs,
   };
 }
