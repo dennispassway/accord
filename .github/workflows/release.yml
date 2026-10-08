@@ -85,6 +85,21 @@ jobs:
           fi
           printf '{"version":"%s"}\n' "$release_version" > src-tauri/tauri.release.conf.json
 
+      # tauri-action vindt een draft alleen met releaseDraft: true (een draft
+      # is niet op te vragen via zijn tag), maar maakt met die vlag naast een al
+      # gepubliceerde release een tweede aan. Lees daarom eerst de echte stand:
+      # draft van release-please, gepubliceerd bij een herstel-run, of nog geen
+      # release bij een handgezette tag (dan wordt het een draft).
+      - name: Releasestatus
+        id: release_state
+        if: env.TAG != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          draft="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo true)"
+          echo "draft=$draft" >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -100,6 +115,7 @@ jobs:
           tagName: ${{ env.TAG }}
           releaseName: ${{ env.TAG != '' && format('Accord {0}', env.TAG) || '' }}
           releaseBody: ${{ inputs.release_body || '' }}
+          releaseDraft: ${{ steps.release_state.outputs.draft == 'true' }}
           args: ${{ env.TAG != '' && '--config src-tauri/tauri.release.conf.json' || '' }}
 
       # De updater-artifacts (.sig, .app.tar.gz) horen hier ook bij: alleen zo
@@ -119,3 +135,25 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/macos/*.app.tar.gz
             src-tauri/target/release/bundle/**/*.sig
+
+  # Pas als beide platforms hun installers en latest.json hebben geüpload gaat
+  # de draft live. Faalt een build, dan blijft de release draft en houden
+  # gebruikers de vorige latest.json; herstel met
+  #   gh workflow run release.yml -f tag=vX.Y.Z
+  # dat opnieuw bouwt en daarna alsnog publiceert.
+  publish:
+    needs: build
+    if: inputs.tag != '' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Draft publiceren
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          draft="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"
+          if [ "$draft" != "true" ]; then
+            echo "$TAG is al gepubliceerd, niets te doen."
+            exit 0
+          fi
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
