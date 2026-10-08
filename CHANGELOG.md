@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.0](https://github.com/dennispassway/accord/compare/v1.6.1...v1.7.0) (2026-10-08)
+
+
+### Nieuw
+
+* **update:** Zoek naar updates… in het Accord-menu onder Over Accord ([1eb0e4f](https://github.com/dennispassway/accord/commit/1eb0e4f27ff47f582820bead5e2f8530ab719d23))
+* **update:** Zoek naar updates… in het Accord-menu, met de echte foutmelding ([5b5fff2](https://github.com/dennispassway/accord/commit/5b5fff2433c3b8caaaed720111d9a338e1ade15b))
+
+
+### Opgelost
+
+* **update:** toon de echte fout van de updater in plaats van undefined ([db438f6](https://github.com/dennispassway/accord/commit/db438f68ac05ede121b650194a9e0fc60e435c44))
+
 ## [1.6.1](https://github.com/dennispassway/accord/compare/v1.6.0...v1.6.1) (2026-10-06)
 
 
