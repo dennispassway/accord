@@ -12,6 +12,7 @@
  */
 import {
   type AgentReview,
+  type AgentVerdict,
   type CiStatus,
   deriveAuthor,
   type Mergeable,
@@ -87,6 +88,7 @@ type RawARun = [
   number,
   number,
   number,
+  AgentVerdict?,
 ];
 
 function agentRun([
@@ -95,6 +97,7 @@ function agentRun([
   commentCount,
   commitCount,
   minAgo,
+  verdict,
 ]: RawARun): AgentReview {
   return {
     agent,
@@ -102,6 +105,7 @@ function agentRun([
     commentCount,
     commitCount,
     submittedAt: minutesAgo(minAgo),
+    ...(verdict && { verdict }),
   };
 }
 
@@ -194,7 +198,16 @@ const RAW_PRS: RawPr[] = [
     reviewers: [["octocat", "gevraagd"]],
     comments: 3,
     openThreads: 1,
-    aRuns: [["claude", "comments", 2, 0, 60]],
+    aRuns: [
+      [
+        "claude",
+        "comments",
+        2,
+        0,
+        60,
+        { fixes: "nodig", verificatie: "lokaal" },
+      ],
+    ],
   },
   {
     id: "job298",
@@ -286,7 +299,9 @@ const RAW_PRS: RawPr[] = [
     reviewers: [["octocat", "gevraagd"]],
     comments: 6,
     openThreads: 3,
-    aRuns: [["claude", "comments", 4, 0, 40]],
+    aRuns: [
+      ["claude", "comments", 4, 0, 40, { fixes: "geen", verificatie: "ci" }],
+    ],
   },
   {
     id: "ken191",

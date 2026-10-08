@@ -1023,6 +1023,11 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     showToast(REVIEW_TOAST[event](pr.number), "ok");
   }
 
+  const inspectorFixer =
+    selectedPr != null
+      ? availableFixer(selectedPr, clis, repoPaths[selectedPr.repoId])
+      : null;
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: keyboard nav for the PR list
     <div
@@ -1288,6 +1293,19 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           initialTab={inspector.tab}
           onClose={() => setInspector(null)}
           onAuthError={onAuthError}
+          onFixComments={
+            inspectorFixer == null || runningPrKeys.has(keyOfPr(selectedPr))
+              ? undefined
+              : () => {
+                  void startRun(
+                    selectedPr,
+                    inspectorFixer,
+                    "fixComments",
+                  ).catch((error: unknown) => {
+                    showToast(String(error), "fout");
+                  });
+                }
+          }
         />
       )}
       {contextMenu != null && (
