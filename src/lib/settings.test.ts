@@ -6,9 +6,26 @@ import {
   codexModels,
   DEFAULT_SETTINGS,
   loadSettings,
+  modelForMode,
   saveSettings,
   withCurrent,
 } from "./settings";
+
+describe("modelForMode", () => {
+  const agent = { model: "zwaar", commentsOnlyModel: "licht" };
+
+  it.each([
+    ["commentsOnly", "licht"],
+    ["fixConflicts", "licht"],
+    ["fixChecks", "licht"],
+    ["distillLearnings", "licht"],
+    ["distillLearningsInline", "licht"],
+    ["withFixes", "zwaar"],
+    ["fixComments", "zwaar"],
+  ])("mode %s gebruikt %s", (mode, expected) => {
+    expect(modelForMode(agent, mode)).toBe(expected);
+  });
+});
 
 /** vitest draait in een node-omgeving zonder DOM: settings.ts gebruikt
  * localStorage direct, dus hier een minimale in-memory mock. */

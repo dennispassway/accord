@@ -29,6 +29,22 @@ export function withCurrent(options: string[], current: string): string[] {
   return options.includes(current) ? options : [...options, current];
 }
 
+/** Modes die op het lichte model (`commentsOnlyModel`) draaien. */
+const LIGHT_MODES: ReadonlySet<string> = new Set([
+  "commentsOnly",
+  "fixConflicts",
+  "fixChecks",
+  "distillLearnings",
+  "distillLearningsInline",
+]);
+
+export function modelForMode(
+  agent: { model: string; commentsOnlyModel: string },
+  mode: string,
+): string {
+  return LIGHT_MODES.has(mode) ? agent.commentsOnlyModel : agent.model;
+}
+
 interface AgentSettings {
   /** Vrije string: de lijst komt uit de CLI, niet uit een vaste union. */
   model: string;

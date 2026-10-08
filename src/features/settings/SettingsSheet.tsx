@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { type AgentModels, loadAgentModels } from "../../lib/agentModels";
 import type { RepoId } from "../../lib/github/domain";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
+import { costFactor, formatCostFactor } from "../../lib/modelCost";
 import { mod } from "../../lib/platform";
 import {
   claudeModels,
@@ -78,10 +79,13 @@ function ModelSelect({
   known,
   value,
   onChange,
+  showCost = false,
 }: {
   known: string[];
   value: string;
   onChange: (model: string) => void;
+  /** Kostenfactor t.o.v. Opus achter de naam (alleen Claude-modellen). */
+  showCost?: boolean;
 }) {
   return (
     <select
@@ -89,11 +93,17 @@ function ModelSelect({
       value={value}
       onChange={(event) => onChange(event.target.value)}
     >
-      {withCurrent(known, value).map((model) => (
-        <option key={model} value={model}>
-          {known.includes(model) ? model : `${model} (onbekend)`}
-        </option>
-      ))}
+      {withCurrent(known, value).map((model) => {
+        const factor = showCost ? costFactor(model) : undefined;
+        const name = known.includes(model) ? model : `${model} (onbekend)`;
+        return (
+          <option key={model} value={model}>
+            {factor === undefined
+              ? name
+              : `${name} ${formatCostFactor(factor)}`}
+          </option>
+        );
+      })}
     </select>
   );
 }
@@ -293,6 +303,7 @@ export function SettingsSheet({
                 <span className="settings-row-hint">gaat mee als --model</span>
               </span>
               <ModelSelect
+                showCost
                 known={claudeModels(cliModels.claude)}
                 value={settings.claude.model}
                 onChange={(model) =>
@@ -302,10 +313,13 @@ export function SettingsSheet({
             </div>
             <div className="settings-row">
               <span className="settings-row-label">
-                <span className="settings-row-k">Leesmodel</span>
-                <span className="settings-row-hint">reviews zonder fixes</span>
+                <span className="settings-row-k">Licht model</span>
+                <span className="settings-row-hint">
+                  comments-review, conflicten, CI-fixes, lessen
+                </span>
               </span>
               <ModelSelect
+                showCost
                 known={claudeModels(cliModels.claude)}
                 value={settings.claude.commentsOnlyModel}
                 onChange={(commentsOnlyModel) =>
@@ -351,8 +365,10 @@ export function SettingsSheet({
             </div>
             <div className="settings-row">
               <span className="settings-row-label">
-                <span className="settings-row-k">Leesmodel</span>
-                <span className="settings-row-hint">reviews zonder fixes</span>
+                <span className="settings-row-k">Licht model</span>
+                <span className="settings-row-hint">
+                  comments-review, conflicten, CI-fixes, lessen
+                </span>
               </span>
               <ModelSelect
                 known={codexModels(cliModels.codex)}
@@ -475,10 +491,11 @@ export function SettingsSheet({
             <div className="settings-row">
               <span className="settings-row-label">
                 <span className="settings-row-k">
-                  Lessen vastleggen na fixes
+                  Lessen destilleren na merge
                 </span>
                 <span className="settings-row-hint">
-                  destilleert automatisch lessen na een geslaagde fix-run
+                  Start na een merge via Accord één run die lessen uit de review
+                  haalt.
                 </span>
               </span>
               <Segmented
