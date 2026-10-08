@@ -714,6 +714,12 @@ fn review_marker(agent: &str, mode: &str) -> String {
     format!("<!-- accord:{agent}:{mode} -->")
 }
 
+/// Zoekterm voor `review_posted`: de marker zonder sluitende ` -->`, zodat ook
+/// de commentsOnly-marker met verdict-velden gevonden wordt.
+fn review_marker_prefix(agent: &str, mode: &str) -> String {
+    format!("<!-- accord:{agent}:{mode}")
+}
+
 fn prompt_for_mode(
     agent: &str,
     mode: &str,
@@ -722,13 +728,32 @@ fn prompt_for_mode(
     base_ref: &str,
     push_marker: &Path,
 ) -> Result<String, String> {
-    let marker = review_marker(agent, mode);
+    let marker = if mode == "commentsOnly" {
+        // Verdict-velden voor de fix-run die hierna kan volgen; de rest van de
+        // app zoekt op de prefix (`review_marker_prefix`).
+        format!("<!-- accord:{agent}:commentsOnly fixes=<nodig|geen> verificatie=<ci|lokaal> -->")
+    } else {
+        review_marker(agent, mode)
+    };
     // De agent pusht niet zelf: hij geeft groen licht en de app pusht met een
     // refspec die hij zelf bouwt. Zo kan een agent de bestemming niet meer
     // beïnvloeden en is force-pushen onmogelijk in plaats van afgesproken.
+    // Het gedeelde slot (marker-bestand, nooit zelf pushen, bewijs bij falen) staat
+    // los van de verificatie ervoor, zodat de lichte en volle afsluiting niet
+    // uit elkaar kunnen lopen.
+    let marker_path = push_marker.to_string_lossy();
+    let push_tail = format!(
+        "Is alles groen en mogen je commits naar de PR, maak dan als laatste stap het bestand {marker_path} aan (leeg is goed); Accord pusht ze daarna naar {head_ref}. Faalt er iets, ga dan niet op de uitkomst af maar bepaal of jouw wijziging de oorzaak is: draai datzelfde falen opnieuw zonder jouw commits (git stash, of de basisbranch {base_ref} uitchecken in een los pad). Faalt het daar aantoonbaar ook en staat het los van wat je aanraakte, maak het bestand dan wel aan en benoem dat bestaande falen in je PR-comment. Veroorzaak je het falen zelf, kom je er niet uit, of kun je niet bewijzen dat het al bestond, maak dat bestand dan NIET aan: je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom."
+    );
     let hand_off = format!(
-        "Push zelf niets en gebruik geen git push. Lees vóór je iets draait gh pr checks {pr_number}: staan alle required checks daar groen op de head-sha van deze PR, draai dan alleen de tests die jouw eigen wijziging raakt, sla mutation- en coveragegates over (infection, mutation testing, coverage-drempels) en neem die groene checks als bewijs over in je PR-comment in plaats van de suite over te doen. Is ook maar één required check rood of pending, of zijn er geen checks, dan draai je zelf de volledige tests en de linter. Is alles groen en mogen je commits naar de PR, maak dan als laatste stap het bestand {} aan (leeg is goed); Accord pusht ze daarna naar {head_ref}. Faalt er iets, ga dan niet op de uitkomst af maar bepaal of jouw wijziging de oorzaak is: draai datzelfde falen opnieuw zonder jouw commits (git stash, of de basisbranch {base_ref} uitchecken in een los pad). Faalt het daar aantoonbaar ook en staat het los van wat je aanraakte, maak het bestand dan wel aan en benoem dat bestaande falen in je PR-comment. Veroorzaak je het falen zelf, kom je er niet uit, of kun je niet bewijzen dat het al bestond, maak dat bestand dan NIET aan: je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom.",
-        push_marker.to_string_lossy()
+        "Push zelf niets en gebruik geen git push. Lees vóór je iets draait gh pr checks {pr_number}: staan alle required checks daar groen op de head-sha van deze PR, draai dan alleen de tests die jouw eigen wijziging raakt, sla mutation- en coveragegates over (infection, mutation testing, coverage-drempels) en neem die groene checks als bewijs over in je PR-comment in plaats van de suite over te doen. Is ook maar één required check rood of pending, of zijn er geen checks, dan draai je zelf de volledige tests en de linter. {push_tail}"
+    );
+    // Voor fixConflicts en fixChecks: de volledige verificatie doet CI na de push.
+    let light_verify = "Draai typecheck en build, en alleen de tests die bij de geraakte of samengevoegde bestanden horen. Start geen eigen database of docker-containers, draai geen herhaal- of flake-lussen, geen volledige testsuite en geen install (tenzij een lockfile-conflict dat vereist): de volledige verificatie doet CI na de push.";
+    let light_hand_off =
+        format!("Push zelf niets en gebruik geen git push. {light_verify} {push_tail}");
+    let light_hint = format!(
+        "Bevat de meest recente Accord-review op deze PR een marker met `verificatie=ci`, gebruik dan in plaats van de volledige verificatie hieronder deze lichte: {light_verify}"
     );
     // Gedeelde kern van beide lessen-modes. De anti-bloat-regels (cap op twee
     // lessen, CLAUDE.md als laatste optie, 2-3 zinnen, budget met one-in-one-out)
@@ -740,26 +765,26 @@ fn prompt_for_mode(
     // door hele bestanden die om drie gewijzigde regels opengingen.
     let diff_focus = "Open een heel bestand alleen als de diff zonder die context niet te beoordelen is; lees anders gerichte regelbereiken rond de gewijzigde regels.";
     let learnings_core = format!(
-        "Destilleer de lessen uit pull request #{pr_number} in deze repo, zodat een volgende PR in één keer goed gaat. Lees eerst alle review-comments en threads (gh pr view {pr_number} --comments en gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments) en de fix-commits die na de eerste review kwamen met hun diffs, en bepaal per punt wat er in de oorspronkelijke code misging. Bewaar alleen generaliseerbare lessen: een regel die een toekomstige fout in deze repo voorkomt en die nog niet uit de code, de linter of de bestaande instructies volgt. Sla PR-specifieke feiten, eenmalige vergissingen en pure smaak over. Maximaal twee lessen per PR: vind je er meer, houd dan de twee met de grootste kans op herhaling en laat de rest weg. Verifieer elke les tegen de huidige code voordat je hem opschrijft. Kies per les de juiste plek en behandel CLAUDE.md als laatste optie: een meerstaps-werkwijze wordt een skill in .claude/skills/<naam>/SKILL.md met name en description in de frontmatter, een instructie die alleen bij bepaalde bestanden of paden geldt een regelbestand onder .claude/rules/, en alleen een korte tijdloze regel die bij elke taak in deze repo nodig is komt in CLAUDE.md (maak het bestand aan als het ontbreekt). Een les in CLAUDE.md is maximaal 2-3 zinnen zonder PR-nummers of casuïstiek; het verhaal erachter hoort in de commit-tekst. Check eerst of een bestaande regel of skill hetzelfde probleem al dekt en werk die dan bij in plaats van een duplicaat toe te voegen. Is CLAUDE.md na jouw wijziging groter dan 10 kilobyte (meet met wc -c CLAUDE.md), dan geldt one-in-one-out: er mag alleen iets bij als je tegelijk een bestaande regel schrapt of verplaatst naar een skill of regelbestand. Geen les gevonden: stop dan zonder iets te wijzigen."
+        "Destilleer de lessen uit pull request #{pr_number} in deze repo, zodat een volgende PR in één keer goed gaat. Lees alleen de review-comments en threads (gh pr view {pr_number} --comments en gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments) en de fix-commits die na de eerste review kwamen met hun diffs (niet de volledige PR-diff, dus geen gh pr diff), en bepaal per punt wat er in de oorspronkelijke code misging. Bewaar alleen generaliseerbare lessen: een regel die een toekomstige fout in deze repo voorkomt en die nog niet uit de code, de linter of de bestaande instructies volgt. Sla PR-specifieke feiten, eenmalige vergissingen en pure smaak over. Maximaal twee lessen per PR: vind je er meer, houd dan de twee met de grootste kans op herhaling en laat de rest weg. Verifieer elke les tegen de huidige code voordat je hem opschrijft. Kies per les de juiste plek en behandel CLAUDE.md als laatste optie: een meerstaps-werkwijze wordt een skill in .claude/skills/<naam>/SKILL.md met name en description in de frontmatter, een instructie die alleen bij bepaalde bestanden of paden geldt een regelbestand onder .claude/rules/, en alleen een korte tijdloze regel die bij elke taak in deze repo nodig is komt in CLAUDE.md (maak het bestand aan als het ontbreekt). Een les in CLAUDE.md is maximaal 2-3 zinnen zonder PR-nummers of casuïstiek; het verhaal erachter hoort in de commit-tekst. Check eerst of een bestaande regel of skill hetzelfde probleem al dekt en werk die dan bij in plaats van een duplicaat toe te voegen. Is CLAUDE.md na jouw wijziging groter dan 10 kilobyte (meet met wc -c CLAUDE.md), dan geldt one-in-one-out: er mag alleen iets bij als je tegelijk een bestaande regel schrapt of verplaatst naar een skill of regelbestand. Draai geen tests: je wijzigt alleen documentatie en instructies. Geen les gevonden: stop dan zonder iets te wijzigen."
     );
     let prompt = match mode {
         "withFixes" => format!(
-            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}). {diff_focus} Lees ook de al geplaatste review-comments en open threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments), en vorm daarna pas je oordeel. Richt je op problemen die gedrag raken (bugs, security, dataverlies); stijl alleen als het echt schaadt. Fix wat je vindt met kleine, losse commits, en verwerk daarbij ook de terechte punten uit de open threads. Draai daarna de tests en linter van het project. {hand_off} Reageer per verwerkte thread in die thread zelf (gh api met in_reply_to) wat je hebt aangepast en resolve hem daarna via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het met een punt gemotiveerd oneens, leg dat uit in een reply en laat die thread open. Sluit af met één samenvattende review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review), gevolgd door per bevinding bestand:regel, wat er mis was en wat je hebt aangepast."
+            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}). {diff_focus} Lees ook de al geplaatste review-comments en open threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments), en vorm daarna pas je oordeel. Richt je op problemen die gedrag raken (bugs, security, dataverlies); stijl alleen als het echt schaadt. Fix wat je vindt met kleine, losse commits, en verwerk daarbij ook de terechte punten uit de open threads. Draai daarna de tests en linter van het project. {light_hint} {hand_off} Reageer per verwerkte thread in die thread zelf (gh api met in_reply_to) wat je hebt aangepast en resolve hem daarna via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het met een punt gemotiveerd oneens, leg dat uit in een reply en laat die thread open. Sluit af met één samenvattende review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review), gevolgd door per bevinding bestand:regel, wat er mis was en wat je hebt aangepast."
         ),
         "commentsOnly" => format!(
-            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}). {diff_focus} Vorm daarna pas je bevindingen. Controleer elke bevinding tegen de code en meld alleen punten waar je zeker van bent, met bestand:regel erbij. Label elke bevinding: [belangrijk] voor bugs, security of dataverlies, [nit] voor stijl; maximaal 5 nits, en sla gegenereerde bestanden en lockfiles over. Plaats alles als één review met inline comments op de betreffende regels: post naar gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/reviews --input - een JSON-payload met event COMMENT, en als body: de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review) gevolgd door een korte samenvatting, en per bevinding een entry in comments met path, line en side RIGHT (regelnummer in het nieuwe bestand, niet de diff-positie). Per inline comment: het probleem, waarom het uitmaakt en een concreet fix-voorstel. Geen blokkerende punten: zeg dat dan expliciet in één zin in de review-body. Wijzig geen bestanden en push geen code."
+            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}). {diff_focus} Vorm daarna pas je bevindingen. Controleer elke bevinding tegen de code en meld alleen punten waar je zeker van bent, met bestand:regel erbij. Label elke bevinding: [belangrijk] voor bugs, security of dataverlies, [nit] voor stijl; maximaal 5 nits, en sla gegenereerde bestanden en lockfiles over. Plaats alles als één review met inline comments op de betreffende regels: post naar gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/reviews --input - een JSON-payload met event COMMENT, en als body: de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review; vervang daarin `<nodig|geen>` en `<ci|lokaal>` door je oordeel: fixes=nodig als er minstens één [belangrijk]-bevinding is, anders fixes=geen; verificatie=lokaal alleen als de fix iets raakt dat CI niet dekt of als de repo geen CI-checks heeft (gh pr checks {pr_number} geeft niets terug), anders verificatie=ci) gevolgd door een korte samenvatting, en per bevinding een entry in comments met path, line en side RIGHT (regelnummer in het nieuwe bestand, niet de diff-positie). Per inline comment: het probleem, waarom het uitmaakt en een concreet fix-voorstel. Geen blokkerende punten: zeg dat dan expliciet in één zin in de review-body. Wijzig geen bestanden en push geen code."
         ),
         "fixComments" => format!(
-            "Los de openstaande review-comments op pull request #{pr_number} in deze repo op. Lees eerst alle open threads via gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments, en bepaal per punt of het terecht is. Fix de terechte punten met kleine, losse commits; los een falend punt op in de code, nooit door een test te verzwakken, te skippen of te verwijderen. Draai daarna de tests en linter. {hand_off} Reageer daarna per verwerkte comment in zijn eigen thread (gh api met in_reply_to) wat je hebt aangepast en resolve die thread via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het ergens gemotiveerd oneens, leg dat uit in een reply zonder code te wijzigen en laat die thread open."
+            "Los de openstaande review-comments op pull request #{pr_number} in deze repo op. Lees eerst alle open threads via gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments, en bepaal per punt of het terecht is. Fix de terechte punten met kleine, losse commits; los een falend punt op in de code, nooit door een test te verzwakken, te skippen of te verwijderen. Draai daarna de tests en linter. {light_hint} {hand_off} Reageer daarna per verwerkte comment in zijn eigen thread (gh api met in_reply_to) wat je hebt aangepast en resolve die thread via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het ergens gemotiveerd oneens, leg dat uit in een reply zonder code te wijzigen en laat die thread open."
         ),
         "fixChecks" => format!(
-            "De CI-checks op pull request #{pr_number} in deze repo falen. Bekijk de falende checks met gh pr checks {pr_number}, haal daar het run-id uit en lees de logs met gh run view <run-id> --log-failed (draai gh run view nooit zonder run-id, dat wordt interactief). Reproduceer de fout daarna lokaal voor je iets wijzigt. Is de oorzaak niet in code op te lossen (billing of spending limit, infra-storing, ontbrekende secrets of permissions, een flaky run), stop dan zonder iets te wijzigen en plaats één PR-comment via de gh CLI die de oorzaak uitlegt. Is de oorzaak wel fixbaar (falende tests, lint, types, build), fix dan de onderliggende oorzaak en niet het symptoom: verzwak, skip of verwijder nooit een test om groen te worden. Commit klein en los en draai de geraakte checks lokaal opnieuw. {hand_off}"
+            "De CI-checks op pull request #{pr_number} in deze repo falen. Bekijk de falende checks met gh pr checks {pr_number}, haal daar het run-id uit en lees de logs met gh run view <run-id> --log-failed (draai gh run view nooit zonder run-id, dat wordt interactief). Reproduceer de fout daarna lokaal voor je iets wijzigt. Is de oorzaak niet in code op te lossen (billing of spending limit, infra-storing, ontbrekende secrets of permissions, een flaky run), stop dan zonder iets te wijzigen en plaats één PR-comment via de gh CLI die de oorzaak uitlegt. Is de oorzaak wel fixbaar (falende tests, lint, types, build), fix dan de onderliggende oorzaak en niet het symptoom: verzwak, skip of verwijder nooit een test om groen te worden. Commit klein en los en reproduceer en draai daarna alleen de falende check(s) lokaal opnieuw. {light_hand_off}"
         ),
         "fixConflicts" => format!(
-            "Pull request #{pr_number} in deze repo heeft merge-conflicten met de basisbranch {base_ref}. Haal de basisbranch op met git fetch origin {base_ref} en merge origin/{base_ref} in HEAD. Los de conflicten inhoudelijk op: lees van beide kanten wat de bedoeling was en behoud die, kies nooit blind één kant. Let ook op botsingen buiten de conflict-markers, zoals een hernoemde functie die de andere kant nog onder de oude naam aanroept. Draai na de merge de build en tests en commit pas bij groen. {hand_off}"
+            "Pull request #{pr_number} in deze repo heeft merge-conflicten met de basisbranch {base_ref}. Haal de basisbranch op met git fetch origin {base_ref} en merge origin/{base_ref} in HEAD. Los de conflicten inhoudelijk op: lees van beide kanten wat de bedoeling was en behoud die, kies nooit blind één kant. Let ook op botsingen buiten de conflict-markers, zoals een hernoemde functie die de andere kant nog onder de oude naam aanroept. Commit pas als typecheck en build groen zijn. {light_hand_off}"
         ),
         "distillLearnings" => format!(
-            "{learnings_core} Wel lessen: maak een verse branch vanaf origin/{base_ref} met een naam die met claude/ begint (andere namen worden geweigerd), commit per les apart, push met git push origin HEAD:claude/<naam> en open met gh pr create een PR naar {base_ref} die per les uitlegt wat er in PR #{pr_number} misging en welke regel dat voortaan voorkomt. Push nooit geforceerd en nooit direct naar {base_ref} of {head_ref}."
+            "{learnings_core} Wel lessen: haal eerst de basisbranch op met git fetch origin {base_ref} en maak een verse branch vanaf origin/{base_ref} (niet vanaf de PR-head: die draait na de merge en geeft na een squash dubbele commits) met een naam die met claude/ begint (andere namen worden geweigerd), commit per les apart, push met git push origin HEAD:claude/<naam> en open met gh pr create een PR naar {base_ref} die per les uitlegt wat er in PR #{pr_number} misging en welke regel dat voortaan voorkomt. Push nooit geforceerd en nooit direct naar {base_ref} of {head_ref}."
         ),
         "distillLearningsInline" => format!(
             "{learnings_core} Wel lessen: commit ze per les apart op de huidige branch (de PR-branch van #{pr_number}) en raak daarbij alleen documentatie- en instructiebestanden aan, geen productiecode. {hand_off} Plaats tot slot via gh pr comment {pr_number} één comment die per les kort benoemt wat is vastgelegd en waar."
@@ -809,6 +834,13 @@ fn agent_command(
             // stream-json in print-mode.
             command.arg("--output-format").arg("stream-json");
             command.arg("--verbose");
+            // Per run uit: deze plugins sturen op beknoptheid en stijl voor een
+            // interactieve sessie en kosten in een headless run alleen tokens.
+            command
+                .arg("--settings")
+                .arg(r#"{"enabledPlugins":{"ponytail@ponytail":false,"sloptrim@sloptrim":false}}"#);
+            // Laat hooks en skills van de gebruiker weten dat dit een Accord-run is.
+            command.env("ACCORD_RUN", "1");
             if with_fixes {
                 // bypassPermissions en niet acceptEdits: die laatste accepteert
                 // alleen file-edits, terwijl elke Bash-call (git, gh, de tests van
@@ -825,7 +857,7 @@ fn agent_command(
                 // een shell-zoekopdracht; zonder die patronen liep elke zoekactie op
                 // een permission-fout stuk. De rtk-varianten dekken diezelfde omleiding.
                 command.arg("--allowedTools").arg(
-                    "Read,Grep,Glob,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh api repos/:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git rev-parse:*),Bash(rg:*),Bash(grep:*),Bash(find:*),Bash(rtk rg:*),Bash(rtk grep:*),Bash(rtk find:*)",
+                    "Read,Grep,Glob,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh api repos/:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git rev-parse:*),Bash(rg:*),Bash(grep:*),Bash(find:*),Bash(rtk rg:*),Bash(rtk grep:*),Bash(rtk find:*)",
                 );
             }
         }
@@ -976,6 +1008,22 @@ fn push_outcome(
             PushOutcome::NotPushed,
             Some(format!("push naar {head_ref} faalde: {error}")),
         ),
+    }
+}
+
+/// `distillLearnings` pusht zelf (losse branch vanaf origin/<base> + PR) en
+/// zet geen push-marker. Staat HEAD na de run op een remote branch, dan telt dat
+/// als gepusht; de `run_ref..HEAD`-telling zou anders altijd > 0 geven omdat de
+/// branch niet van de PR-head komt. Andere modes blijven ongemoeid.
+fn effective_push(
+    mode: &str,
+    pushed: PushOutcome,
+    head_on_remote: impl FnOnce() -> bool,
+) -> PushOutcome {
+    if mode == "distillLearnings" && pushed == PushOutcome::NotPushed && head_on_remote() {
+        PushOutcome::Pushed
+    } else {
+        pushed
     }
 }
 
@@ -1551,7 +1599,7 @@ fn start_review_blocking(
     // moment, en dat moment is de start van de agent, niet zijn einde.
     let review_since = review_cutoff();
     let review_mode = mode.clone();
-    let review_marker = review_marker(&agent, &mode);
+    let review_marker = review_marker_prefix(&agent, &mode);
     std::thread::spawn(move || {
         let exit_code = match child.wait() {
             Ok(status) => status.code().unwrap_or(-1),
@@ -1571,6 +1619,15 @@ fn start_review_blocking(
             push_if_marked(&app_for_wait, &run_id, &worktree, &head_ref)
         } else {
             PushOutcome::NotPushed
+        };
+        let pushed = if exit_code == 0 && !cancelled {
+            effective_push(&review_mode, pushed, || {
+                run_git(&worktree, &["branch", "-r", "--contains", "HEAD"])
+                    .map(|out| !out.trim().is_empty())
+                    .unwrap_or(false)
+            })
+        } else {
+            pushed
         };
         let (pushed_commits, unpushed_commit_count) = commit_outcome(pushed, commit_count);
         let _ = std::fs::remove_file(push_marker(&run_id));
@@ -1833,7 +1890,7 @@ mod tests {
     /// naar de checks, en hangt de volledige suite aan een rode, pending of
     /// ontbrekende check.
     fn fix_modes_lean_on_green_ci_before_running_the_suite() {
-        for mode in ["withFixes", "fixComments", "fixChecks", "fixConflicts"] {
+        for mode in ["withFixes", "fixComments"] {
             let prompt = prompt_for_mode("claude", mode, 42, "feature/x", "main").expect("prompt");
             assert!(prompt.contains("gh pr checks 42"), "mode {mode}");
             assert!(
@@ -1902,7 +1959,11 @@ mod tests {
     fn comments_only_and_with_fixes_prompts_instrueren_de_verborgen_marker() {
         let comments_only =
             prompt_for_mode("claude", "commentsOnly", 42, "feature/x", "main").expect("prompt");
-        assert!(comments_only.contains("<!-- accord:claude:commentsOnly -->"));
+        assert!(comments_only.contains(
+            "<!-- accord:claude:commentsOnly fixes=<nodig|geen> verificatie=<ci|lokaal> -->"
+        ));
+        assert!(comments_only.contains("fixes=nodig als er minstens één [belangrijk]-bevinding is"));
+        assert!(comments_only.contains("verificatie=lokaal alleen als"));
 
         let with_fixes =
             prompt_for_mode("codex", "withFixes", 42, "feature/x", "main").expect("prompt");
@@ -1952,7 +2013,143 @@ mod tests {
         let prompt =
             prompt_for_mode("claude", "fixConflicts", 42, "feature/x", "develop").expect("prompt");
         assert!(prompt.contains("origin/develop"));
-        assert!(prompt.contains("build en tests"));
+        assert!(prompt.contains("typecheck en build"));
+    }
+
+    #[test]
+    /// Conflict- en check-fixes laten de zware verificatie aan CI: de lichte
+    /// afsluiting vervangt de volledige, en het marker-mechanisme blijft.
+    fn conflict_and_check_fixes_use_the_light_hand_off() {
+        for mode in ["fixConflicts", "fixChecks"] {
+            let prompt = prompt_for_mode("claude", mode, 42, "feature/x", "main").expect("prompt");
+            assert!(
+                prompt.contains("de volledige verificatie doet CI na de push"),
+                "mode {mode}"
+            );
+            assert!(
+                prompt.contains("geen eigen database of docker-containers"),
+                "mode {mode}"
+            );
+            assert!(prompt.contains("geen volledige testsuite"), "mode {mode}");
+            assert!(
+                prompt.contains(
+                    "alleen de tests die bij de geraakte of samengevoegde bestanden horen"
+                ),
+                "mode {mode}"
+            );
+            assert!(
+                !prompt.contains("volledige tests en de linter"),
+                "mode {mode}"
+            );
+            assert!(
+                !prompt.contains("required checks daar groen"),
+                "mode {mode}"
+            );
+            assert!(prompt.contains(TEST_MARKER), "mode {mode}");
+            assert!(prompt.contains("Push zelf niets"), "mode {mode}");
+        }
+    }
+
+    #[test]
+    fn fix_checks_light_hand_off_only_reruns_the_failing_checks() {
+        let prompt =
+            prompt_for_mode("claude", "fixChecks", 42, "feature/x", "main").expect("prompt");
+        assert!(prompt.contains("alleen de falende check(s)"));
+    }
+
+    #[test]
+    /// withFixes en fixComments houden de volledige afsluiting, met een hint
+    /// om bij `verificatie=ci` in de laatste review de lichte te nemen.
+    fn review_fix_modes_keep_the_full_hand_off_and_hint_at_the_light_one() {
+        for mode in ["withFixes", "fixComments"] {
+            let prompt = prompt_for_mode("claude", mode, 42, "feature/x", "main").expect("prompt");
+            assert!(
+                prompt.contains("volledige tests en de linter"),
+                "mode {mode}"
+            );
+            assert!(prompt.contains("verificatie=ci"), "mode {mode}");
+            assert!(
+                prompt.contains("de volledige verificatie doet CI na de push"),
+                "mode {mode}"
+            );
+        }
+    }
+
+    #[test]
+    fn claude_runs_with_plugins_disabled_and_the_accord_run_env() {
+        let command = agent_command(
+            "claude",
+            "withFixes",
+            "p",
+            Path::new("/bin/claude"),
+            "m",
+            "medium",
+            Path::new("/tmp/x/.git"),
+        )
+        .expect("command");
+        let args: Vec<_> = command
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let i = args
+            .iter()
+            .position(|a| a == "--settings")
+            .expect("--settings");
+        assert_eq!(
+            args[i + 1],
+            r#"{"enabledPlugins":{"ponytail@ponytail":false,"sloptrim@sloptrim":false}}"#
+        );
+        let env = command
+            .get_envs()
+            .find(|(k, _)| *k == "ACCORD_RUN")
+            .and_then(|(_, v)| v.map(|v| v.to_string_lossy().into_owned()));
+        assert_eq!(env.as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn codex_gets_no_claude_settings_or_accord_run_env() {
+        let command = agent_command(
+            "codex",
+            "withFixes",
+            "p",
+            Path::new("/bin/codex"),
+            "m",
+            "medium",
+            Path::new("/tmp/x/.git"),
+        )
+        .expect("command");
+        assert!(!command.get_args().any(|a| a == "--settings"));
+        assert!(!command.get_envs().any(|(k, _)| k == "ACCORD_RUN"));
+    }
+
+    #[test]
+    /// review_posted zoekt met een prefix, zodat de commentsOnly-marker met
+    /// verdict-velden en de oude markers allebei gevonden worden.
+    fn review_marker_prefix_matches_both_marker_formats() {
+        let prefix = review_marker_prefix("claude", "commentsOnly");
+        assert!("<!-- accord:claude:commentsOnly fixes=geen verificatie=ci -->".contains(&prefix));
+        assert!("<!-- accord:claude:commentsOnly -->".contains(&prefix));
+        let prefix = review_marker_prefix("codex", "withFixes");
+        assert!(review_marker("codex", "withFixes").contains(&prefix));
+    }
+
+    #[test]
+    fn distill_prompts_skip_the_full_diff_and_tests() {
+        for mode in ["distillLearnings", "distillLearningsInline"] {
+            let prompt = prompt_for_mode("claude", mode, 42, "feature/x", "main").expect("prompt");
+            assert!(prompt.contains("niet de volledige PR-diff"), "mode {mode}");
+            assert!(prompt.contains("Draai geen tests"), "mode {mode}");
+        }
+    }
+
+    #[test]
+    /// Draait na de merge: de PR-head zou na een squash dubbele commits geven.
+    fn distill_learnings_branches_from_the_fetched_base_not_the_pr_head() {
+        let prompt = prompt_for_mode("claude", "distillLearnings", 42, "feature/x", "develop")
+            .expect("prompt");
+        assert!(prompt.contains("git fetch origin develop"));
+        assert!(prompt.contains("verse branch vanaf origin/develop"));
+        assert!(prompt.contains("niet vanaf de PR-head"));
     }
 
     #[test]
@@ -2022,6 +2219,29 @@ mod tests {
             .collect();
         assert!(args.contains(&"bypassPermissions".to_string()));
         assert!(!args.contains(&"--allowedTools".to_string()));
+    }
+
+    #[test]
+    fn claude_comments_only_may_read_pr_checks() {
+        let command = agent_command(
+            "claude",
+            "commentsOnly",
+            "prompt",
+            Path::new("/usr/bin/claude"),
+            "sonnet",
+            "midden",
+            Path::new("/repo/.git"),
+        )
+        .expect("command");
+        let args: Vec<String> = command
+            .get_args()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect();
+        let at = args
+            .iter()
+            .position(|a| a == "--allowedTools")
+            .expect("flag");
+        assert!(args[at + 1].contains("Bash(gh pr checks:*)"));
     }
 
     #[test]
@@ -2349,6 +2569,28 @@ mod tests {
             reason.as_deref(),
             Some("kon niet-gepushte commits niet controleren: fetch faalde")
         );
+    }
+
+    #[test]
+    fn distill_learnings_counts_as_pushed_when_head_is_on_the_remote() {
+        let outcome = effective_push("distillLearnings", PushOutcome::NotPushed, || true);
+        assert_eq!(outcome, PushOutcome::Pushed);
+    }
+
+    #[test]
+    fn distill_learnings_stays_not_pushed_when_head_is_not_on_the_remote() {
+        let outcome = effective_push("distillLearnings", PushOutcome::NotPushed, || false);
+        assert_eq!(outcome, PushOutcome::NotPushed);
+    }
+
+    #[test]
+    fn other_modes_ignore_the_remote_check() {
+        for mode in ["withFixes", "fixChecks", "distillLearningsInline"] {
+            let outcome = effective_push(mode, PushOutcome::NotPushed, || {
+                panic!("remote check mag niet draaien voor {mode}")
+            });
+            assert_eq!(outcome, PushOutcome::NotPushed, "mode {mode}");
+        }
     }
 
     #[test]

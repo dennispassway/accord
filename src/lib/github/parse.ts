@@ -1,5 +1,6 @@
 import {
   type AgentReview,
+  type AgentVerdict,
   type CiStatus,
   deriveAuthor,
   type Mergeable,
@@ -173,29 +174,71 @@ function parseReviewers(node: Record<string, unknown>): Reviewer[] {
  * te herkennen zet de agent een onzichtbare marker aan het begin van de
  * review-body: `<!-- accord:claude:commentsOnly -->` of
  * `<!-- accord:codex:withFixes -->`. Groep 2 (de mode) is optioneel, voor
- * oudere of handmatige marker-varianten.
+ * oudere of handmatige marker-varianten. Groep 3 bevat optionele attributen,
+ * bv. `<!-- accord:claude:commentsOnly fixes=nodig verificatie=lokaal -->`;
+ * zie parseVerdict.
  */
 const AGENT_MARKER =
-  /<!--\s*accord:(claude|codex)(?::(commentsOnly|withFixes))?\s*-->/;
+  /<!--\s*accord:(claude|codex)(?::(commentsOnly|withFixes))?(?:\s+(.*?))?\s*-->/;
+
+/**
+ * Leest `fixes=` en `verificatie=` uit de marker-attributen. Ontbreekt een
+ * veld of is een waarde onbekend, dan is er geen verdict.
+ */
+function parseVerdict(attributes: string): AgentVerdict | undefined {
+  const fixes = attributes.match(/(?:^|\s)fixes=(\w+)/)?.[1];
+  const verificatie = attributes.match(/(?:^|\s)verificatie=(\w+)/)?.[1];
+  if (fixes !== "nodig" && fixes !== "geen") return undefined;
+  if (verificatie !== "ci" && verificatie !== "lokaal") return undefined;
+  return { fixes, verificatie };
+}
 
 /** Auteur van een review: eerst via login, anders via de verborgen marker. */
 function deriveReviewAuthor(
   login: string | undefined,
   body: unknown,
 ):
-  | { agent: "claude" | "codex"; markerMode?: "commentsOnly" | "withFixes" }
+  | {
+      agent: "claude" | "codex";
+      markerMode?: "commentsOnly" | "withFixes";
+      verdict?: AgentVerdict;
+    }
   | undefined {
+  const match = isNonEmptyString(body) ? body.match(AGENT_MARKER) : null;
+  const verdict = match ? parseVerdict(match[3] ?? "") : undefined;
   if (isNonEmptyString(login)) {
     const author = deriveAuthor(login);
-    if (author.kind === "agent") return { agent: author.agent };
+    if (author.kind === "agent") return { agent: author.agent, verdict };
   }
-  if (!isNonEmptyString(body)) return undefined;
-  const match = body.match(AGENT_MARKER);
   if (!match) return undefined;
   return {
     agent: match[1] as "claude" | "codex",
     markerMode: match[2] as "commentsOnly" | "withFixes" | undefined,
+    verdict,
   };
+}
+
+/** Commits per agent op de head-branch, los van of die agent ook reviewde. */
+function agentCommitCounts(
+  node: Record<string, unknown>,
+): Map<AgentReview["agent"], number> {
+  const commitCounts = new Map<AgentReview["agent"], number>();
+  for (const commitNode of nodesOf(node.agentCommits)) {
+    if (!isRecord(commitNode) || !isRecord(commitNode.commit)) continue;
+    const commitAuthor = isRecord(commitNode.commit.author)
+      ? commitNode.commit.author
+      : undefined;
+    const user =
+      commitAuthor && isRecord(commitAuthor.user)
+        ? commitAuthor.user
+        : undefined;
+    const login = user?.login;
+    if (!isNonEmptyString(login)) continue;
+    const author = deriveAuthor(login);
+    if (author.kind !== "agent") continue;
+    commitCounts.set(author.agent, (commitCounts.get(author.agent) ?? 0) + 1);
+  }
+  return commitCounts;
 }
 
 /**
@@ -208,7 +251,7 @@ function deriveReviewAuthor(
 function parseAgentReviews(node: Record<string, unknown>): AgentReview[] {
   const byAgent = new Map<
     AgentReview["agent"],
-    { commentCount: number; submittedAt: string }
+    { commentCount: number; submittedAt: string; verdict?: AgentVerdict }
   >();
   const markerWithFixes = new Set<AgentReview["agent"]>();
 
@@ -228,34 +271,18 @@ function parseAgentReviews(node: Record<string, unknown>): AgentReview[] {
         ? review.comments.totalCount
         : 0;
     const existing = byAgent.get(author.agent);
+    const isNewest = !existing || existing.submittedAt <= review.submittedAt;
     byAgent.set(author.agent, {
       commentCount: (existing?.commentCount ?? 0) + commentCount,
-      submittedAt:
-        existing && existing.submittedAt > review.submittedAt
-          ? existing.submittedAt
-          : review.submittedAt,
+      submittedAt: isNewest ? review.submittedAt : existing.submittedAt,
+      verdict: isNewest ? author.verdict : existing.verdict,
     });
   }
 
-  const commitCounts = new Map<AgentReview["agent"], number>();
-  for (const commitNode of nodesOf(node.agentCommits)) {
-    if (!isRecord(commitNode) || !isRecord(commitNode.commit)) continue;
-    const commitAuthor = isRecord(commitNode.commit.author)
-      ? commitNode.commit.author
-      : undefined;
-    const user =
-      commitAuthor && isRecord(commitAuthor.user)
-        ? commitAuthor.user
-        : undefined;
-    const login = user?.login;
-    if (!isNonEmptyString(login)) continue;
-    const author = deriveAuthor(login);
-    if (author.kind !== "agent") continue;
-    commitCounts.set(author.agent, (commitCounts.get(author.agent) ?? 0) + 1);
-  }
+  const commitCounts = agentCommitCounts(node);
 
   return [...byAgent.entries()].map(
-    ([agent, { commentCount, submittedAt }]) => {
+    ([agent, { commentCount, submittedAt, verdict }]) => {
       const commitCount = commitCounts.get(agent) ?? 0;
       return {
         agent,
@@ -266,6 +293,7 @@ function parseAgentReviews(node: Record<string, unknown>): AgentReview[] {
         commentCount,
         commitCount,
         submittedAt,
+        ...(verdict && { verdict }),
       };
     },
   );
@@ -324,6 +352,10 @@ function parseNode(node: unknown): PullRequest | undefined {
     openThreads: parseOpenThreads(node),
     reviewers: parseReviewers(node),
     agentReviews: parseAgentReviews(node),
+    agentCommitCount: [...agentCommitCounts(node).values()].reduce(
+      (sum, n) => sum + n,
+      0,
+    ),
     assignees: parseAssignees(node),
     reviewRequestedFromMe: false,
     assignedToMe: false,
