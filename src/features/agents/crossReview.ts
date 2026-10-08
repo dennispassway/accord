@@ -37,14 +37,37 @@ export function preferredFixer(pr: PullRequest): ReviewAgent {
 }
 
 /**
- * Een geslaagde run die fixes toepaste krijgt automatisch een vervolg-run die
- * de lessen op de PR-branch zelf destilleert (distillLearningsInline); alleen
- * de handmatige actie opent een aparte lessen-PR (distillLearnings). Geen van
- * beide lessen-modes chaint zelf, dus dit loopt niet rond; fixChecks en
- * fixConflicts verwerken geen review-comments en leveren dus geen lessen op.
+ * De fixer die ook echt kan draaien: de voorkeur, anders de andere agent als
+ * alleen díe CLI bestaat. Null als geen CLI beschikbaar is of de lokale map
+ * ontbreekt (dezelfde voorwaarden als `disabledReason` in DetailPanel).
  */
-export function chainsIntoLearnings(mode: AgentMode): boolean {
-  return mode === "fixComments" || mode === "withFixes";
+export function availableFixer(
+  pr: PullRequest,
+  clis: Record<ReviewAgent, boolean>,
+  repoPath: string | undefined,
+): ReviewAgent | null {
+  if (repoPath == null || repoPath === "") return null;
+  const preferred = preferredFixer(pr);
+  const other = preferred === "claude" ? "codex" : "claude";
+  if (clis[preferred]) return preferred;
+  return clis[other] ? other : null;
+}
+
+/**
+ * Lessen destilleren na een merge, en alleen als er iets te leren valt: een
+ * review-comment (mens of agent) of een fix-commit van een agent. Niet als er
+ * voor deze PR al een distill-run actief of geslaagd is.
+ */
+export function shouldDistillAfterMerge(
+  pr: PullRequest,
+  autoDistillLearnings: boolean,
+  hasDistillRun = false,
+): boolean {
+  if (!autoDistillLearnings || hasDistillRun) return false;
+  return (
+    pr.comments > 0 ||
+    pr.agentReviews.some((r) => r.commentCount > 0 || r.commitCount > 0)
+  );
 }
 
 /**
