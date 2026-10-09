@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.8.0](https://github.com/dennispassway/accord/compare/v1.7.0...v1.8.0) (2026-10-08)
+
+
+### Nieuw
+
+* **agents:** lichte afsluiting voor conflict- en CI-fixes en verdict-marker na comments-review ([7341685](https://github.com/dennispassway/accord/commit/7341685ec5c7b2ea85629c29ce942de2cf8030f9))
+* **learnings:** destilleer lessen pas na een merge via Accord en sla PR's zonder comments of fixes over ([219b577](https://github.com/dennispassway/accord/commit/219b5778e876b01b3fe7a25436c241ef55380437))
+* **prs:** toon of een comments-review fixes nodig vindt, met een Fix nu-knop ([7d1396a](https://github.com/dennispassway/accord/commit/7d1396a5dcdd8dd6f47d08275a746b06a2b64f51))
+* **settings:** licht model voor comments, conflicten, CI-fixes en lessen, met kostenfactor per model ([da6d260](https://github.com/dennispassway/accord/commit/da6d26098733dae8411cf46bbc4179dccce9938b))
+
+
+### Opgelost
+
+* **agents:** tel agent-fixcommits ook zonder agent-review mee voor lessen na een merge ([27e6871](https://github.com/dennispassway/accord/commit/27e6871513f469118cf884d70858cb8a49509af5))
+* **prs:** toon log en stopknop voor runs waarvan de PR niet meer in de lijst staat ([14eca4a](https://github.com/dennispassway/accord/commit/14eca4a183c051d63ab1cf4a883930b443314a1c))
+* **settings:** describe learnings trigger after fixes ([9d62465](https://github.com/dennispassway/accord/commit/9d62465bcafdd627f1fdad58d65fbca0d92eab46))
+
 ## [1.7.0](https://github.com/dennispassway/accord/compare/v1.6.1...v1.7.0) (2026-10-08)
 
 
