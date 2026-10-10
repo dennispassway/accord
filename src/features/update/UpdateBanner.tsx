@@ -1,3 +1,5 @@
+import { CommentBody } from "../prs/commentMarkdown";
+import { tidyReleaseNotes } from "./releaseNotes";
 import "./update.css";
 import type { UpdateState } from "./updateState";
 
@@ -31,7 +33,9 @@ export function UpdateBanner({
       </div>
 
       {!installing && state.notes !== "" && (
-        <div className="update-notes">{state.notes}</div>
+        <div className="update-notes">
+          <CommentBody>{tidyReleaseNotes(state.notes)}</CommentBody>
+        </div>
       )}
 
       {!installing && (
