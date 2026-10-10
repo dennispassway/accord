@@ -15,8 +15,9 @@ const DISMISSED_KEY = "pr-cockpit.update-dismissed";
 const MOCK_OUTCOME: CheckOutcome = {
   kind: "update",
   version: "0.4.0",
+  // Zelfde vorm als de release-please-body die de echte updater binnenkrijgt.
   notes:
-    "- Menubar-teller telt nu ook draft-PR's mee\n- Snellere eerste laadbeurt\n- Fix: sortering per stack bleef soms hangen",
+    "## [0.4.0](https://github.com/dennispassway/accord/compare/v0.3.0...v0.4.0) (2026-01-12)\n\n\n### Nieuw\n\n* **tray:** menubar-teller telt nu ook draft-PR's mee ([#12](https://github.com/dennispassway/accord/issues/12)) ([a1b2c3d](https://github.com/dennispassway/accord/commit/a1b2c3d4e5f6))\n* **prs:** snellere eerste laadbeurt ([b2c3d4e](https://github.com/dennispassway/accord/commit/b2c3d4e5f6a7))\n\n\n### Opgelost\n\n* **prs:** sortering per stack bleef soms hangen ([c3d4e5f](https://github.com/dennispassway/accord/commit/c3d4e5f6a7b8))\n",
 };
 
 function closeSilently(update: Update | null): void {

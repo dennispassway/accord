@@ -40,11 +40,56 @@
 
 .update-notes {
   margin-top: 8px;
-  max-height: 128px;
+  max-height: 180px;
   overflow-y: auto;
-  white-space: pre-wrap;
   color: var(--text-2);
   font-weight: 400;
+}
+
+/* Release notes als markdown (via CommentBody): koppen op bodymaat, zodat de
+   kaarttitel de enige echte kop blijft. */
+/* Bij meer dan één blok zet markdown-to-jsx er een <div> omheen. */
+.update-notes > :first-child,
+.update-notes > div > :first-child {
+  margin-top: 0;
+}
+
+.update-notes :is(h1, h2, h3, h4, h5, h6) {
+  margin: 10px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.update-notes p {
+  margin: 0 0 6px;
+}
+
+.update-notes :is(ul, ol) {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.update-notes li {
+  margin: 2px 0;
+}
+
+.update-notes strong {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.update-notes code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--code);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.update-notes a {
+  color: var(--accent);
+  cursor: pointer;
 }
 
 .update-actions {
