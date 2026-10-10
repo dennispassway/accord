@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.9.0](https://github.com/dennispassway/accord/compare/v1.8.0...v1.9.0) (2026-10-10)
+
+
+### Nieuw
+
+* **update:** release notes als opgemaakte markdown in de update-kaart ([b76c9f2](https://github.com/dennispassway/accord/commit/b76c9f289362a50489e3292e8b95494ac2cdc43f))
+* **update:** toon de release notes in de update-kaart als opgemaakte markdown ([73b3a72](https://github.com/dennispassway/accord/commit/73b3a72c3d1120dd9c39dc2a7e2046a24342c3a3))
+
 ## [1.8.0](https://github.com/dennispassway/accord/compare/v1.7.0...v1.8.0) (2026-10-08)
 
 
