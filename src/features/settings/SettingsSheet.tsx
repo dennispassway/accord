@@ -17,6 +17,7 @@ import {
 } from "../../lib/settings";
 import { THEMES } from "../../lib/theme";
 import { RepoPathSetup } from "../agents/RepoPathSetup";
+import { AvatarImage } from "../prs/Avatar";
 import { CloseIcon, SettingsIcon } from "../prs/icons";
 import { nextLogoutClick } from "./logoutConfirm";
 import "./settings.css";
@@ -602,6 +603,7 @@ export function SettingsSheet({
           <div className="settings-account">
             <span className="settings-account-avatar">
               {login.slice(0, 1).toUpperCase()}
+              <AvatarImage login={login} size={26} />
             </span>
             <span className="settings-account-login">{login}</span>
             <button

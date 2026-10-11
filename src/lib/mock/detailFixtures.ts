@@ -17,7 +17,7 @@ function comment(
 
 // Toont alle markdown-vormen die CommentsView moet renderen: inline code,
 // een codeblok, een lijst, een link en een afbeelding (die als tekstlink
-// verschijnt, want de CSP staat alleen img-src 'self' data: toe).
+// verschijnt, want de CSP laat buiten de avatar-host geen externe img toe).
 const MARKDOWN_DEMO_BODY = `\`xargs -r rm -rf\` op basis van \`ls -1t\` voelt kwetsbaar als een releasemap een spatie in de naam heeft.
 
 Kort overzicht van wat ik checkte:

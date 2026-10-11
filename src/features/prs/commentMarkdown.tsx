@@ -92,9 +92,9 @@ function MarkdownLink({
   );
 }
 
-// De CSP staat alleen img-src 'self' data: toe, dus een externe afbeelding-
-// URL laadt nooit: toon in plaats daarvan de alt-tekst als aanwijzing, nooit
-// een <img>-element.
+// De CSP staat buiten 'self' en data: alleen de avatar-host toe, dus een
+// externe afbeelding-URL laadt niet: toon in plaats daarvan de alt-tekst als
+// aanwijzing, nooit een <img>-element.
 function MarkdownImage({ alt }: ImgHTMLAttributes<HTMLImageElement>) {
   // Een leeg alt-attribuut (`alt=""`) parseert markdown-to-jsx als het
   // boolean `true` (aanwezig, geen waarde), niet als lege string.
