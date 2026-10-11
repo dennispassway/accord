@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.0](https://github.com/dennispassway/accord/compare/v1.9.0...v1.10.0) (2026-10-11)
+
+
+### Nieuw
+
+* **prs:** GitHub-avatars tonen in plaats van alleen initialen ([4078a23](https://github.com/dennispassway/accord/commit/4078a239c8f798cf9b0153b896ab1d433c5a6487))
+* **prs:** toon GitHub-avatars in plaats van alleen initialen ([5ec9f55](https://github.com/dennispassway/accord/commit/5ec9f55a39f064d21e463d1531f4d80286f7eeb4))
+
 ## [1.9.0](https://github.com/dennispassway/accord/compare/v1.8.0...v1.9.0) (2026-10-10)
 
 
