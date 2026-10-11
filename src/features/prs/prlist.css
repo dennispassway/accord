@@ -441,7 +441,18 @@ li:first-child > .pl-group-header {
 }
 
 .pr-avatar-human {
+  position: relative;
+  overflow: hidden;
   border-radius: 50%;
+}
+
+/* Foto over de initiaal: die blijft zichtbaar tot de foto geladen is. */
+.avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .pr-avatar-agent {

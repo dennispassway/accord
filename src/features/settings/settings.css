@@ -252,6 +252,8 @@
 }
 
 .settings-account-avatar {
+  position: relative;
+  overflow: hidden;
   display: grid;
   place-items: center;
   width: 26px;
