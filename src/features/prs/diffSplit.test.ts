@@ -149,7 +149,7 @@ describe("buildSplitItems", () => {
     expect(rows[0]?.right).toEqual({ kind: "add", text: "b", lineNo: 1 });
   });
 
-  it("zet meta- en hunk-regels door als eigen items", () => {
+  it("laat metaregels weg en zet hunk-regels door als eigen items", () => {
     const items = buildSplitItems(
       lines(
         ["meta", "index abc..def 100644"],
@@ -157,8 +157,25 @@ describe("buildSplitItems", () => {
         ["context", " x"],
       ),
     );
-    expect(items[0]).toEqual({ kind: "meta", text: "index abc..def 100644" });
-    expect(items[1]).toEqual({ kind: "hunk", text: "@@ -1,1 +1,1 @@" });
-    expect(items[2]?.kind).toBe("row");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toEqual({ kind: "hunk", text: "@@ -1,1 +1,1 @@" });
+    expect(items[1]?.kind).toBe("row");
+  });
+
+  it("laat een metaregel midden in een del/add-run de paring intact", () => {
+    const items = buildSplitItems(
+      lines(
+        ["hunk", "@@ -1,1 +1,1 @@"],
+        ["del", "-a"],
+        ["meta", "index abc..def 100644"],
+        ["add", "+b"],
+      ),
+    );
+    expect(items).toHaveLength(2);
+    expect(items[1]).toMatchObject({
+      kind: "row",
+      left: { kind: "del", text: "a" },
+      right: { kind: "add", text: "b" },
+    });
   });
 });

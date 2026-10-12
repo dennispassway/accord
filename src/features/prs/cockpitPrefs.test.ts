@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  DIFF_VIEW_MODES,
+  type DiffViewMode,
   loadColumns,
+  loadDiffView,
   loadFavorites,
   loadPanels,
   loadRepoFilter,
   loadSortMode,
   saveColumns,
+  saveDiffView,
   saveFavorites,
   savePanels,
   saveRepoFilter,
@@ -59,6 +63,29 @@ describe("loadSortMode", () => {
 
   it("valt terug op triage bij lege storage", () => {
     expect(loadSortMode()).toBe("triage");
+  });
+});
+
+describe("loadDiffView", () => {
+  it("leest elk lid van het record terug", () => {
+    for (const mode of Object.keys(DIFF_VIEW_MODES) as DiffViewMode[]) {
+      saveDiffView(mode);
+      expect(loadDiffView()).toBe(mode);
+    }
+  });
+
+  it("valt terug op unified bij een onbekende waarde", () => {
+    localStorage.setItem("pr-cockpit.diffView", "onzin");
+    expect(loadDiffView()).toBe("unified");
+  });
+
+  it("valt terug op unified bij een lege string", () => {
+    localStorage.setItem("pr-cockpit.diffView", "");
+    expect(loadDiffView()).toBe("unified");
+  });
+
+  it("valt terug op unified bij lege storage", () => {
+    expect(loadDiffView()).toBe("unified");
   });
 });
 

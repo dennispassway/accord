@@ -12,8 +12,7 @@ interface SplitCell {
 
 export type SplitItem =
   | { kind: "row"; left: SplitCell; right: SplitCell }
-  | { kind: "hunk"; text: string }
-  | { kind: "meta"; text: string };
+  | { kind: "hunk"; text: string };
 
 const HUNK_HEADER = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
 
@@ -57,11 +56,8 @@ export function buildSplitItems(lines: DiffLine[]): SplitItem[] {
       items.push({ kind: "hunk", text: line.text });
       continue;
     }
-    if (line.kind === "meta") {
-      flush();
-      items.push({ kind: "meta", text: line.text });
-      continue;
-    }
+    // Metaregels (bestandskop) horen niet in de weergave en laten de paring met rust.
+    if (line.kind === "meta") continue;
     if (line.kind === "del") {
       // Twee change-blokken direct na elkaar (zonder context): nieuwe
       // del-run start, vorige paring afronden.

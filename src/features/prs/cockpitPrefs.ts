@@ -5,6 +5,7 @@ import { DEFAULT_PANELS, PANEL_BOUNDS } from "./panelLayout";
 import type { SortMode } from "./sort";
 
 const SORT_MODE_KEY = "pr-cockpit.sortMode";
+const DIFF_VIEW_KEY = "pr-cockpit.diffView";
 const REPO_FILTER_KEY = "pr-cockpit.repoFilter";
 const FAVORITES_KEY = "pr-cockpit.favorites";
 const PANELS_KEY = "pr-cockpit.panels";
@@ -33,6 +34,26 @@ export function loadSortMode(): SortMode {
 
 export function saveSortMode(mode: SortMode): void {
   localStorage.setItem(SORT_MODE_KEY, mode);
+}
+
+export type DiffViewMode = "unified" | "split";
+
+/** Het record dwingt volledigheid af; de lijst wordt eruit afgeleid. */
+export const DIFF_VIEW_MODES: Record<DiffViewMode, true> = {
+  unified: true,
+  split: true,
+};
+
+/** Onthouden diff-weergave; ongeldig, leeg of ontbrekend valt terug op "unified". */
+export function loadDiffView(): DiffViewMode {
+  const stored = localStorage.getItem(DIFF_VIEW_KEY) ?? "";
+  return Object.keys(DIFF_VIEW_MODES).includes(stored)
+    ? (stored as DiffViewMode)
+    : "unified";
+}
+
+export function saveDiffView(mode: DiffViewMode): void {
+  localStorage.setItem(DIFF_VIEW_KEY, mode);
 }
 
 /** Onthouden repo-filter uit de sidebar; ontbrekende waarde valt terug op
