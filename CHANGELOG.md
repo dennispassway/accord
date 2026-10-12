@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.11.0](https://github.com/dennispassway/accord/compare/v1.10.0...v1.11.0) (2026-10-12)
+
+
+### Nieuw
+
+* **agents:** review-modi reviewen langs vier gevendorde lenzen ([aaa6f34](https://github.com/dennispassway/accord/commit/aaa6f3413e9bcec6fe6510df8987d30c09eb5d68))
+
+
+### Opgelost
+
+* **agents:** lenzen veranderen de labelbetekenis niet en zijn per modus afgebakend ([831adc9](https://github.com/dennispassway/accord/commit/831adc910f67dbe43b69c3ba1f0e0b9439cd6aaf))
+* **agents:** withFixes verwerkt open threads en bugs blijven altijd [belangrijk] ([cd639c9](https://github.com/dennispassway/accord/commit/cd639c9dc9167ed166dad9f0c4dd162897586754))
+
 ## [1.10.0](https://github.com/dennispassway/accord/compare/v1.9.0...v1.10.0) (2026-10-11)
 
 
