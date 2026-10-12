@@ -1335,7 +1335,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       {inspector != null && selectedPr != null && (
         <PrInspector
           pr={selectedPr}
-          initialTab={inspector.tab}
+          initialSection={inspector.tab}
           onClose={() => setInspector(null)}
           onAuthError={onAuthError}
           onFixComments={

@@ -4,7 +4,7 @@
  */
 import type { DiffLine } from "./diffParse";
 
-export interface UnifiedRow {
+interface UnifiedRow {
   kind: "row";
   type: "add" | "del" | "context";
   oldNo: number | null;
@@ -12,7 +12,7 @@ export interface UnifiedRow {
   text: string;
 }
 
-export interface UnifiedHunk {
+interface UnifiedHunk {
   kind: "hunk";
   oldStart: number;
   newStart: number;

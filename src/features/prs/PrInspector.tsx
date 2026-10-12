@@ -1,18 +1,27 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import { CommentsView } from "./CommentsView";
-import { DiffView } from "./DiffView";
+import type { DiffViewMode } from "./cockpitPrefs";
+import { DIFF_VIEW_MODES, loadDiffView, saveDiffView } from "./cockpitPrefs";
+import { countChanges, DiffView } from "./DiffView";
+import { parseDiff } from "./diffParse";
 import { CloseIcon, ExternalLinkIcon } from "./icons";
 import "./inspector.css";
+import { PrDescription } from "./PrDescription";
 import { usePrDetail } from "./usePrDetail";
 import { latestVerdict, VerdictBadge } from "./VerdictBadge";
 
-type InspectorTab = "diff" | "comments";
+type InspectorSection = "diff" | "comments";
+
+const DIFF_VIEW_LABELS: Record<DiffViewMode, string> = {
+  unified: "Unified",
+  split: "Split",
+};
 
 interface PrInspectorProps {
   pr: PullRequest;
-  initialTab: InspectorTab;
+  initialSection: InspectorSection;
   onClose: () => void;
   onAuthError: () => void;
   /** Start een fixComments-run; afwezig als dat nu niet kan (run bezig). */
@@ -20,53 +29,57 @@ interface PrInspectorProps {
 }
 
 /**
- * PR-inspector: diff en reacties on-demand, geopend vanuit het detailpaneel
- * of via toets D. Zelfde scrim/sheet-patroon als SettingsSheet, maar breder
- * en met eigen z-index (32/33) zodat hij boven de settings-sheet kan.
+ * PR-inspector: één leesstroom met beschrijving, diff met threads op hun
+ * regel en onderaan het gesprek. Geopend vanuit het detailpaneel of via
+ * toets D. Zelfde scrim/sheet-patroon als SettingsSheet, maar breder en met
+ * eigen z-index (32/33) zodat hij boven de settings-sheet kan.
  */
 export function PrInspector({
   pr,
-  initialTab,
+  initialSection,
   onClose,
   onAuthError,
   onFixComments,
 }: PrInspectorProps) {
-  const [tab, setTab] = useState<InspectorTab>(initialTab);
+  const [mode, setMode] = useState<DiffViewMode>(loadDiffView);
+  const conversationRef = useRef<HTMLElement>(null);
+  const scrolledRef = useRef(false);
   const { status, detail, error, retry, reply, setResolved } = usePrDetail(
     pr,
     onAuthError,
   );
 
   const verdict = latestVerdict(pr);
-  const commentCount =
-    detail != null
-      ? detail.issueComments.length + detail.reviewThreads.length
-      : null;
 
-  // U6: 1/2 wisselen van tab zolang de inspector open is, behalve als de
-  // focus in een invoerveld staat (bijvoorbeeld de reply-textarea).
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (
-        event.metaKey ||
-        event.ctrlKey ||
-        event.altKey ||
-        (event.target instanceof HTMLElement &&
-          ["INPUT", "TEXTAREA"].includes(event.target.tagName))
-      ) {
-        return;
-      }
-      if (event.key === "1") {
-        event.preventDefault();
-        setTab("diff");
-      } else if (event.key === "2") {
-        event.preventDefault();
-        setTab("comments");
-      }
+  const files = useMemo(() => (detail ? parseDiff(detail.diff) : []), [detail]);
+  const totals = useMemo(() => {
+    let add = 0;
+    let del = 0;
+    for (const file of files) {
+      const counts = countChanges(file.lines);
+      add += counts.add;
+      del += counts.del;
     }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+    return { add, del };
+  }, [files]);
+  const elsewhereThreads = useMemo(() => {
+    const paths = new Set(files.map((file) => file.path));
+    return (detail?.reviewThreads ?? []).filter((t) => !paths.has(t.path));
+  }, [detail, files]);
+
+  // Eenmalig naar het gesprek scrollen als de inspector daarvoor geopend is.
+  // Pas na status "ready": eerder bestaat de sectie niet.
+  useEffect(() => {
+    if (status !== "ready" || initialSection !== "comments") return;
+    if (scrolledRef.current) return;
+    scrolledRef.current = true;
+    conversationRef.current?.scrollIntoView({ block: "start" });
+  }, [status, initialSection]);
+
+  function changeMode(next: DiffViewMode) {
+    setMode(next);
+    saveDiffView(next);
+  }
 
   return (
     <>
@@ -94,6 +107,23 @@ export function PrInspector({
                 Fix nu
               </button>
             )}
+          <fieldset className="inspector-segmented" aria-label="Weergave">
+            {(Object.keys(DIFF_VIEW_MODES) as DiffViewMode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                aria-pressed={mode === m}
+                className={
+                  mode === m
+                    ? "inspector-segmented-option active"
+                    : "inspector-segmented-option"
+                }
+                onClick={() => changeMode(m)}
+              >
+                {DIFF_VIEW_LABELS[m]}
+              </button>
+            ))}
+          </fieldset>
           <button
             type="button"
             className="icon-button"
@@ -109,30 +139,6 @@ export function PrInspector({
             onClick={onClose}
           >
             <CloseIcon />
-          </button>
-        </div>
-        <div className="inspector-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "diff"}
-            className={
-              tab === "diff" ? "inspector-tab active" : "inspector-tab"
-            }
-            onClick={() => setTab("diff")}
-          >
-            Diff
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "comments"}
-            className={
-              tab === "comments" ? "inspector-tab active" : "inspector-tab"
-            }
-            onClick={() => setTab("comments")}
-          >
-            Reacties{commentCount != null ? ` (${commentCount})` : ""}
           </button>
         </div>
         <div className="inspector-body">
@@ -162,23 +168,37 @@ export function PrInspector({
               </div>
             </div>
           )}
-          {status === "ready" &&
-            detail != null &&
-            (tab === "diff" ? (
+          {status === "ready" && detail != null && (
+            <>
+              <PrDescription
+                body={detail.body}
+                fileCount={files.length}
+                add={totals.add}
+                del={totals.del}
+              />
               <DiffView
                 diff={detail.diff}
                 tooLarge={detail.diffTooLarge}
                 url={pr.url}
-              />
-            ) : (
-              <CommentsView
-                issueComments={detail.issueComments}
-                reviewThreads={detail.reviewThreads}
-                url={pr.url}
+                mode={mode}
+                threads={detail.reviewThreads}
                 onReply={reply}
                 onSetResolved={setResolved}
               />
-            ))}
+              <section
+                ref={conversationRef}
+                className="inspector-comments-section inspector-conversation"
+              >
+                <h3 className="inspector-comments-heading">Gesprek</h3>
+                <CommentsView
+                  issueComments={detail.issueComments}
+                  elsewhereThreads={elsewhereThreads}
+                  onReply={reply}
+                  onSetResolved={setResolved}
+                />
+              </section>
+            </>
+          )}
         </div>
       </div>
     </>

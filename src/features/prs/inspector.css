@@ -29,12 +29,57 @@
   background: var(--fill-1);
 }
 
+/* Beschrijving */
+
+.inspector-description {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 12px;
+  border-radius: var(--r-2);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.inspector-description-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.inspector-description-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* ~5 regels: 5 * 12px * 1.5 */
+.inspector-description-body.collapsed {
+  max-height: 90px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 45%, transparent 95%);
+}
+
+.inspector-description-toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
 /* Diff */
 
 .inspector-diff {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .inspector-diff-file {
@@ -44,24 +89,55 @@
   overflow: hidden;
 }
 
-.inspector-diff-file-summary {
+.inspector-diff-file-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+  width: 100%;
   padding: 7px 10px;
-  cursor: pointer;
+  border: 0;
+  background: var(--fill-1);
+  color: var(--text-1);
   font-family: var(--mono);
   font-size: 11.5px;
-  color: var(--text-1);
-  background: var(--fill-1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.inspector-diff-file-head:hover {
+  background: var(--fill-2);
+}
+
+.inspector-diff-chevron {
+  flex: 0 0 auto;
+  width: 10px;
+  color: var(--text-3);
+  transition: transform 0.12s;
+}
+
+.inspector-diff-chevron.open {
+  transform: rotate(90deg);
 }
 
 .inspector-diff-file-path {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.inspector-diff-file-dir {
+  color: var(--text-3);
+}
+
+.inspector-diff-generated {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--fill-2);
+  color: var(--text-3);
+  font-size: 10px;
 }
 
 .inspector-diff-file-count {
@@ -78,25 +154,34 @@
 }
 
 .inspector-diff-lines {
+  container-type: inline-size;
   overflow-x: auto;
   font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 20px;
 }
 
 .inspector-diff-grid {
   display: grid;
-  grid-template-columns: max-content 1fr max-content 1fr;
   min-width: max-content;
 }
 
-.inspector-diff-line-hunk,
-.inspector-diff-line-meta {
+.inspector-diff-grid-unified {
+  grid-template-columns: max-content max-content 1fr;
+}
+
+.inspector-diff-grid-split {
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  min-width: 0;
+}
+
+.inspector-diff-line-hunk {
   grid-column: 1 / -1;
   padding: 0 10px;
-  min-height: 1.5em;
+  min-height: 20px;
   white-space: pre;
   color: var(--text-3);
+  background: var(--fill-1);
 }
 
 .inspector-diff-row {
@@ -105,7 +190,7 @@
 
 .inspector-diff-lineno {
   padding: 0 8px;
-  min-height: 1.5em;
+  min-height: 20px;
   text-align: right;
   color: var(--text-3);
   user-select: none;
@@ -113,8 +198,13 @@
 
 .inspector-diff-cell {
   padding: 0 10px;
-  min-height: 1.5em;
+  min-height: 20px;
   white-space: pre;
+}
+
+.inspector-diff-grid-split .inspector-diff-cell {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .inspector-diff-cell-add {
@@ -131,6 +221,43 @@
 
 .inspector-diff-cell-empty {
   background: var(--fill-1);
+}
+
+/* Threads op hun regel: volle breedte van het zichtbare vlak, ook als de
+   code ernaast horizontaal scrolt. */
+.inspector-diff-thread-row {
+  grid-column: 1 / -1;
+  position: sticky;
+  left: 0;
+  width: 100cqw;
+  padding: 6px 10px;
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: normal;
+}
+
+.inspector-diff-threads {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inspector-diff-outdated {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.inspector-diff-outdated-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 /* Comments */
@@ -155,6 +282,24 @@
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--text-3);
+}
+
+.inspector-comments-subheading {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 590;
+  color: var(--text-2);
+}
+
+.inspector-comments-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.inspector-conversation {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
 }
 
 .inspector-comments-list {
@@ -311,6 +456,11 @@
   background: var(--fill-1);
 }
 
+.inspector-diff-threads .inspector-thread {
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
 .inspector-thread-head {
   display: flex;
   align-items: center;
@@ -411,7 +561,7 @@
   display: flex;
   flex-direction: column;
   width: 90%;
-  max-height: calc(100% - 48px);
+  height: calc(100% - 48px);
   border-radius: var(--r-4);
   background: var(--menu);
   box-shadow:
@@ -463,40 +613,52 @@
   color: var(--text-1);
 }
 
-.inspector-tabs {
+.inspector-segmented {
+  margin: 0;
+  min-width: 0;
   display: flex;
-  gap: 4px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-2);
+  background: var(--fill-1);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
-.inspector-tab {
-  height: 26px;
-  padding: 0 12px;
+.inspector-segmented-option {
+  height: 22px;
+  padding: 0 9px;
   border: 0;
-  border-radius: var(--r-2);
+  border-radius: 5px;
   background: transparent;
   color: var(--text-2);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
 }
 
-.inspector-tab:hover {
+.inspector-segmented-option:hover {
   color: var(--text-1);
 }
 
-.inspector-tab.active {
+.inspector-segmented-option.active {
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px var(--accent-line);
   color: var(--text-1);
 }
 
 .inspector-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding: 14px;
+}
+
+.inspector-body > * {
+  flex: none;
 }
 
 .inspector-error-actions {

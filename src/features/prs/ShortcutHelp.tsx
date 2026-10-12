@@ -26,7 +26,6 @@ const SHORTCUTS: ShortcutEntry[] = [
   { keys: "L", label: "Later: PR snoozen" },
   { keys: mod("⏎"), label: "Mergen" },
   { keys: mod(","), label: "Instellingen" },
-  { keys: "1 / 2", label: "Diff of reacties (in de inspector)" },
 ];
 
 interface ShortcutHelpProps {

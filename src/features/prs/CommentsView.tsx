@@ -1,4 +1,3 @@
-import { openUrl } from "@tauri-apps/plugin-opener";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import type { PrComment, ReviewThread } from "../../lib/github/prDetail";
@@ -9,8 +8,7 @@ import "./inspector.css";
 
 interface CommentsViewProps {
   issueComments: PrComment[];
-  reviewThreads: ReviewThread[];
-  url: string;
+  elsewhereThreads: ReviewThread[];
   onReply: (threadId: string, body: string) => Promise<void>;
   onSetResolved: (threadId: string, resolved: boolean) => Promise<void>;
 }
@@ -40,9 +38,16 @@ interface ThreadItemProps {
   thread: ReviewThread;
   onReply: (threadId: string, body: string) => Promise<void>;
   onSetResolved: (threadId: string, resolved: boolean) => Promise<void>;
+  /** Uit als de thread al onder zijn regel staat: pad:regel is daar dubbel. */
+  showLocation?: boolean;
 }
 
-function ThreadItem({ thread, onReply, onSetResolved }: ThreadItemProps) {
+export function ThreadItem({
+  thread,
+  onReply,
+  onSetResolved,
+  showLocation = true,
+}: ThreadItemProps) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -84,10 +89,12 @@ function ThreadItem({ thread, onReply, onSetResolved }: ThreadItemProps) {
   return (
     <div className="inspector-thread">
       <div className="inspector-thread-head">
-        <span className="inspector-thread-location">
-          {thread.path}
-          {thread.line !== null ? `:${thread.line}` : ""}
-        </span>
+        {showLocation && (
+          <span className="inspector-thread-location">
+            {thread.path}
+            {thread.line !== null ? `:${thread.line}` : ""}
+          </span>
+        )}
         {thread.isResolved && (
           <span className="inspector-thread-resolved">opgelost</span>
         )}
@@ -172,49 +179,39 @@ function ThreadItem({ thread, onReply, onSetResolved }: ThreadItemProps) {
   );
 }
 
+/** Inhoud van de Gesprek-sectie: issue-comments en threads die bij geen
+ * diffbestand horen. Inline threads staan in DiffView. */
 export function CommentsView({
   issueComments,
-  reviewThreads,
-  url,
+  elsewhereThreads,
   onReply,
   onSetResolved,
 }: CommentsViewProps): ReactNode {
-  if (issueComments.length === 0 && reviewThreads.length === 0) {
+  if (issueComments.length === 0 && elsewhereThreads.length === 0) {
     return (
-      <div className="inspector-empty">
-        <p>Nog geen reacties.</p>
-        <button
-          type="button"
-          className="inspector-github-button"
-          onClick={() => void openUrl(url)}
-        >
-          Open op GitHub
-        </button>
-      </div>
+      <p className="inspector-comments-empty">Nog geen algemene reacties.</p>
     );
   }
 
   return (
-    <div className="inspector-comments">
+    <>
       {issueComments.length > 0 && (
-        <section className="inspector-comments-section">
-          <h3 className="inspector-comments-heading">Gesprek</h3>
-          <div className="inspector-comments-list">
-            {issueComments.map((comment) => (
-              <CommentRow
-                key={`${comment.author.login}-${comment.createdAt}`}
-                comment={comment}
-              />
-            ))}
-          </div>
-        </section>
+        <div className="inspector-comments-list">
+          {issueComments.map((comment) => (
+            <CommentRow
+              key={`${comment.author.login}-${comment.createdAt}`}
+              comment={comment}
+            />
+          ))}
+        </div>
       )}
-
-      {reviewThreads.length > 0 && (
-        <section className="inspector-comments-section">
-          <h3 className="inspector-comments-heading">Review-threads</h3>
+      {elsewhereThreads.length > 0 && (
+        <div className="inspector-comments-section">
+          <h4 className="inspector-comments-subheading">
+            Review-threads elders
+          </h4>
           <div className="inspector-comments-list">
-            {reviewThreads.map((thread) => (
+            {elsewhereThreads.map((thread) => (
               <ThreadItem
                 key={thread.id || `${thread.path}-${thread.line}`}
                 thread={thread}
@@ -223,8 +220,8 @@ export function CommentsView({
               />
             ))}
           </div>
-        </section>
+        </div>
       )}
-    </div>
+    </>
   );
 }
