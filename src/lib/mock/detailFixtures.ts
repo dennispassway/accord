@@ -4,7 +4,12 @@
  * de app. Handgeschreven diffs, geen echte GitHub-call.
  */
 import { deriveAuthor } from "../github/domain";
-import type { PrComment, PrDetail, ReviewThread } from "../github/prDetail";
+import type {
+  DiffSide,
+  PrComment,
+  PrDetail,
+  ReviewThread,
+} from "../github/prDetail";
 
 function comment(
   login: string,
@@ -50,12 +55,14 @@ function thread(
   line: number | null,
   isResolved: boolean,
   comments: PrComment[],
+  diffSide: DiffSide = "RIGHT",
 ): ReviewThread {
   threadCounter += 1;
   return {
     id: `mock-thread-${threadCounter}`,
     path,
     line,
+    diffSide,
     isResolved,
     viewerCanReply: !isResolved,
     viewerCanResolve: !isResolved,
@@ -157,6 +164,16 @@ index 33445566..77889900 100644
 
 export const MOCK_PR_DETAILS: Record<string, PrDetail> = {
   "acme/knowledge-base#167": {
+    body: `## Wat verandert er
+
+Deploys gaan niet meer rechtstreeks naar de live-map maar naar een eigen releases-map.
+
+- \`deploy.sh\` zet \`current\` om via een symlink
+- \`prune-releases.sh\` bewaart de laatste 5 releases
+
+## Testen
+
+Draai \`deploy.sh\` op staging en controleer dat \`current\` naar de nieuwste map wijst.`,
     diff: KEN167_DIFF,
     diffTooLarge: false,
     issueComments: [
@@ -185,6 +202,20 @@ export const MOCK_PR_DETAILS: Record<string, PrDetail> = {
           MARKDOWN_DEMO_BODY,
         ),
       ]),
+      // Oude kant: regel 15 is de verwijderde `rsync -az --delete` in de hunk.
+      thread(
+        "deploy/deploy.sh",
+        15,
+        false,
+        [
+          comment(
+            "octocat",
+            "De oude rsync met --delete ruimde ook bestanden op die niet meer in de build zitten. Dat gedrag verdwijnt nu, klopt dat bewust?",
+            "2026-07-28T09:30:00Z",
+          ),
+        ],
+        "LEFT",
+      ),
       thread("deploy/deploy.sh", 15, true, [
         comment(
           "monalisa",
@@ -200,6 +231,17 @@ export const MOCK_PR_DETAILS: Record<string, PrDetail> = {
     ],
   },
   "acme/storefront#49": {
+    body: `## Partnerportaal
+
+Voegt een audit-log, een webhook-endpoint en btw-correcte facturatie toe aan de B2B-module.
+
+- \`createPartnerPortal\` logt \`portal_created\`
+- \`suspendPartnerPortal\` is alleen voor admins
+- \`generateInvoice\` rekent op \`amountExclVat\`
+
+## Let op
+
+De webhook leest \`req.rawBody\`; de raw-body-parser moet voor die route aan staan.`,
     diff: HOC49_DIFF,
     diffTooLarge: false,
     issueComments: [
@@ -245,6 +287,10 @@ export const MOCK_PR_DETAILS: Record<string, PrDetail> = {
 };
 
 export const MOCK_PR_DETAIL_FALLBACK: PrDetail = {
+  body: `## README bijgewerkt
+
+- vervangt de oude projectbeschrijving
+- geen codewijzigingen, zie \`README.md\``,
   diff: `diff --git a/README.md b/README.md
 index abc1234..def5678 100644
 --- a/README.md
