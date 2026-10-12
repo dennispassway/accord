@@ -767,13 +767,14 @@ fn prompt_for_mode(
     let learnings_core = format!(
         "Destilleer de lessen uit pull request #{pr_number} in deze repo, zodat een volgende PR in één keer goed gaat. Lees alleen de review-comments en threads (gh pr view {pr_number} --comments en gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments) en de fix-commits die na de eerste review kwamen met hun diffs (niet de volledige PR-diff, dus geen gh pr diff), en bepaal per punt wat er in de oorspronkelijke code misging. Bewaar alleen generaliseerbare lessen: een regel die een toekomstige fout in deze repo voorkomt en die nog niet uit de code, de linter of de bestaande instructies volgt. Sla PR-specifieke feiten, eenmalige vergissingen en pure smaak over. Maximaal twee lessen per PR: vind je er meer, houd dan de twee met de grootste kans op herhaling en laat de rest weg. Verifieer elke les tegen de huidige code voordat je hem opschrijft. Kies per les de juiste plek en behandel CLAUDE.md als laatste optie: een meerstaps-werkwijze wordt een skill in .claude/skills/<naam>/SKILL.md met name en description in de frontmatter, een instructie die alleen bij bepaalde bestanden of paden geldt een regelbestand onder .claude/rules/, en alleen een korte tijdloze regel die bij elke taak in deze repo nodig is komt in CLAUDE.md (maak het bestand aan als het ontbreekt). Een les in CLAUDE.md is maximaal 2-3 zinnen zonder PR-nummers of casuïstiek; het verhaal erachter hoort in de commit-tekst. Check eerst of een bestaande regel of skill hetzelfde probleem al dekt en werk die dan bij in plaats van een duplicaat toe te voegen. Is CLAUDE.md na jouw wijziging groter dan 10 kilobyte (meet met wc -c CLAUDE.md), dan geldt one-in-one-out: er mag alleen iets bij als je tegelijk een bestaande regel schrapt of verplaatst naar een skill of regelbestand. Draai geen tests: je wijzigt alleen documentatie en instructies. Geen les gevonden: stop dan zonder iets te wijzigen."
     );
-    let lens_appendix = review_lens_appendix();
     let prompt = match mode {
         "withFixes" => format!(
-            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}). {diff_focus} Lees ook de al geplaatste review-comments en open threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments), en vorm daarna pas je oordeel. Richt je op problemen die gedrag raken (bugs, security, dataverlies); stijl alleen als het echt schaadt. Fix wat je vindt met kleine, losse commits, en verwerk daarbij ook de terechte punten uit de open threads. Draai daarna de tests en linter van het project. {light_hint} {hand_off} Reageer per verwerkte thread in die thread zelf (gh api met in_reply_to) wat je hebt aangepast en resolve hem daarna via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het met een punt gemotiveerd oneens, leg dat uit in een reply en laat die thread open. Sluit af met één samenvattende review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review), gevolgd door per bevinding bestand:regel, wat er mis was en wat je hebt aangepast.{REVIEW_LENS_COMMON}{REVIEW_LENS_WITH_FIXES}{lens_appendix}"
+            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}). {diff_focus} Lees ook de al geplaatste review-comments en open threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments), en vorm daarna pas je oordeel. Richt je op problemen die gedrag raken (bugs, security, dataverlies); stijl alleen als het echt schaadt. Fix wat je vindt met kleine, losse commits, en verwerk daarbij ook de terechte punten uit de open threads. Draai daarna de tests en linter van het project. {light_hint} {hand_off} Reageer per verwerkte thread in die thread zelf (gh api met in_reply_to) wat je hebt aangepast en resolve hem daarna via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het met een punt gemotiveerd oneens, leg dat uit in een reply en laat die thread open. Sluit af met één samenvattende review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review), gevolgd door per bevinding bestand:regel, wat er mis was en wat je hebt aangepast.{REVIEW_LENS_COMMON}{REVIEW_LENS_WITH_FIXES}{}",
+            review_lens_appendix()
         ),
         "commentsOnly" => format!(
-            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}). {diff_focus} Vorm daarna pas je bevindingen. Controleer elke bevinding tegen de code en meld alleen punten waar je zeker van bent, met bestand:regel erbij. Label elke bevinding: [belangrijk] voor bugs, security of dataverlies, [nit] voor stijl; maximaal 5 nits, en sla gegenereerde bestanden en lockfiles over. Plaats alles als één review met inline comments op de betreffende regels: post naar gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/reviews --input - een JSON-payload met event COMMENT, en als body: de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review; vervang daarin `<nodig|geen>` en `<ci|lokaal>` door je oordeel: fixes=nodig als er minstens één [belangrijk]-bevinding is, anders fixes=geen; verificatie=lokaal alleen als de fix iets raakt dat CI niet dekt of als de repo geen CI-checks heeft (gh pr checks {pr_number} geeft niets terug), anders verificatie=ci) gevolgd door een korte samenvatting, en per bevinding een entry in comments met path, line en side RIGHT (regelnummer in het nieuwe bestand, niet de diff-positie). Per inline comment: het probleem, waarom het uitmaakt en een concreet fix-voorstel. Geen blokkerende punten: zeg dat dan expliciet in één zin in de review-body. Wijzig geen bestanden en push geen code.{REVIEW_LENS_COMMON}{lens_appendix}"
+            "Review pull request #{pr_number} in deze repo. Lees eerst de volledige diff (gh pr diff {pr_number}). {diff_focus} Vorm daarna pas je bevindingen. Controleer elke bevinding tegen de code en meld alleen punten waar je zeker van bent, met bestand:regel erbij. Label elke bevinding: [belangrijk] voor bugs, security of dataverlies, [nit] voor stijl; maximaal 5 nits, en sla gegenereerde bestanden en lockfiles over. Plaats alles als één review met inline comments op de betreffende regels: post naar gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/reviews --input - een JSON-payload met event COMMENT, en als body: de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review; vervang daarin `<nodig|geen>` en `<ci|lokaal>` door je oordeel: fixes=nodig als er minstens één [belangrijk]-bevinding is, anders fixes=geen; verificatie=lokaal alleen als de fix iets raakt dat CI niet dekt of als de repo geen CI-checks heeft (gh pr checks {pr_number} geeft niets terug), anders verificatie=ci) gevolgd door een korte samenvatting, en per bevinding een entry in comments met path, line en side RIGHT (regelnummer in het nieuwe bestand, niet de diff-positie). Per inline comment: het probleem, waarom het uitmaakt en een concreet fix-voorstel. Geen blokkerende punten: zeg dat dan expliciet in één zin in de review-body. Wijzig geen bestanden en push geen code.{REVIEW_LENS_COMMON}{REVIEW_LENS_COMMENTS_ONLY}{}",
+            review_lens_appendix()
         ),
         "fixComments" => format!(
             "Los de openstaande review-comments op pull request #{pr_number} in deze repo op. Lees eerst alle open threads via gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments en gh pr view {pr_number} --comments, en bepaal per punt of het terecht is. Fix de terechte punten met kleine, losse commits; los een falend punt op in de code, nooit door een test te verzwakken, te skippen of te verwijderen. Draai daarna de tests en linter. {light_hint} {hand_off} Reageer daarna per verwerkte comment in zijn eigen thread (gh api met in_reply_to) wat je hebt aangepast en resolve die thread via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het ergens gemotiveerd oneens, leg dat uit in een reply zonder code te wijzigen en laat die thread open."
@@ -797,10 +798,12 @@ fn prompt_for_mode(
 
 /// Alleen voor de review-modi: zet de gevendorde lenzen in als oordeelskader. Het
 /// labelsysteem en de marker van de prompt ervoor blijven leidend.
-const REVIEW_LENS_COMMON: &str = " Review langs de rubric en de code-quality-lens hieronder en gebruik de ponytail-review-lens voor over-engineering. Het label [belangrijk] blijft voorbehouden aan bugs, security en dataverlies, ook als de rubric ze onder een andere noemer plaatst. Een presumptive blocker volgens de approval bar van de code-quality-lens is een [nit] met het prefix `kwaliteit:` in de comment; een ponytail-bevinding (delete, stdlib, native, yagni, shrink) is een [nit] met het prefix `ponytail:`. Filter je bevindingen vóór het posten volgens de lead-judgment-lens: laat nitpicks, hypothetische problemen en 'ik had het anders gedaan' weg en post alleen wat de lead-judgment als 'Act on' of 'Consider' zou houden; de cap van 5 nits blijft gelden. De lenzen zijn richtlijnen voor je oordeel en zetten de plaatsingsinstructie hierboven niet opzij (niet pushen, één review, de marker). De gerichte leesinstructie hierboven gaat voor op lens-adviezen als 'read the surrounding code' en 'be extremely thorough'. Zegt een lens iets over subagents, modellen of uitvoerformaten, negeer dat: het outputformaat van deze prompt gaat voor.";
+const REVIEW_LENS_COMMON: &str = " Review langs de rubric en de code-quality-lens hieronder en gebruik de ponytail-review-lens voor over-engineering. Label je eigen bevindingen als volgt. Bugs, security en dataverlies krijgen altijd het label [belangrijk], ook als het tegelijk een presumptive blocker of een ponytail-punt is. Een presumptive blocker volgens de approval bar van de code-quality-lens zonder gedragsprobleem is een [nit] met het prefix `kwaliteit:` in de comment; een ponytail-bevinding (delete, stdlib, native, yagni, shrink) zonder gedragsprobleem is een [nit] met het prefix `ponytail:`. Filter je bevindingen vóór het posten volgens de lead-judgment-lens: laat nitpicks, hypothetische problemen en 'ik had het anders gedaan' weg en post alleen wat de lead-judgment als 'Act on' of 'Consider' zou houden. De lenzen zijn richtlijnen voor je oordeel en zetten de plaatsingsinstructie hierboven niet opzij (niet pushen, één review, de marker). De gerichte leesinstructie hierboven gaat voor op lens-adviezen als 'read the surrounding code' en 'be extremely thorough'. Zegt een lens iets over subagents, modellen of uitvoerformaten, negeer dat: het outputformaat van deze prompt gaat voor.";
+
+const REVIEW_LENS_COMMENTS_ONLY: &str = " Voor de nits met kwaliteit: of ponytail: geldt dezelfde regel: de cap van 5 nits blijft gelden.";
 
 /// Alleen withFixes: wat de agent met die bevindingen mag doen.
-const REVIEW_LENS_WITH_FIXES: &str = " Fix alleen de [belangrijk]-bevindingen; noem [nit]-punten (ook die met kwaliteit: of ponytail:) alleen in de samenvatting van je review en pas ze niet aan. Doe geen refactors of herstructurering buiten de bevindingen; de afsluiting met gh pr review hierboven blijft ongewijzigd.";
+const REVIEW_LENS_WITH_FIXES: &str = " Fix alleen je eigen [belangrijk]-bevindingen uit de lenzen; je eigen [nit]-, kwaliteit:- en ponytail:-punten pas je niet aan: noem maximaal 5 eigen [nit]-punten, alleen in de samenvatting van je review. Terechte punten uit open review-threads verwerk je zoals hierboven beschreven, ongeacht label, ook als ze van mensen of andere agents komen. Doe geen refactors of herstructurering buiten de bevindingen en die threads; de afsluiting met gh pr review hierboven blijft ongewijzigd.";
 
 /// Gevendord uit pstack en ponytail (MIT, ongewijzigd); zie prompts/vendor/README.md.
 fn review_lens_appendix() -> String {
@@ -1867,7 +1870,7 @@ mod tests {
         "# Review Rubric",
         "# Code Quality Review",
         "# Lead Judgment Framework",
-        "Code review focused exclusively on over-engineering.",
+        "## 2. Look for",
     ];
 
     const REVIEW_MODES: [&str; 2] = ["commentsOnly", "withFixes"];
@@ -1890,12 +1893,12 @@ mod tests {
                     "{ctx}"
                 );
                 assert!(prompt.contains("plaatsingsinstructie hierboven"), "{ctx}");
-                assert!(prompt.contains("5 nits"), "{ctx}");
+                assert!(
+                    prompt.contains("krijgen altijd het label [belangrijk]"),
+                    "{ctx}"
+                );
                 assert!(!prompt.contains("maximaal 5 [belangrijk]"), "{ctx}");
                 assert!(prompt.contains("read the surrounding code"), "{ctx}");
-
-                let lens_text = format!("{REVIEW_LENS_COMMON}{REVIEW_LENS_WITH_FIXES}");
-                assert!(!lens_text.contains("gh api"), "{ctx}");
 
                 let end = prompt.find("--- Einde lenzen ---").expect("einde lenzen");
                 let last_lens = prompt.rfind("--- Lens:").expect("lens");
@@ -1906,16 +1909,33 @@ mod tests {
     }
 
     #[test]
-    fn only_with_fixes_may_fix_and_only_important_findings() {
-        let with_fixes =
-            prompt_for_mode("claude", "withFixes", 42, "feature/x", "main").expect("prompt");
-        assert!(with_fixes.contains("Fix alleen de [belangrijk]-bevindingen"));
-        assert!(with_fixes.contains("geen refactors"));
-        assert!(with_fixes.contains("gh pr review 42 --comment"));
-        let comments_only =
-            prompt_for_mode("claude", "commentsOnly", 42, "feature/x", "main").expect("prompt");
-        assert!(!comments_only.contains("Fix alleen de [belangrijk]"));
-        assert!(!comments_only.contains("geen refactors"));
+    fn lens_instructions_contain_no_placement_command() {
+        let lens_text =
+            format!("{REVIEW_LENS_COMMON}{REVIEW_LENS_COMMENTS_ONLY}{REVIEW_LENS_WITH_FIXES}");
+        assert!(!lens_text.contains("gh api"));
+    }
+
+    #[test]
+    fn with_fixes_restricts_only_its_own_lens_findings() {
+        for agent in ["claude", "codex"] {
+            let with_fixes =
+                prompt_for_mode(agent, "withFixes", 42, "feature/x", "main").expect("prompt");
+            assert!(with_fixes.contains("Fix alleen je eigen [belangrijk]-bevindingen"));
+            assert!(with_fixes.contains(
+                "Terechte punten uit open review-threads verwerk je zoals hierboven beschreven, ongeacht label"
+            ));
+            assert!(with_fixes.contains("noem maximaal 5 eigen [nit]-punten"));
+            assert!(!with_fixes.contains("de cap van 5 nits"));
+            assert!(with_fixes.contains("geen refactors"));
+            assert!(with_fixes.contains("gh pr review 42 --comment"));
+            let comments_only =
+                prompt_for_mode(agent, "commentsOnly", 42, "feature/x", "main").expect("prompt");
+            assert!(!comments_only.contains("Fix alleen je eigen"));
+            assert!(!comments_only.contains("geen refactors"));
+            assert!(!comments_only.contains("open review-threads verwerk je"));
+            assert!(comments_only.contains("de cap van 5 nits blijft gelden"));
+            assert!(!comments_only.contains("noem maximaal 5 eigen"));
+        }
     }
 
     /// Lengte plus FNV-1a-64 van de prompt zoals origin/main hem opleverde

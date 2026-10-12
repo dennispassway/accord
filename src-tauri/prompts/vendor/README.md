@@ -7,6 +7,6 @@ Pas deze bestanden niet aan; hoe Accord ze inzet staat in de prompt-opbouw in `s
 | Bestand | Bron | Versie | Licentie |
 | --- | --- | --- | --- |
 | `pstack/rubric.md`, `pstack/code-quality-review.md`, `pstack/lead-judgment.md` | https://github.com/cursor/plugins/tree/main/pstack/skills/interrogate/references (Lauren Tan) | commit `1b6d44ff26d4e242f4e8f68c391e6d2f7ca16def` | MIT, zie `pstack/LICENSE` |
-| `ponytail/ponytail-review.md` (was `skills/ponytail-review/SKILL.md`) | https://ponytail.dev (DietrichGebert) | 4.10.0 | MIT, zie `ponytail/LICENSE` |
+| `ponytail/ponytail-review.md` (was `skills/ponytail-review/SKILL.md`) | https://ponytail.dev (DietrichGebert) | 5.1.0 | MIT, zie `ponytail/LICENSE` |
 
 Bijwerken: kopieer dezelfde bestanden opnieuw uit de bron en werk de versie in deze tabel bij.
