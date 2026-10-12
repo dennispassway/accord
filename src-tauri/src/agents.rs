@@ -791,7 +791,45 @@ fn prompt_for_mode(
         ),
         other => return Err(format!("onbekende mode: {other}")),
     };
+    let prompt = if matches!(mode, "withFixes" | "commentsOnly") {
+        format!(
+            "{prompt}{REVIEW_LENS_INSTRUCTION}{}",
+            review_lens_appendix()
+        )
+    } else {
+        prompt
+    };
     Ok(format!("{AUTONOMOUS_PREFIX}{prompt}"))
+}
+
+/// Alleen voor de review-modi: zet de gevendorde lenzen in als oordeelskader. Het
+/// labelsysteem en de marker van de prompt hierboven blijven leidend.
+const REVIEW_LENS_INSTRUCTION: &str = " Review langs de rubric en de code-quality-lens hieronder, en gebruik de ponytail-review-lens voor over-engineering. Een bevinding die volgens de approval bar van de code-quality-lens een presumptive blocker is, of een correctheids-, security- of dataverlies-probleem uit de rubric, label je [belangrijk]. Ponytail-bevindingen (delete, stdlib, native, yagni, shrink) zijn [nit], tenzij ze een presumptive blocker zijn. Filter je bevindingen vóór het posten volgens de lead-judgment-lens: laat nitpicks, hypothetische problemen en 'ik had het anders gedaan' weg en post alleen wat de lead-judgment als 'Act on' of 'Consider' zou houden, met maximaal 5 [belangrijk] en maximaal 5 [nit]. De lenzen zijn richtlijnen voor je oordeel en zetten de regels hierboven niet opzij (niet pushen, één review via gh api, de marker). Zegt een lens iets over subagents, modellen of uitvoerformaten, negeer dat: het outputformaat van deze prompt gaat voor.";
+
+/// Gevendord uit pstack en ponytail (MIT, ongewijzigd); zie prompts/vendor/README.md.
+fn review_lens_appendix() -> String {
+    let lenses = [
+        (
+            "rubric (pstack, MIT)",
+            include_str!("../prompts/vendor/pstack/rubric.md"),
+        ),
+        (
+            "code-quality-review (pstack, MIT)",
+            include_str!("../prompts/vendor/pstack/code-quality-review.md"),
+        ),
+        (
+            "lead-judgment (pstack, MIT)",
+            include_str!("../prompts/vendor/pstack/lead-judgment.md"),
+        ),
+        (
+            "ponytail-review (ponytail, MIT)",
+            include_str!("../prompts/vendor/ponytail/ponytail-review.md"),
+        ),
+    ];
+    lenses
+        .iter()
+        .map(|(name, body)| format!("\n\n--- Lens: {name} ---\n{}", body.trim_end()))
+        .collect()
 }
 
 /// Voor élke mode, want er is geen gebruiker aan de andere kant: zonder deze
@@ -1813,6 +1851,52 @@ mod tests {
             base_ref,
             Path::new(TEST_MARKER),
         )
+    }
+
+    const LENS_HEADERS: [&str; 4] = [
+        "--- Lens: rubric (pstack, MIT) ---",
+        "--- Lens: code-quality-review (pstack, MIT) ---",
+        "--- Lens: lead-judgment (pstack, MIT) ---",
+        "--- Lens: ponytail-review (ponytail, MIT) ---",
+    ];
+
+    #[test]
+    fn review_prompts_carry_the_four_lenses_and_the_label_rule() {
+        for agent in ["claude", "codex"] {
+            for mode in ["commentsOnly", "withFixes"] {
+                let prompt = prompt_for_mode(agent, mode, 42, "feature/x", "main").expect("prompt");
+                for header in LENS_HEADERS {
+                    assert!(prompt.contains(header), "{agent} {mode}: {header}");
+                }
+                assert!(
+                    prompt.contains("presumptive blocker"),
+                    "{agent} {mode}: labelregel"
+                );
+                assert!(
+                    prompt.contains("maximaal 5 [belangrijk] en maximaal 5 [nit]"),
+                    "{agent} {mode}: cap"
+                );
+                assert!(
+                    prompt.contains("het outputformaat van deze prompt gaat voor"),
+                    "{agent} {mode}: formaat gaat voor"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn non_review_prompts_have_no_lenses() {
+        for mode in [
+            "fixComments",
+            "fixChecks",
+            "fixConflicts",
+            "distillLearnings",
+            "distillLearningsInline",
+        ] {
+            let prompt = prompt_for_mode("claude", mode, 42, "feature/x", "main").expect("prompt");
+            assert!(!prompt.contains("--- Lens:"), "mode {mode}");
+            assert!(!prompt.contains("presumptive blocker"), "mode {mode}");
+        }
     }
 
     #[test]
