@@ -73,6 +73,18 @@ const DANGEROUS_TAGS = new Set([
 // "onbekend" in de renderRule-fallback.
 const KNOWN_TAGS = new Set([...ALLOWED_TAGS, ...DANGEROUS_TAGS, "a", "img"]);
 
+// Een link uit een reactie is niet te vertrouwen: file:, tauri: en andere
+// schema's mogen de opener niet bereiken.
+const OPENABLE_PROTOCOLS = ["http:", "https:", "mailto:"];
+
+export function isOpenableUrl(href: string): boolean {
+  try {
+    return OPENABLE_PROTOCOLS.includes(new URL(href).protocol);
+  } catch {
+    return false;
+  }
+}
+
 function MarkdownLink({
   href,
   children,
@@ -84,7 +96,7 @@ function MarkdownLink({
       href={href}
       onClick={(event) => {
         event.preventDefault();
-        if (href != null) void openUrl(href);
+        if (href != null && isOpenableUrl(href)) void openUrl(href);
       }}
     >
       {children}

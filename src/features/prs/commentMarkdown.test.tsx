@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { CommentBody } from "./commentMarkdown";
+import { CommentBody, isOpenableUrl } from "./commentMarkdown";
 
 // Fictieve Vercel-achtige bot-reactie: rauwe HTML met geneste <picture>,
 // <source> en een markdown-tabel, precies de vorm die bots in het echt
@@ -96,5 +96,27 @@ describe("CommentBody", () => {
     expect(html).toContain("<li");
     expect(html).toContain('href="https://www.gnu.org/software/findutils/"');
     expect(html).toContain("GNU findutils-docs");
+  });
+});
+
+describe("isOpenableUrl", () => {
+  it.each([
+    "https://github.com/a/b",
+    "http://example.com",
+    "mailto:dennis@example.com",
+  ])("laat %s toe", (href) => {
+    expect(isOpenableUrl(href)).toBe(true);
+  });
+
+  it.each([
+    "file:///etc/passwd",
+    "javascript:alert(1)",
+    "tauri://localhost",
+    "data:text/html,x",
+    "/relatief/pad",
+    "#anker",
+    "",
+  ])("weigert %s", (href) => {
+    expect(isOpenableUrl(href)).toBe(false);
   });
 });
