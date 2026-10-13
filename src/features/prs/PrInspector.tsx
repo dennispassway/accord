@@ -1,14 +1,22 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
+import type { DraftThread, ReviewEvent } from "../../lib/github/review";
 import { CommentsView } from "./CommentsView";
 import { type DiffViewMode, loadDiffView, saveDiffView } from "./cockpitPrefs";
 import { DiffView } from "./DiffView";
 import { groupThreadsByFile } from "./diffModel";
+import { FinishReview } from "./FinishReview";
 import { CloseIcon, ExternalLinkIcon } from "./icons";
 import "./inspector.css";
 import { PrDescription } from "./PrDescription";
 import { keyOfPr } from "./PrList";
+import type { DraftActions } from "./ReviewComposer";
+import {
+  draftsOutsideDiff,
+  reviewDraftStore,
+  useReviewDrafts,
+} from "./reviewDrafts";
 import { usePrDetail } from "./usePrDetail";
 import { latestVerdict, VerdictBadge } from "./VerdictBadge";
 
@@ -26,6 +34,10 @@ interface PrInspectorProps {
   onAuthError: () => void;
   /** Start een fixComments-run; afwezig als dat nu niet kan (run bezig). */
   onFixComments?: () => void;
+  /** Verstuurt een review; de concepten gaan mee (usePrs.submitReview). */
+  onSubmitReview: (event: ReviewEvent, body: string) => Promise<void>;
+  /** Verstuurt één opmerking los als eigen review. */
+  onSubmitThread: (thread: DraftThread) => Promise<void>;
 }
 
 /** Zelfde scrim/sheet-patroon als SettingsSheet, maar breder en met eigen
@@ -36,6 +48,8 @@ export function PrInspector({
   onClose,
   onAuthError,
   onFixComments,
+  onSubmitReview,
+  onSubmitThread,
 }: PrInspectorProps) {
   const [mode, setMode] = useState<DiffViewMode>(loadDiffView);
   const conversationRef = useRef<HTMLElement>(null);
@@ -51,7 +65,20 @@ export function PrInspector({
     diffTooLarge,
     loadFileLines,
     loadPerFile,
+    refetch,
   } = usePrDetail(pr, onAuthError);
+  const prKey = keyOfPr(pr);
+  const reviewDrafts = useReviewDrafts(prKey);
+  // Een regel die in de diff zelf ontbreekt kan GitHub weigeren. Zonder
+  // volledige diff (te groot, nog niet per bestand geladen) is er niets om
+  // tegen te toetsen: dan geen waarschuwing.
+  const outsideDiff = useMemo(
+    () =>
+      status === "ready" && !diffTooLarge
+        ? draftsOutsideDiff(reviewDrafts, files)
+        : new Set<string>(),
+    [status, diffTooLarge, reviewDrafts, files],
+  );
 
   const verdict = latestVerdict(pr);
 
@@ -63,6 +90,34 @@ export function PrInspector({
   // opnieuw renderen.
   const drafts = useRef(new Map<string, string>());
   const sending = useRef(new Map<string, Promise<string | null>>());
+
+  // Een opmerking die al wordt verstuurd mag niet nog eens: ook niet vanuit
+  // een opstelveld dat intussen opnieuw is gemount.
+  const looseSending = useRef(new Set<string>());
+
+  async function sendLoose(thread: DraftThread) {
+    const key = `${thread.path}\0${thread.side}\0${thread.line}`;
+    if (looseSending.current.has(key)) {
+      throw new Error("Deze opmerking wordt al verstuurd");
+    }
+    looseSending.current.add(key);
+    try {
+      await onSubmitThread(thread);
+    } finally {
+      looseSending.current.delete(key);
+    }
+    void refetch();
+  }
+
+  const draftActions: DraftActions = {
+    drafts: reviewDrafts,
+    onAdd: (input) => {
+      reviewDraftStore.add(prKey, input);
+    },
+    onEdit: (id, body) => reviewDraftStore.edit(prKey, id, body),
+    onRemove: (id) => reviewDraftStore.remove(prKey, [id]),
+    onSendLoose: sendLoose,
+  };
 
   const threadActions = {
     onReply: reply,
@@ -111,6 +166,15 @@ export function PrInspector({
                 Fix nu
               </button>
             )}
+          <FinishReview
+            key={prKey}
+            drafts={reviewDrafts}
+            outsideDiff={outsideDiff}
+            onRemoveDraft={(id) => reviewDraftStore.remove(prKey, [id])}
+            onDiscard={() => reviewDraftStore.clear(prKey)}
+            onSubmit={onSubmitReview}
+            onSubmitted={() => void refetch()}
+          />
           <fieldset className="inspector-segmented" aria-label="Weergave">
             {(Object.keys(DIFF_VIEW_LABELS) as DiffViewMode[]).map((m) => (
               <button
@@ -194,6 +258,7 @@ export function PrInspector({
                   detail.headSha === "" ? undefined : loadFileLines
                 }
                 onLoadPerFile={loadPerFile}
+                review={draftActions}
                 {...threadActions}
               />
               <section

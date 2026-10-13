@@ -1,6 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Fragment, type ReactNode, useId, useMemo, useState } from "react";
-import type { ReviewThread } from "../../lib/github/prDetail";
+import type { DiffSide, ReviewThread } from "../../lib/github/prDetail";
 import { type ThreadActions, ThreadList } from "./CommentsView";
 import type { DiffViewMode } from "./cockpitPrefs";
 import {
@@ -33,6 +33,7 @@ import {
 } from "./diffSplit";
 import { escapeHtml, highlightRows, markWords } from "./highlight";
 import "./inspector.css";
+import { type DraftActions, DraftComposer, DraftItem } from "./ReviewComposer";
 import type { Segment } from "./wordDiff";
 
 interface DiffViewProps extends ThreadActions {
@@ -45,6 +46,8 @@ interface DiffViewProps extends ThreadActions {
   loadFileLines?: (path: string) => Promise<string[]>;
   /** Laadt de diff per bestand als GitHub de hele diff weigert. */
   onLoadPerFile?: () => Promise<void>;
+  /** Afwezig = geen opmerkingen op regels (geen + in de goot). */
+  review?: DraftActions;
 }
 
 function threadCount(count: number): string {
@@ -285,15 +288,56 @@ function footRow(control: ReactNode): ViewRow {
   };
 }
 
-function unifiedRow(item: UnifiedRow, marks: Marks): ViewRow {
+/** Opent een opstelveld voor (regel, kant). */
+type AddComment = (line: number, side: DiffSide) => void;
+
+function AddCommentButton({
+  line,
+  side,
+  onAdd,
+}: {
+  line: number | null;
+  side: DiffSide;
+  onAdd: AddComment | undefined;
+}) {
+  if (onAdd === undefined || line === null) return null;
+  return (
+    <button
+      type="button"
+      className="inspector-diff-add-comment"
+      aria-label={`Opmerking op regel ${line}`}
+      data-side={side}
+      onClick={() => onAdd(line, side)}
+    >
+      +
+    </button>
+  );
+}
+
+function unifiedRow(
+  item: UnifiedRow,
+  marks: Marks,
+  onAdd: AddComment | undefined,
+): ViewRow {
   const markKey = lineKey(item.type, item.oldNo, item.newNo);
+  const isDel = item.type === "del";
   return {
     key: `${item.oldNo ?? ""}-${item.newNo ?? ""}`,
     numbers: { oldNo: item.oldNo, newNo: item.newNo },
     node: (
       <div className="inspector-diff-row">
-        <span className="inspector-diff-lineno">{item.oldNo ?? ""}</span>
-        <span className="inspector-diff-lineno">{item.newNo ?? ""}</span>
+        <span className="inspector-diff-lineno">
+          {item.oldNo ?? ""}
+          {isDel && (
+            <AddCommentButton line={item.oldNo} side="LEFT" onAdd={onAdd} />
+          )}
+        </span>
+        <span className="inspector-diff-lineno">
+          {item.newNo ?? ""}
+          {!isDel && (
+            <AddCommentButton line={item.newNo} side="RIGHT" onAdd={onAdd} />
+          )}
+        </span>
         <Cell
           kind={item.type}
           text={item.text}
@@ -315,20 +359,30 @@ function splitMarkKey(
     : lineKey(cell.kind, null, newNo);
 }
 
-function splitRow({ left, right }: SplitRow, marks: Marks): ViewRow {
+function splitRow(
+  { left, right }: SplitRow,
+  marks: Marks,
+  onAdd: AddComment | undefined,
+): ViewRow {
   return {
     key: `${left.lineNo ?? ""}-${right.lineNo ?? ""}`,
     numbers: { oldNo: left.lineNo, newNo: right.lineNo },
     node: (
       <div className="inspector-diff-row">
-        <span className="inspector-diff-lineno">{left.lineNo ?? ""}</span>
+        <span className="inspector-diff-lineno">
+          {left.lineNo ?? ""}
+          <AddCommentButton line={left.lineNo} side="LEFT" onAdd={onAdd} />
+        </span>
         <Cell
           kind={left.kind}
           text={left.text}
           markKey={splitMarkKey(left, right.lineNo)}
           marks={marks}
         />
-        <span className="inspector-diff-lineno">{right.lineNo ?? ""}</span>
+        <span className="inspector-diff-lineno">
+          {right.lineNo ?? ""}
+          <AddCommentButton line={right.lineNo} side="RIGHT" onAdd={onAdd} />
+        </span>
         <Cell
           kind={right.kind}
           text={right.text}
@@ -360,6 +414,7 @@ function FileBody({
   threads,
   id,
   loadFileLines,
+  review,
   ...actions
 }: {
   file: DiffFile;
@@ -367,11 +422,32 @@ function FileBody({
   threads: ReviewThread[];
   id: string;
   loadFileLines?: (path: string) => Promise<string[]>;
+  review?: DraftActions;
 } & ThreadActions) {
   const unified = useMemo(() => buildUnifiedItems(file.lines), [file.lines]);
   const [lines, setLines] = useState<string[] | null>(null);
   const [expansion, setExpansion] = useState(NO_EXPANSION);
   const [load, setLoad] = useState<LoadState | null>(null);
+  // Open opstelvelden per (regel, kant). Meerdere tegelijk, zodat een klik op
+  // een tweede + de tekst van het eerste veld niet weggooit. De tekst zelf
+  // leeft in het veld: een weergavewissel sluit het veld.
+  const [composing, setComposing] = useState<
+    { line: number; diffSide: DiffSide }[]
+  >([]);
+
+  function openComposer(line: number, diffSide: DiffSide) {
+    setComposing((prev) =>
+      prev.some((c) => c.line === line && c.diffSide === diffSide)
+        ? prev
+        : [...prev, { line, diffSide }],
+    );
+  }
+
+  function closeComposer(line: number, diffSide: DiffSide) {
+    setComposing((prev) =>
+      prev.filter((c) => !(c.line === line && c.diffSide === diffSide)),
+    );
+  }
 
   const gaps = useMemo(() => {
     if (loadFileLines === undefined) return { above: [], below: null };
@@ -453,7 +529,10 @@ function FileBody({
           : null,
       );
     }
-    return "left" in item ? splitRow(item, marks) : unifiedRow(item, marks);
+    const onAdd = review ? openComposer : undefined;
+    return "left" in item
+      ? splitRow(item, marks, onAdd)
+      : unifiedRow(item, marks, onAdd);
   });
   if (gaps.below !== null) {
     const remaining =
@@ -466,10 +545,15 @@ function FileBody({
     }
   }
 
-  const placed = placeThreads(
-    rows.map((row) => row.numbers),
-    threads,
+  const rowNumbers = rows.map((row) => row.numbers);
+  const placed = placeThreads(rowNumbers, threads);
+  const placedDrafts = placeThreads(
+    rowNumbers,
+    (review?.drafts ?? [])
+      .filter((d) => d.path === file.path)
+      .map((draft) => ({ draft, line: draft.line, diffSide: draft.side })),
   );
+  const placedComposers = placeThreads(rowNumbers, composing);
   const status = fileStatus(file.lines);
 
   return (
@@ -481,17 +565,57 @@ function FileBody({
           <div className={`inspector-diff-grid inspector-diff-grid-${mode}`}>
             {rows.map((row, index) => {
               const here = placed.atRow.get(index);
+              const hereDrafts = placedDrafts.atRow.get(index);
+              const hereComposers = placedComposers.atRow.get(index);
               return (
                 <Fragment key={row.key}>
                   {row.node}
-                  {here && (
+                  {(here || hereDrafts || hereComposers) && (
                     <div className="inspector-diff-thread-row">
-                      <ThreadList
-                        threads={here}
-                        showLocation={false}
-                        showSide={mode === "split"}
-                        {...actions}
-                      />
+                      {here && (
+                        <ThreadList
+                          threads={here}
+                          showLocation={false}
+                          showSide={mode === "split"}
+                          {...actions}
+                        />
+                      )}
+                      {review &&
+                        hereDrafts?.map(({ draft }) => (
+                          <DraftItem
+                            key={draft.id}
+                            draft={draft}
+                            showSide={mode === "split"}
+                            onEdit={review.onEdit}
+                            onRemove={review.onRemove}
+                          />
+                        ))}
+                      {review &&
+                        hereComposers?.map(({ line, diffSide }) => (
+                          <DraftComposer
+                            key={`${diffSide}${line}`}
+                            line={line}
+                            side={diffSide}
+                            showSide={mode === "split"}
+                            onAdd={(body) =>
+                              review.onAdd({
+                                path: file.path,
+                                line,
+                                side: diffSide,
+                                body,
+                              })
+                            }
+                            onSendLoose={(body) =>
+                              review.onSendLoose({
+                                path: file.path,
+                                line,
+                                side: diffSide,
+                                body,
+                              })
+                            }
+                            onClose={() => closeComposer(line, diffSide)}
+                          />
+                        ))}
                     </div>
                   )}
                 </Fragment>
@@ -512,12 +636,14 @@ function FileDiff({
   mode,
   threads,
   loadFileLines,
+  review,
   ...actions
 }: {
   file: DiffFile;
   mode: DiffViewMode;
   threads: ReviewThread[];
   loadFileLines?: (path: string) => Promise<string[]>;
+  review?: DraftActions;
 } & ThreadActions) {
   const generated = isGeneratedPath(file.path);
   const unresolved = threads.filter((t) => !t.isResolved).length;
@@ -525,6 +651,8 @@ function FileDiff({
   const [open, setOpen] = useState(!generated || unresolved > 0);
   const bodyId = useId();
   const { add, del } = countChanges(file.lines);
+  const draftCount =
+    review?.drafts.filter((d) => d.path === file.path).length ?? 0;
   const slash = file.path.lastIndexOf("/");
   const dir = slash === -1 ? "" : file.path.slice(0, slash + 1);
   const name = file.path.slice(slash + 1);
@@ -561,6 +689,11 @@ function FileDiff({
             {unresolved}/{threads.length} open
           </span>
         )}
+        {draftCount > 0 && (
+          <span className="inspector-diff-file-drafts">
+            {draftCount} in review
+          </span>
+        )}
         <span className="inspector-diff-file-count">
           <span className="inspector-diff-add">+{add}</span>{" "}
           <span className="inspector-diff-del">−{del}</span>
@@ -573,6 +706,7 @@ function FileDiff({
           threads={threads}
           id={bodyId}
           loadFileLines={loadFileLines}
+          review={review}
           {...actions}
         />
       )}
@@ -641,6 +775,7 @@ export function DiffView({
   threadsByPath,
   loadFileLines,
   onLoadPerFile,
+  review,
   ...actions
 }: DiffViewProps) {
   if (tooLarge) {
@@ -664,6 +799,7 @@ export function DiffView({
           mode={mode}
           threads={threadsByPath.get(file.path) ?? []}
           loadFileLines={loadFileLines}
+          review={review}
           {...actions}
         />
       ))}

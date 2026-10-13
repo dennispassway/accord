@@ -162,6 +162,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     refresh,
     mergePr,
     submitReview,
+    submitThread,
     clearRefreshError,
     refreshing,
   } = usePrs(onAuthError, (flippedPrs) => {
@@ -1338,6 +1339,13 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           initialSection={inspector.tab}
           onClose={() => setInspector(null)}
           onAuthError={onAuthError}
+          onSubmitReview={(event, body) =>
+            handleSubmitReview(selectedPr, event, body)
+          }
+          onSubmitThread={async (thread) => {
+            await submitThread(selectedPr, thread);
+            showToast(`Opmerking geplaatst op #${selectedPr.number}`, "ok");
+          }}
           onFixComments={
             inspectorFixer == null || runningPrKeys.has(keyOfPr(selectedPr))
               ? undefined

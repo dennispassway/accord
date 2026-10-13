@@ -206,6 +206,7 @@
 }
 
 .inspector-diff-lineno {
+  position: relative;
   padding: 0 8px;
   min-height: 20px;
   text-align: right;
@@ -275,6 +276,9 @@
   position: sticky;
   left: 0;
   width: 100cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 6px 10px;
   font-family: var(--font);
   font-size: 12px;
@@ -707,5 +711,224 @@
 
 .inspector-error-actions {
   display: flex;
+  gap: 8px;
+}
+
+/* Opmerkingen op regels: + in de goot, opstelveld en concepten. */
+.inspector-diff-add-comment {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.inspector-diff-row:hover .inspector-diff-add-comment,
+.inspector-diff-add-comment:focus-visible {
+  opacity: 1;
+}
+
+.inspector-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 10px;
+  border-radius: var(--r-2);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+.inspector-composer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.inspector-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.inspector-composer-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  border: 0;
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--accent-ink);
+}
+
+.inspector-composer-primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+
+.inspector-composer-primary:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.inspector-composer-kbd {
+  font-size: 10.5px;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+/* "in review": statuskleur als tekst op een tint van zichzelf (11%),
+   zie css-kleur-op-eigen-tint.md. */
+.inspector-draft-label {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 11%, transparent);
+  color: var(--warn);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.inspector-draft {
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.inspector-diff-file-drafts {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 11%, transparent);
+  color: var(--warn);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Afrondpaneel onder de knop in de kop */
+.inspector-finish {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.inspector-finish-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(420px, 80vw);
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: var(--r-3, 10px);
+  background: var(--menu);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.36),
+    inset 0 0 0 1px var(--line-2);
+  font-size: 12px;
+}
+
+.inspector-finish-drafts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inspector-finish-draft {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.inspector-finish-draft-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.inspector-finish-draft-where {
+  font-size: 11px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-finish-draft-body {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+}
+
+.inspector-finish-draft-warn {
+  font-size: 11px;
+  color: var(--warn);
+}
+
+.inspector-finish-empty,
+.inspector-finish-warn,
+.inspector-finish-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.inspector-finish-warn {
+  color: var(--warn);
+}
+
+.inspector-finish-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.inspector-finish-legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.inspector-finish-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.inspector-finish-choice .inspector-finish-hint {
+  display: block;
+}
+
+.inspector-finish-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }

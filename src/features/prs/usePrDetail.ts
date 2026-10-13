@@ -282,6 +282,19 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
     [refetchAfterMutation, withReadToken],
   );
 
+  /** Ververst de detail op de achtergrond, zonder laadscherm: voor na een
+   * review die elders (usePrs) is verstuurd. Best-effort: de review is dan al
+   * geslaagd, een mislukte refetch mag geen fout opleveren. */
+  const refetch = useCallback(async () => {
+    if (IS_MOCK) return;
+    const seq = ++mutationSeqRef.current;
+    try {
+      await withReadToken((token) => refetchAfterMutation(token, seq));
+    } catch {
+      // De oude detail blijft staan.
+    }
+  }, [refetchAfterMutation, withReadToken]);
+
   const reply = useCallback(
     async (threadId: string, body: string) => {
       if (IS_MOCK) {
@@ -393,6 +406,7 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
     files,
     diffTooLarge: detail?.diffTooLarge === true && perFileFiles === null,
     retry,
+    refetch,
     reply,
     setResolved,
     loadFileLines,
