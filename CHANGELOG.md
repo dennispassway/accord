@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.1](https://github.com/dennispassway/accord/compare/v1.11.0...v1.11.1) (2026-10-13)
+
+
+### Opgelost
+
+* **agents:** allow Codex to write worktree Git metadata ([2d98816](https://github.com/dennispassway/accord/commit/2d98816fcc82e9f5313dd549d24a76a0816cba8b))
+* **agents:** allow Codex to write worktree Git metadata ([a53b0cc](https://github.com/dennispassway/accord/commit/a53b0ccfa75e16b243f06624159889ea201f609c))
+
 ## [1.11.0](https://github.com/dennispassway/accord/compare/v1.10.0...v1.11.0) (2026-10-12)
 
 
