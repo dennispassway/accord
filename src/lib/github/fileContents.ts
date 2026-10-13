@@ -5,13 +5,7 @@
  */
 import type { RepoId } from "./domain";
 import { withNetworkError } from "./networkError";
-import {
-  AuthError,
-  type FetchImpl,
-  GithubApiError,
-  rateLimitNote,
-  responseErrorDetail,
-} from "./queries";
+import { type FetchImpl, throwForStatus } from "./queries";
 
 const FETCH_TIMEOUT_MS = 15_000;
 
@@ -40,21 +34,7 @@ export async function fetchFileLines(
     ),
   );
 
-  if (response.status === 401) {
-    throw new AuthError();
-  }
-  if (response.status === 403 || response.status === 429) {
-    const detail = await withNetworkError(() => responseErrorDetail(response));
-    throw new GithubApiError(
-      `GitHub rate limit bereikt${rateLimitNote(response)}: ${detail}`,
-    );
-  }
-  if (!response.ok) {
-    const detail = await withNetworkError(() => responseErrorDetail(response));
-    throw new GithubApiError(
-      `GitHub API responded with ${response.status}: ${detail}`,
-    );
-  }
+  await throwForStatus(response);
 
   const text = await withNetworkError(() => response.text());
   if (text === "") return [];

@@ -5,13 +5,7 @@
  */
 import type { PrNumber, RepoId } from "./domain";
 import { withNetworkError } from "./networkError";
-import {
-  AuthError,
-  type FetchImpl,
-  GithubApiError,
-  rateLimitNote,
-  responseErrorDetail,
-} from "./queries";
+import { type FetchImpl, throwForStatus } from "./queries";
 
 const FETCH_TIMEOUT_MS = 15_000;
 const PER_PAGE = 100;
@@ -25,6 +19,8 @@ export interface PrFile {
   /** Ontbreekt bij een binair bestand en bij een te grote bestandsdiff. */
   patch?: string;
   previous_filename?: string;
+  /** Blob-sha van het bestand; de lege blob herkent een leeg bestand. */
+  sha?: string;
 }
 
 function parseFile(raw: unknown): PrFile | null {
@@ -36,6 +32,7 @@ function parseFile(raw: unknown): PrFile | null {
     status: typeof file.status === "string" ? file.status : "modified",
     changes: typeof file.changes === "number" ? file.changes : 0,
     ...(typeof file.patch === "string" ? { patch: file.patch } : {}),
+    ...(typeof file.sha === "string" ? { sha: file.sha } : {}),
     ...(typeof file.previous_filename === "string"
       ? { previous_filename: file.previous_filename }
       : {}),
@@ -64,18 +61,7 @@ async function fetchPage(
     ),
   );
 
-  if (response.status === 401) {
-    throw new AuthError();
-  }
-  if (response.status === 403 || response.status === 429) {
-    const detail = await withNetworkError(() => responseErrorDetail(response));
-    throw new GithubApiError(
-      `GitHub rate limit bereikt${rateLimitNote(response)}: ${detail}`,
-    );
-  }
-  if (!response.ok) {
-    throw new GithubApiError(`GitHub API responded with ${response.status}`);
-  }
+  await throwForStatus(response);
   const json: unknown = await withNetworkError(() => response.json());
   return Array.isArray(json) ? json : [];
 }
@@ -97,36 +83,4 @@ export async function fetchPrFiles(
     if (raw.length < PER_PAGE) break;
   }
   return files;
-}
-
-/** Regel die `fileStatus` als "Te groot om te tonen" leest. */
-export const TOO_LARGE_LINE = "Accord: te groot om te tonen";
-
-function fileHeader(file: PrFile): string[] {
-  const oldPath = file.previous_filename ?? file.filename;
-  const lines = [`diff --git a/${oldPath} b/${file.filename}`];
-  if (file.previous_filename !== undefined) {
-    lines.push(`rename from ${oldPath}`, `rename to ${file.filename}`);
-  }
-  if (file.patch !== undefined) {
-    lines.push(
-      file.status === "added" ? "--- /dev/null" : `--- a/${oldPath}`,
-      file.status === "removed" ? "+++ /dev/null" : `+++ b/${file.filename}`,
-      file.patch,
-    );
-    return lines;
-  }
-  // Zonder patch: te groot als er wel regels wijzigden, anders binair of een
-  // zuivere hernoeming (die toont fileStatus aan de hand van de renameregels).
-  if (file.changes > 0) lines.push(TOO_LARGE_LINE);
-  else if (file.status !== "renamed") {
-    lines.push(`Binary files a/${oldPath} and b/${file.filename} differ`);
-  }
-  return lines;
-}
-
-/** Bouwt een unified diff (zoals het diff-endpoint) uit de bestandenlijst,
- * zodat `parseDiff` hem ongewijzigd leest. */
-export function buildDiffFromFiles(files: readonly PrFile[]): string {
-  return `${files.flatMap(fileHeader).join("\n")}\n`;
 }
