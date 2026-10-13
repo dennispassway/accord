@@ -1,25 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import type { ReviewEvent } from "../../lib/github/review";
+import { type ReviewEvent, reviewBlockedReason } from "../../lib/github/review";
 import { mod, modKey } from "../../lib/platform";
 import { errorMessage } from "../update/updateState";
 import "./inspector.css";
-import { type ReviewDraft, reviewBlockedReason } from "./reviewDrafts";
+import type { ReviewDraft } from "./reviewDrafts";
 
-interface Choice {
-  event: ReviewEvent;
-  label: string;
-  hint?: string;
-}
-
-const CHOICES: Choice[] = [
-  { event: "COMMENT", label: "Reageren" },
-  {
-    event: "REQUEST_CHANGES",
+const CHOICE_LABELS: Record<ReviewEvent, { label: string; hint?: string }> = {
+  COMMENT: { label: "Reageren" },
+  REQUEST_CHANGES: {
     label: "Changes vragen",
     hint: "Blokkeert mergen tot er een nieuwe review is",
   },
-  { event: "APPROVE", label: "Goedkeuren" },
-];
+  APPROVE: { label: "Goedkeuren" },
+};
+const CHOICES = Object.keys(CHOICE_LABELS) as ReviewEvent[];
+
+/** Een tweede klik op "Review weggooien" moet binnen dit venster vallen. */
+const CONFIRM_MS = 4000;
 
 function firstLine(body: string): string {
   return body.split("\n")[0] ?? "";
@@ -29,6 +26,8 @@ interface FinishReviewProps {
   drafts: readonly ReviewDraft[];
   /** Ids van concepten waarvan de regel niet in de diff staat. */
   outsideDiff: ReadonlySet<string>;
+  /** Op een eigen PR kan alleen gereageerd worden (reviewBlockedReason). */
+  authoredByMe: boolean;
   onRemoveDraft: (id: string) => void;
   /** Wist alle concepten van deze PR. */
   onDiscard: () => void;
@@ -45,6 +44,7 @@ interface FinishReviewProps {
 export function FinishReview({
   drafts,
   outsideDiff,
+  authoredByMe,
   onRemoveDraft,
   onDiscard,
   onSubmit,
@@ -55,6 +55,7 @@ export function FinishReview({
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Synchrone vlag naast `busy`: twee Cmd+Enter in dezelfde tik mogen niet
@@ -73,7 +74,16 @@ export function FinishReview({
     if (open) textareaRef.current?.focus();
   }, [open]);
 
-  const reason = reviewBlockedReason(event, body, drafts.length);
+  // De bevestiging valt vanzelf terug: een klik die uren later komt telt niet.
+  useEffect(() => {
+    if (!confirmingDiscard) return;
+    const timer = setTimeout(() => setConfirmingDiscard(false), CONFIRM_MS);
+    return () => clearTimeout(timer);
+  }, [confirmingDiscard]);
+
+  const reasonFor = (choice: ReviewEvent) =>
+    reviewBlockedReason(choice, body, drafts.length, authoredByMe);
+  const reason = reasonFor(event);
   const outsideCount = drafts.filter((d) => outsideDiff.has(d.id)).length;
 
   function close() {
@@ -82,18 +92,21 @@ export function FinishReview({
   }
 
   async function submit() {
-    if (busy || submittingRef.current || reason !== null) return;
+    if (submittingRef.current || reason !== null) return;
     submittingRef.current = true;
     setBusy(true);
     setError(null);
     try {
       await onSubmit(event, body.trim());
     } catch (failure) {
-      if (mounted.current) setError(errorMessage(failure));
+      // Het paneel kan intussen dicht zijn (Esc): de fout moet dan zichtbaar
+      // blijven, anders lijkt de review verstuurd.
+      setError(errorMessage(failure));
+      setOpen(true);
       return;
     } finally {
       submittingRef.current = false;
-      if (mounted.current) setBusy(false);
+      setBusy(false);
     }
     if (!mounted.current) return;
     setBody("");
@@ -104,7 +117,12 @@ export function FinishReview({
 
   function discard() {
     if (busy) return;
+    if (!confirmingDiscard) {
+      setConfirmingDiscard(true);
+      return;
+    }
     onDiscard();
+    setConfirmingDiscard(false);
     setBody("");
     setError(null);
     close();
@@ -183,22 +201,32 @@ export function FinishReview({
           />
           <fieldset className="inspector-finish-choices" disabled={busy}>
             <legend className="inspector-finish-legend">Soort review</legend>
-            {CHOICES.map((choice) => (
-              <label key={choice.event} className="inspector-finish-choice">
-                <input
-                  type="radio"
-                  name="review-event"
-                  checked={event === choice.event}
-                  onChange={() => setEvent(choice.event)}
-                />
-                <span>
-                  {choice.label}
-                  {choice.hint && (
-                    <span className="inspector-finish-hint">{choice.hint}</span>
-                  )}
-                </span>
-              </label>
-            ))}
+            {CHOICES.map((choice) => {
+              // Een keuze die op een eigen PR niet mag blijft zichtbaar met
+              // haar reden; de tekstregel is geen blokkade van de keuze zelf.
+              const blockedByAuthor =
+                authoredByMe && choice !== "COMMENT" ? reasonFor(choice) : null;
+              const { label, hint } = CHOICE_LABELS[choice];
+              return (
+                <label key={choice} className="inspector-finish-choice">
+                  <input
+                    type="radio"
+                    name="review-event"
+                    checked={event === choice}
+                    disabled={blockedByAuthor !== null}
+                    onChange={() => setEvent(choice)}
+                  />
+                  <span>
+                    {label}
+                    {(blockedByAuthor ?? hint) && (
+                      <span className="inspector-finish-hint">
+                        {blockedByAuthor ?? hint}
+                      </span>
+                    )}
+                  </span>
+                </label>
+              );
+            })}
           </fieldset>
           {outsideCount > 0 && (
             <p className="inspector-finish-warn">
@@ -219,10 +247,13 @@ export function FinishReview({
             <button
               type="button"
               className="inspector-thread-action"
-              disabled={busy}
+              disabled={busy || (drafts.length === 0 && body.trim() === "")}
               onClick={discard}
+              onBlur={() => setConfirmingDiscard(false)}
             >
-              Review weggooien
+              {confirmingDiscard
+                ? `Weet je het zeker · ${drafts.length === 1 ? "1 opmerking" : `${drafts.length} opmerkingen`}`
+                : "Review weggooien"}
             </button>
             <button
               type="button"

@@ -315,6 +315,18 @@ export function lineKey(
   return type === "del" ? `old${oldNo}` : `new${newNo}`;
 }
 
+/** `lineKey`s van de rijen die echt in de hunks staan: uitgeklapte context
+ * hoort er niet bij, want GitHub weigert regelopmerkingen buiten de hunks. */
+export function diffRowKeys(items: readonly UnifiedItem[]): Set<string> {
+  const keys = new Set<string>();
+  for (const item of items) {
+    if (item.kind === "row") {
+      keys.add(lineKey(item.type, item.oldNo, item.newNo));
+    }
+  }
+  return keys;
+}
+
 /** Aantal regels dat één klik op "tonen" uitklapt. */
 export const EXPAND_STEP = 20;
 /** Bovengrens van "alles tonen": een gat van duizenden regels blijft opdeelbaar. */

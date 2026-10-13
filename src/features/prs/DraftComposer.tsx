@@ -1,29 +1,31 @@
-import { useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import type { DiffSide } from "../../lib/github/prDetail";
 import type { DraftThread } from "../../lib/github/review";
 import { mod, modKey } from "../../lib/platform";
-import { errorMessage } from "../update/updateState";
 import { CommentBody } from "./commentMarkdown";
 import "./inspector.css";
-import type { DraftInput, ReviewDraft } from "./reviewDrafts";
+import type { ReviewDraft } from "./reviewDrafts";
 
 /** Wat DiffView nodig heeft om opmerkingen in een review te verzamelen. */
 export interface DraftActions {
   drafts: readonly ReviewDraft[];
-  onAdd: (input: DraftInput) => void;
+  onAdd: (input: DraftThread) => void;
   onEdit: (id: string, body: string) => void;
   onRemove: (id: string) => void;
   /** Eén opmerking direct versturen; gooit bij een fout. */
   onSendLoose: (thread: DraftThread) => Promise<void>;
 }
 
-const SIDE_LABEL: Record<DiffSide, string> = { LEFT: "oud", RIGHT: "nieuw" };
+export const SIDE_LABEL: Record<DiffSide, string> = {
+  LEFT: "oud",
+  RIGHT: "nieuw",
+};
 
 /** Cmd/Ctrl+Enter bevestigt, Esc sluit alleen dit veld: de inspector luistert
  * op window-niveau naar Esc (Cockpit.tsx), dus stopPropagation voorkomt dat
  * hij ook sluit. */
 function fieldKeys(
-  event: React.KeyboardEvent,
+  event: KeyboardEvent,
   confirm: () => void,
   close: () => void,
 ) {
@@ -40,8 +42,19 @@ interface ComposerProps {
   line: number;
   side: DiffSide;
   showSide: boolean;
+  fileName: string;
+  /** Verzendstatus van Los versturen, bewaard door de eigenaar: een remount
+   * tijdens het versturen toont het veld dan nog als bezig, en een antwoord
+   * dat na het unmounten landt zet zijn state op de eigenaar, niet op een
+   * weggehaald exemplaar. Een test vangt dit hier niet (geen jsdom). */
+  busy: boolean;
+  error: string | null;
+  /** Tekst die de eigenaar bewaart, zodat het veld een remount overleeft
+   * (weergavewissel: de rij-key verschilt tussen unified en split). */
+  initialText: string;
+  onTextChange: (text: string) => void;
   onAdd: (body: string) => void;
-  onSendLoose: (body: string) => Promise<void>;
+  onSendLoose: (body: string) => void;
   onClose: () => void;
 }
 
@@ -51,26 +64,21 @@ export function DraftComposer({
   line,
   side,
   showSide,
+  fileName,
+  busy,
+  error,
+  initialText,
+  onTextChange,
   onAdd,
   onSendLoose,
   onClose,
 }: ComposerProps) {
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [text, setText] = useState(initialText);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  // Het antwoord van een los verstuurde opmerking kan landen nadat het veld
-  // weg is (weergavewissel, bestand ingeklapt): dan geen state meer zetten.
-  // Een test vangt dit hier niet (geen jsdom).
-  const mounted = useRef(true);
   const empty = text.trim() === "";
 
   useEffect(() => {
-    mounted.current = true;
     textareaRef.current?.focus();
-    return () => {
-      mounted.current = false;
-    };
   }, []);
 
   function add() {
@@ -79,20 +87,13 @@ export function DraftComposer({
     onClose();
   }
 
-  async function sendLoose() {
+  function sendLoose() {
     if (empty || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await onSendLoose(text.trim());
-    } catch (failure) {
-      if (mounted.current) {
-        setError(errorMessage(failure));
-        setBusy(false);
-      }
-      return;
-    }
-    if (mounted.current) onClose();
+    onSendLoose(text.trim());
+  }
+
+  function close() {
+    if (!busy) onClose();
   }
 
   return (
@@ -109,9 +110,12 @@ export function DraftComposer({
         value={text}
         disabled={busy}
         placeholder="Schrijf een opmerking…"
-        aria-label={`Opmerking op regel ${line}`}
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={(event) => fieldKeys(event, add, onClose)}
+        aria-label={`Opmerking op ${fileName} regel ${line} (${SIDE_LABEL[side]})`}
+        onChange={(event) => {
+          setText(event.target.value);
+          onTextChange(event.target.value);
+        }}
+        onKeyDown={(event) => fieldKeys(event, add, close)}
       />
       <div className="inspector-composer-actions">
         <button
@@ -126,7 +130,7 @@ export function DraftComposer({
           type="button"
           className="inspector-thread-action"
           disabled={busy || empty}
-          onClick={() => void sendLoose()}
+          onClick={sendLoose}
         >
           {busy ? "Versturen…" : "Los versturen"}
         </button>

@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { DiffView } from "./DiffView";
+import type { DraftActions } from "./DraftComposer";
 import { parseDiff } from "./diffParse";
-import type { DraftActions } from "./ReviewComposer";
 import type { ReviewDraft } from "./reviewDrafts";
 
 const DIFF = `diff --git a/a.ts b/a.ts
@@ -58,7 +58,7 @@ function render(
 function gutterButtons(html: string): string[] {
   return [
     ...html.matchAll(
-      /aria-label="Opmerking op regel (\d+)" data-side="(LEFT|RIGHT)"/g,
+      /aria-label="Opmerking op a\.ts regel (\d+) \((?:oud|nieuw)\)" data-side="(LEFT|RIGHT)"/g,
     ),
   ].map((m) => `${m[2]}:${m[1]}`);
 }
@@ -66,6 +66,12 @@ function gutterButtons(html: string): string[] {
 describe("DiffView opmerkingen op regels", () => {
   it("toont geen + zonder review-acties", () => {
     expect(gutterButtons(render("unified", [], false))).toEqual([]);
+  });
+
+  it("noemt bestand, regel en kant in het label van de knop", () => {
+    const html = render("unified");
+    expect(html).toContain('aria-label="Opmerking op a.ts regel 2 (oud)"');
+    expect(html).toContain('aria-label="Opmerking op a.ts regel 2 (nieuw)"');
   });
 
   it("zet in unified toevoegingen en context op RIGHT en verwijderingen op LEFT", () => {

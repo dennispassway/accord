@@ -2,15 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   buildUnifiedItems,
   countChanges,
+  diffRowKeys,
+  expandContext,
   fileStatus,
   groupThreadsByFile,
   hiddenAbove,
   hiddenBelow,
   isGeneratedPath,
   type LineNumbers,
+  lineKey,
   placeThreads,
 } from "./diffModel";
 import type { DiffLine } from "./diffParse";
+import { parseDiff } from "./diffParse";
 
 function lines(...pairs: [DiffLine["kind"], string][]): DiffLine[] {
   return pairs.map(([kind, text]) => ({ kind, text }));
@@ -478,5 +482,40 @@ describe("hiddenAbove / hiddenBelow", () => {
     );
     expect(hiddenAbove(removed, 0)).toBeNull();
     expect(hiddenBelow(removed, 0)).toBeNull();
+  });
+});
+
+describe("diffRowKeys", () => {
+  const items = buildUnifiedItems(
+    parseDiff(`diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -3,3 +3,3 @@
+ keep
+-oud
++nieuw
+ end
+`)[0]?.lines ?? [],
+  );
+
+  it("bevat de rijen van de hunks", () => {
+    expect([...diffRowKeys(items)].sort()).toEqual(
+      ["new3", "new4", "new5", "old4"].sort(),
+    );
+  });
+
+  it("bevat geen uitgeklapte contextregels", () => {
+    const fileLines = ["a", "b", "keep", "nieuw", "end", "f"];
+    const expanded = expandContext(items, fileLines, {
+      above: new Map([[0, 2]]),
+      below: 1,
+    });
+    const rows = expanded.flatMap((i) => (i.kind === "row" ? [i] : []));
+    expect(rows.length).toBeGreaterThan(4);
+    const keys = diffRowKeys(items);
+    const outside = rows.filter(
+      (r) => !keys.has(lineKey(r.type, r.oldNo, r.newNo)),
+    );
+    expect(outside.map((r) => r.newNo)).toEqual([1, 2, 6]);
   });
 });

@@ -795,7 +795,8 @@
 
 /* "in review": statuskleur als tekst op een tint van zichzelf (11%),
    zie css-kleur-op-eigen-tint.md. */
-.inspector-draft-label {
+.inspector-draft-label,
+.inspector-diff-file-drafts {
   padding: 1px 6px;
   border-radius: 999px;
   background: color-mix(in srgb, currentColor 11%, transparent);
@@ -807,15 +808,6 @@
 .inspector-draft {
   background: var(--card);
   box-shadow: inset 0 0 0 1px var(--line);
-}
-
-.inspector-diff-file-drafts {
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, currentColor 11%, transparent);
-  color: var(--warn);
-  font-size: 10px;
-  font-weight: 600;
 }
 
 /* Afrondpaneel onder de knop in de kop */
@@ -836,7 +828,7 @@
   max-height: calc(100vh - 140px);
   overflow-y: auto;
   padding: 12px;
-  border-radius: var(--r-3, 10px);
+  border-radius: var(--r-3);
   background: var(--menu);
   box-shadow:
     0 14px 36px rgba(0, 0, 0, 0.36),

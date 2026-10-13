@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isApproveShortcut, reviewButtonsState } from "./ReviewActions";
-import { reviewBlockedReason } from "./reviewDrafts";
+import {
+  isApproveShortcut,
+  reviewButtonsState,
+  reviewHint,
+} from "./ReviewActions";
 
 const baseEvent = {
   key: "a",
@@ -12,52 +15,69 @@ const baseEvent = {
 };
 
 describe("reviewButtonsState", () => {
-  it("staat goedkeuren toe zonder tekst", () => {
-    expect(reviewButtonsState("", false, 0).approveEnabled).toBe(true);
-  });
+  const NEEDS_TEXT_CHANGES = "Een reactie is verplicht bij changes vragen";
+  const NEEDS_TEXT_COMMENT =
+    "Een reactie is verplicht bij reageren zonder opmerkingen op regels";
 
-  it("zet reageren aan zonder tekst zodra er concepten meegaan", () => {
-    const state = reviewButtonsState("", false, 2);
-    expect(state.commentEnabled).toBe(true);
-  });
-
-  it("houdt changes vragen uit zonder tekst, ook met concepten", () => {
-    expect(reviewButtonsState("", false, 2).requestChangesEnabled).toBe(false);
-  });
-
-  it("geeft de reden van een uitgeschakelde knop uit dezelfde beslisfunctie", () => {
-    const state = reviewButtonsState("", false, 0);
-    expect(state.requestChangesReason).toBe(
-      reviewBlockedReason("REQUEST_CHANGES", "", 0),
-    );
-    expect(state.commentReason).toBe(reviewBlockedReason("COMMENT", "", 0));
-    expect(reviewButtonsState("", false, 1).commentReason).toBeNull();
-  });
-
-  it("houdt changes vragen en reageren uit zonder tekst", () => {
-    const state = reviewButtonsState("", false, 0);
-    expect(state.requestChangesEnabled).toBe(false);
-    expect(state.commentEnabled).toBe(false);
+  it("staat goedkeuren toe zonder tekst en houdt de rest uit", () => {
+    expect(reviewButtonsState("", false, 0, false)).toEqual({
+      approveEnabled: true,
+      requestChangesEnabled: false,
+      commentEnabled: false,
+      approveReason: null,
+      requestChangesReason: NEEDS_TEXT_CHANGES,
+      commentReason: NEEDS_TEXT_COMMENT,
+    });
   });
 
   it("houdt changes vragen en reageren uit bij alleen whitespace", () => {
-    const state = reviewButtonsState("   ", false, 0);
+    const state = reviewButtonsState("   ", false, 0, false);
     expect(state.requestChangesEnabled).toBe(false);
     expect(state.commentEnabled).toBe(false);
   });
 
   it("zet changes vragen en reageren aan zodra er tekst is", () => {
-    const state = reviewButtonsState("Kan dit anders?", false, 0);
-    expect(state.requestChangesEnabled).toBe(true);
+    expect(reviewButtonsState("Kan dit anders?", false, 0, false)).toEqual({
+      approveEnabled: true,
+      requestChangesEnabled: true,
+      commentEnabled: true,
+      approveReason: null,
+      requestChangesReason: null,
+      commentReason: null,
+    });
+  });
+
+  it("zet reageren aan zonder tekst zodra er concepten meegaan", () => {
+    const state = reviewButtonsState("", false, 2, false);
     expect(state.commentEnabled).toBe(true);
+    expect(state.commentReason).toBeNull();
+  });
+
+  it("houdt changes vragen uit zonder tekst, ook met concepten", () => {
+    const state = reviewButtonsState("", false, 2, false);
+    expect(state.requestChangesEnabled).toBe(false);
+    expect(state.requestChangesReason).toBe(NEEDS_TEXT_CHANGES);
   });
 
   it("zet alle drie uit terwijl er al een aanvraag loopt", () => {
-    const state = reviewButtonsState("Kan dit anders?", true, 0);
-    expect(state).toMatchObject({
+    expect(reviewButtonsState("Kan dit anders?", true, 0, false)).toEqual({
       approveEnabled: false,
       requestChangesEnabled: false,
       commentEnabled: false,
+      approveReason: null,
+      requestChangesReason: null,
+      commentReason: null,
+    });
+  });
+
+  it("laat op een eigen PR alleen reageren toe, met de reden erbij", () => {
+    expect(reviewButtonsState("Hoi", false, 0, true)).toEqual({
+      approveEnabled: false,
+      requestChangesEnabled: false,
+      commentEnabled: true,
+      approveReason: "Je kunt je eigen PR niet goedkeuren",
+      requestChangesReason: "Je kunt geen changes vragen op je eigen PR",
+      commentReason: null,
     });
   });
 });
@@ -90,5 +110,31 @@ describe("isApproveShortcut", () => {
 
   it("negeert een andere toets", () => {
     expect(isApproveShortcut({ ...baseEvent, key: "b" })).toBe(false);
+  });
+});
+
+describe("reviewHint", () => {
+  it("zegt niets in ruststand: geen tekst en geen concepten", () => {
+    expect(
+      reviewHint(reviewButtonsState("", false, 0, false), "", 0),
+    ).toBeNull();
+  });
+
+  it("noemt met concepten maar zonder tekst waarom changes vragen niet kan", () => {
+    expect(reviewHint(reviewButtonsState("", false, 2, false), "", 2)).toBe(
+      "Een reactie is verplicht bij changes vragen",
+    );
+  });
+
+  it("noemt met tekst op een eigen PR waarom goedkeuren niet kan", () => {
+    expect(
+      reviewHint(reviewButtonsState("Hoi", false, 0, true), "Hoi", 0),
+    ).toBe("Je kunt je eigen PR niet goedkeuren");
+  });
+
+  it("zegt niets als alles mag", () => {
+    expect(
+      reviewHint(reviewButtonsState("Hoi", false, 0, false), "Hoi", 0),
+    ).toBeNull();
   });
 });

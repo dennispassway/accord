@@ -1,12 +1,22 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Fragment, type ReactNode, useId, useMemo, useState } from "react";
+import {
+  Fragment,
+  type ReactNode,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { DiffSide, ReviewThread } from "../../lib/github/prDetail";
+import type { DraftThread } from "../../lib/github/review";
+import { errorMessage } from "../update/updateState";
 import { type ThreadActions, ThreadList } from "./CommentsView";
 import type { DiffViewMode } from "./cockpitPrefs";
 import {
   buildUnifiedItems,
   contiguousRuns,
   countChanges,
+  diffRowKeys,
   EXPAND_ALL_MAX,
   EXPAND_STEP,
   type Expansion,
@@ -33,7 +43,13 @@ import {
 } from "./diffSplit";
 import { escapeHtml, highlightRows, markWords } from "./highlight";
 import "./inspector.css";
-import { type DraftActions, DraftComposer, DraftItem } from "./ReviewComposer";
+import {
+  type DraftActions,
+  DraftComposer,
+  DraftItem,
+  SIDE_LABEL,
+} from "./DraftComposer";
+import type { ReviewDraft } from "./reviewDrafts";
 import type { Segment } from "./wordDiff";
 
 interface DiffViewProps extends ThreadActions {
@@ -288,26 +304,42 @@ function footRow(control: ReactNode): ViewRow {
   };
 }
 
-/** Opent een opstelveld voor (regel, kant). */
-type AddComment = (line: number, side: DiffSide) => void;
+/** De + in de goot: alleen op rijen die in de hunks staan (`keys`), want
+ * GitHub weigert regelopmerkingen op uitgeklapte context. */
+interface Gutter {
+  onAdd: (line: number, side: DiffSide) => void;
+  keys: ReadonlySet<string>;
+  fileName: string;
+}
 
+// De knoppen staan bewust in de tabvolgorde (toetsenbordgebruikers moeten
+// kunnen reageren), en zijn bij focus zichtbaar (zie inspector.css).
 function AddCommentButton({
   line,
   side,
-  onAdd,
+  markKey,
+  gutter,
 }: {
   line: number | null;
   side: DiffSide;
-  onAdd: AddComment | undefined;
+  markKey: string | null;
+  gutter: Gutter | undefined;
 }) {
-  if (onAdd === undefined || line === null) return null;
+  if (
+    gutter === undefined ||
+    line === null ||
+    markKey === null ||
+    !gutter.keys.has(markKey)
+  ) {
+    return null;
+  }
   return (
     <button
       type="button"
       className="inspector-diff-add-comment"
-      aria-label={`Opmerking op regel ${line}`}
+      aria-label={`Opmerking op ${gutter.fileName} regel ${line} (${SIDE_LABEL[side]})`}
       data-side={side}
-      onClick={() => onAdd(line, side)}
+      onClick={() => gutter.onAdd(line, side)}
     >
       +
     </button>
@@ -317,10 +349,9 @@ function AddCommentButton({
 function unifiedRow(
   item: UnifiedRow,
   marks: Marks,
-  onAdd: AddComment | undefined,
+  gutter: Gutter | undefined,
 ): ViewRow {
   const markKey = lineKey(item.type, item.oldNo, item.newNo);
-  const isDel = item.type === "del";
   return {
     key: `${item.oldNo ?? ""}-${item.newNo ?? ""}`,
     numbers: { oldNo: item.oldNo, newNo: item.newNo },
@@ -328,15 +359,23 @@ function unifiedRow(
       <div className="inspector-diff-row">
         <span className="inspector-diff-lineno">
           {item.oldNo ?? ""}
-          {isDel && (
-            <AddCommentButton line={item.oldNo} side="LEFT" onAdd={onAdd} />
+          {item.type === "del" && (
+            <AddCommentButton
+              line={item.oldNo}
+              side="LEFT"
+              markKey={markKey}
+              gutter={gutter}
+            />
           )}
         </span>
         <span className="inspector-diff-lineno">
           {item.newNo ?? ""}
-          {!isDel && (
-            <AddCommentButton line={item.newNo} side="RIGHT" onAdd={onAdd} />
-          )}
+          <AddCommentButton
+            line={item.newNo}
+            side="RIGHT"
+            markKey={markKey}
+            gutter={gutter}
+          />
         </span>
         <Cell
           kind={item.type}
@@ -362,8 +401,10 @@ function splitMarkKey(
 function splitRow(
   { left, right }: SplitRow,
   marks: Marks,
-  onAdd: AddComment | undefined,
+  gutter: Gutter | undefined,
 ): ViewRow {
+  const leftKey = splitMarkKey(left, right.lineNo);
+  const rightKey = splitMarkKey(right, right.lineNo);
   return {
     key: `${left.lineNo ?? ""}-${right.lineNo ?? ""}`,
     numbers: { oldNo: left.lineNo, newNo: right.lineNo },
@@ -371,22 +412,32 @@ function splitRow(
       <div className="inspector-diff-row">
         <span className="inspector-diff-lineno">
           {left.lineNo ?? ""}
-          <AddCommentButton line={left.lineNo} side="LEFT" onAdd={onAdd} />
+          <AddCommentButton
+            line={left.lineNo}
+            side="LEFT"
+            markKey={leftKey}
+            gutter={gutter}
+          />
         </span>
         <Cell
           kind={left.kind}
           text={left.text}
-          markKey={splitMarkKey(left, right.lineNo)}
+          markKey={leftKey}
           marks={marks}
         />
         <span className="inspector-diff-lineno">
           {right.lineNo ?? ""}
-          <AddCommentButton line={right.lineNo} side="RIGHT" onAdd={onAdd} />
+          <AddCommentButton
+            line={right.lineNo}
+            side="RIGHT"
+            markKey={rightKey}
+            gutter={gutter}
+          />
         </span>
         <Cell
           kind={right.kind}
           text={right.text}
-          markKey={splitMarkKey(right, right.lineNo)}
+          markKey={rightKey}
           marks={marks}
         />
       </div>
@@ -415,6 +466,7 @@ function FileBody({
   id,
   loadFileLines,
   review,
+  fileDrafts,
   ...actions
 }: {
   file: DiffFile;
@@ -423,17 +475,26 @@ function FileBody({
   id: string;
   loadFileLines?: (path: string) => Promise<string[]>;
   review?: DraftActions;
+  fileDrafts: readonly ReviewDraft[];
 } & ThreadActions) {
   const unified = useMemo(() => buildUnifiedItems(file.lines), [file.lines]);
   const [lines, setLines] = useState<string[] | null>(null);
   const [expansion, setExpansion] = useState(NO_EXPANSION);
   const [load, setLoad] = useState<LoadState | null>(null);
-  // Open opstelvelden per (regel, kant). Meerdere tegelijk, zodat een klik op
-  // een tweede + de tekst van het eerste veld niet weggooit. De tekst zelf
-  // leeft in het veld: een weergavewissel sluit het veld.
+  // Open opstelvelden per (regel, kant), niet per rij: de rij-key verschilt
+  // tussen unified en split, dus een veld dat aan een rij hing ging bij een
+  // weergavewissel verloren. Meerdere tegelijk, zodat een klik op een tweede +
+  // het eerste veld niet weggooit. De tekst staat in een ref-map, ook zonder
+  // render per toets, en overleeft zo de remount van het veld.
   const [composing, setComposing] = useState<
     { line: number; diffSide: DiffSide }[]
   >([]);
+  const composeText = useRef(new Map<string, string>());
+  // Verzendstatus per (kant, regel) in state hier, niet in het veld: het veld
+  // kan tijdens het versturen remounten of weggaan.
+  const [sendState, setSendState] = useState<
+    Record<string, { busy: boolean; error: string | null }>
+  >({});
 
   function openComposer(line: number, diffSide: DiffSide) {
     setComposing((prev) =>
@@ -444,9 +505,36 @@ function FileBody({
   }
 
   function closeComposer(line: number, diffSide: DiffSide) {
+    composeText.current.delete(`${diffSide}${line}`);
+    setSendState((prev) => {
+      const next = { ...prev };
+      delete next[`${diffSide}${line}`];
+      return next;
+    });
     setComposing((prev) =>
       prev.filter((c) => !(c.line === line && c.diffSide === diffSide)),
     );
+  }
+
+  /** Los versturen: de uitkomst landt op deze state, ook als het veld intussen
+   * is geremount of weg is. Bij succes sluit het veld altijd (en wist de
+   * bewaarde tekst); bij een fout blijft het open met de melding. */
+  async function sendLoose(thread: DraftThread) {
+    const textKey = `${thread.side}${thread.line}`;
+    setSendState((prev) => ({
+      ...prev,
+      [textKey]: { busy: true, error: null },
+    }));
+    try {
+      await review?.onSendLoose(thread);
+    } catch (failure) {
+      setSendState((prev) => ({
+        ...prev,
+        [textKey]: { busy: false, error: errorMessage(failure) },
+      }));
+      return;
+    }
+    closeComposer(thread.line, thread.side);
   }
 
   const gaps = useMemo(() => {
@@ -514,6 +602,11 @@ function FileBody({
 
   const items: readonly (UnifiedItem | SplitItem)[] =
     mode === "unified" ? visible : splitFromUnified(visible);
+  const gutter: Gutter | undefined = review && {
+    onAdd: openComposer,
+    keys: diffRowKeys(unified),
+    fileName: file.path.slice(file.path.lastIndexOf("/") + 1),
+  };
   let hunkIndex = -1;
   const rows: ViewRow[] = items.map((item) => {
     if (item.kind === "hunk") {
@@ -529,10 +622,9 @@ function FileBody({
           : null,
       );
     }
-    const onAdd = review ? openComposer : undefined;
     return "left" in item
-      ? splitRow(item, marks, onAdd)
-      : unifiedRow(item, marks, onAdd);
+      ? splitRow(item, marks, gutter)
+      : unifiedRow(item, marks, gutter);
   });
   if (gaps.below !== null) {
     const remaining =
@@ -549,9 +641,11 @@ function FileBody({
   const placed = placeThreads(rowNumbers, threads);
   const placedDrafts = placeThreads(
     rowNumbers,
-    (review?.drafts ?? [])
-      .filter((d) => d.path === file.path)
-      .map((draft) => ({ draft, line: draft.line, diffSide: draft.side })),
+    fileDrafts.map((draft) => ({
+      draft,
+      line: draft.line,
+      diffSide: draft.side,
+    })),
   );
   const placedComposers = placeThreads(rowNumbers, composing);
   const status = fileStatus(file.lines);
@@ -591,31 +685,32 @@ function FileBody({
                           />
                         ))}
                       {review &&
-                        hereComposers?.map(({ line, diffSide }) => (
-                          <DraftComposer
-                            key={`${diffSide}${line}`}
-                            line={line}
-                            side={diffSide}
-                            showSide={mode === "split"}
-                            onAdd={(body) =>
-                              review.onAdd({
-                                path: file.path,
-                                line,
-                                side: diffSide,
-                                body,
-                              })
-                            }
-                            onSendLoose={(body) =>
-                              review.onSendLoose({
-                                path: file.path,
-                                line,
-                                side: diffSide,
-                                body,
-                              })
-                            }
-                            onClose={() => closeComposer(line, diffSide)}
-                          />
-                        ))}
+                        hereComposers?.map(({ line, diffSide }) => {
+                          const at = { path: file.path, line, side: diffSide };
+                          const textKey = `${diffSide}${line}`;
+                          return (
+                            <DraftComposer
+                              key={textKey}
+                              line={line}
+                              side={diffSide}
+                              showSide={mode === "split"}
+                              fileName={gutter?.fileName ?? file.path}
+                              busy={sendState[textKey]?.busy ?? false}
+                              error={sendState[textKey]?.error ?? null}
+                              initialText={
+                                composeText.current.get(textKey) ?? ""
+                              }
+                              onTextChange={(text) =>
+                                composeText.current.set(textKey, text)
+                              }
+                              onAdd={(body) => review.onAdd({ ...at, body })}
+                              onSendLoose={(body) =>
+                                void sendLoose({ ...at, body })
+                              }
+                              onClose={() => closeComposer(line, diffSide)}
+                            />
+                          );
+                        })}
                     </div>
                   )}
                 </Fragment>
@@ -651,8 +746,8 @@ function FileDiff({
   const [open, setOpen] = useState(!generated || unresolved > 0);
   const bodyId = useId();
   const { add, del } = countChanges(file.lines);
-  const draftCount =
-    review?.drafts.filter((d) => d.path === file.path).length ?? 0;
+  const fileDrafts = (review?.drafts ?? []).filter((d) => d.path === file.path);
+  const draftCount = fileDrafts.length;
   const slash = file.path.lastIndexOf("/");
   const dir = slash === -1 ? "" : file.path.slice(0, slash + 1);
   const name = file.path.slice(slash + 1);
@@ -707,6 +802,7 @@ function FileDiff({
           id={bodyId}
           loadFileLines={loadFileLines}
           review={review}
+          fileDrafts={fileDrafts}
           {...actions}
         />
       )}

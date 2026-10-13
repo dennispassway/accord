@@ -1339,9 +1339,15 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           initialSection={inspector.tab}
           onClose={() => setInspector(null)}
           onAuthError={onAuthError}
-          onSubmitReview={(event, body) =>
-            handleSubmitReview(selectedPr, event, body)
-          }
+          onSubmitReview={async (event, body) => {
+            try {
+              await handleSubmitReview(selectedPr, event, body);
+            } catch (error) {
+              // De inspector kan intussen dicht zijn: de fout mag niet stil blijven.
+              showToast(errorMessage(error), "fout");
+              throw error;
+            }
+          }}
           onSubmitThread={async (thread) => {
             await submitThread(selectedPr, thread);
             showToast(`Opmerking geplaatst op #${selectedPr.number}`, "ok");

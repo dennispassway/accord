@@ -9,9 +9,9 @@ import { groupThreadsByFile } from "./diffModel";
 import { FinishReview } from "./FinishReview";
 import { CloseIcon, ExternalLinkIcon } from "./icons";
 import "./inspector.css";
+import type { DraftActions } from "./DraftComposer";
 import { PrDescription } from "./PrDescription";
 import { keyOfPr } from "./PrList";
-import type { DraftActions } from "./ReviewComposer";
 import {
   draftsOutsideDiff,
   reviewDraftStore,
@@ -91,21 +91,17 @@ export function PrInspector({
   const drafts = useRef(new Map<string, string>());
   const sending = useRef(new Map<string, Promise<string | null>>());
 
-  // Een opmerking die al wordt verstuurd mag niet nog eens: ook niet vanuit
-  // een opstelveld dat intussen opnieuw is gemount.
-  const looseSending = useRef(new Set<string>());
+  // Het detailpaneel kent de diff niet: meld hem wat buiten de diff valt, zodat
+  // ook daar gewaarschuwd kan worden voor een review die GitHub kan weigeren.
+  useEffect(() => {
+    if (status === "ready" && !diffTooLarge) {
+      reviewDraftStore.setOutside(prKey, outsideDiff);
+    }
+  }, [status, diffTooLarge, prKey, outsideDiff]);
 
+  // Dubbel versturen vangt het slot per PR in submitSingleThread (usePrs.ts).
   async function sendLoose(thread: DraftThread) {
-    const key = `${thread.path}\0${thread.side}\0${thread.line}`;
-    if (looseSending.current.has(key)) {
-      throw new Error("Deze opmerking wordt al verstuurd");
-    }
-    looseSending.current.add(key);
-    try {
-      await onSubmitThread(thread);
-    } finally {
-      looseSending.current.delete(key);
-    }
+    await onSubmitThread(thread);
     void refetch();
   }
 
@@ -170,7 +166,8 @@ export function PrInspector({
             key={prKey}
             drafts={reviewDrafts}
             outsideDiff={outsideDiff}
-            onRemoveDraft={(id) => reviewDraftStore.remove(prKey, [id])}
+            authoredByMe={pr.authoredByMe}
+            onRemoveDraft={draftActions.onRemove}
             onDiscard={() => reviewDraftStore.clear(prKey)}
             onSubmit={onSubmitReview}
             onSubmitted={() => void refetch()}
