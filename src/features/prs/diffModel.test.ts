@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildUnifiedItems,
+  countChanges,
+  fileStatus,
+  groupThreadsByFile,
   isGeneratedPath,
   type LineNumbers,
   placeThreads,
@@ -96,9 +99,9 @@ describe("buildUnifiedItems", () => {
 });
 
 const rows: LineNumbers[] = [
-  { oldNo: 1, newNo: 1 }, // 0 context
-  { oldNo: 2, newNo: null }, // 1 del
-  { oldNo: null, newNo: 2 }, // 2 add
+  { oldNo: 1, newNo: 1 },
+  { oldNo: 2, newNo: null },
+  { oldNo: null, newNo: 2 },
 ];
 
 type T = { id: string; line: number | null; diffSide: "LEFT" | "RIGHT" };
@@ -162,6 +165,13 @@ describe("isGeneratedPath", () => {
     "dist/x.js",
     "packages/a/dist/x.js",
     "build/out.txt",
+    "public/app.min.mjs",
+    "public/app.min.json",
+    "npm-shrinkwrap.json",
+    "app/pubspec.lock",
+    "mix.lock",
+    "go.sum",
+    "flake.lock",
   ])("herkent %s als gegenereerd", (path) => {
     expect(isGeneratedPath(path)).toBe(true);
   });
@@ -171,7 +181,126 @@ describe("isGeneratedPath", () => {
     "docs/build-notes.md",
     "src/app.ts",
     "src/lockfile.ts",
+    "src/admin.minimal.ts",
+    "src/go.sum.ts",
   ])("laat %s met rust", (path) => {
     expect(isGeneratedPath(path)).toBe(false);
+  });
+});
+
+describe("countChanges", () => {
+  it("telt adds en dels van regels", () => {
+    expect(
+      countChanges(lines(["add", "+a"], ["del", "-b"], ["context", " c"])),
+    ).toEqual({ add: 1, del: 1 });
+  });
+
+  it("telt over meerdere bestanden", () => {
+    const files = [
+      { path: "a", lines: lines(["add", "+1"], ["add", "+2"]) },
+      { path: "b", lines: lines(["del", "-1"]) },
+    ];
+    expect(countChanges(files)).toEqual({ add: 2, del: 1 });
+  });
+});
+
+describe("groupThreadsByFile", () => {
+  const files = [
+    { path: "a.ts", lines: [] },
+    { path: "b.ts", lines: [] },
+  ];
+
+  it("groepeert per pad in invoervolgorde en zet de rest in elsewhere", () => {
+    const a1 = { path: "a.ts", id: "1" };
+    const a2 = { path: "a.ts", id: "2" };
+    const gone = { path: "weg.ts", id: "3" };
+    const { byPath, elsewhere } = groupThreadsByFile(files, [a1, gone, a2]);
+    expect(byPath.get("a.ts")).toEqual([a1, a2]);
+    expect(byPath.get("b.ts")).toEqual([]);
+    expect(elsewhere).toEqual([gone]);
+  });
+
+  it("zet alles in elsewhere zonder bestanden", () => {
+    const t = { path: "a.ts" };
+    expect(groupThreadsByFile([], [t]).elsewhere).toEqual([t]);
+  });
+});
+
+function metaLines(...texts: string[]): DiffLine[] {
+  return texts.map((text) => ({ kind: "meta", text }));
+}
+
+describe("fileStatus", () => {
+  it("meldt een binair bestand", () => {
+    expect(
+      fileStatus(
+        metaLines(
+          "index 1..2 100644",
+          "Binary files a/i.png and b/i.png differ",
+        ),
+      ),
+    ).toBe("Binair bestand");
+  });
+
+  it("meldt een git binary patch als binair", () => {
+    expect(fileStatus(metaLines("index 1..2", "GIT binary patch"))).toBe(
+      "Binair bestand",
+    );
+  });
+
+  it("noemt het oude pad bij een pure rename", () => {
+    expect(
+      fileStatus(
+        metaLines(
+          "similarity index 100%",
+          "rename from src/old.ts",
+          "rename to src/new.ts",
+        ),
+      ),
+    ).toBe("Hernoemd van src/old.ts");
+  });
+
+  it("ge-unquote het oude pad van een rename", () => {
+    expect(
+      fileStatus(metaLines('rename from "caf\\303\\251.txt"', "rename to x")),
+    ).toBe("Hernoemd van café.txt");
+  });
+
+  it("noemt de bron van een kopie", () => {
+    expect(fileStatus(metaLines("copy from a.ts", "copy to b.ts"))).toBe(
+      "Gekopieerd van a.ts",
+    );
+  });
+
+  it("meldt alleen gewijzigde bestandsrechten met beide modi", () => {
+    expect(fileStatus(metaLines("old mode 100644", "new mode 100755"))).toBe(
+      "Alleen bestandsrechten gewijzigd (100644 → 100755)",
+    );
+  });
+
+  it("meldt een leeg toegevoegd of verwijderd bestand", () => {
+    expect(
+      fileStatus(metaLines("new file mode 100644", "index 0000000..e69de29")),
+    ).toBe("Leeg bestand toegevoegd");
+    expect(
+      fileStatus(
+        metaLines("deleted file mode 100644", "index e69de29..0000000"),
+      ),
+    ).toBe("Leeg bestand verwijderd");
+  });
+
+  it("geeft null als het bestand hunks heeft", () => {
+    expect(
+      fileStatus([
+        { kind: "meta", text: "index 1..2 100644" },
+        { kind: "hunk", text: "@@ -1 +1 @@" },
+      ]),
+    ).toBeNull();
+  });
+
+  it("valt terug op een neutrale melding als de meta niets aantoont", () => {
+    expect(fileStatus(metaLines("index 1..2 100644"))).toBe(
+      "Geen regelwijzigingen",
+    );
   });
 });

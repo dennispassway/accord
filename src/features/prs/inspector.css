@@ -29,8 +29,6 @@
   background: var(--fill-1);
 }
 
-/* Beschrijving */
-
 .inspector-description {
   display: flex;
   flex-direction: column;
@@ -140,6 +138,22 @@
   font-size: 10px;
 }
 
+.inspector-diff-file-threads {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--text-1);
+  font-size: 10px;
+}
+
+.inspector-diff-file-note {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
 .inspector-diff-file-count {
   flex: 0 0 auto;
   font-size: 10.5px;
@@ -237,7 +251,7 @@
   white-space: normal;
 }
 
-.inspector-diff-threads {
+.inspector-thread-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -261,12 +275,6 @@
 }
 
 /* Comments */
-
-.inspector-comments {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
 
 .inspector-comments-section {
   display: flex;
@@ -456,7 +464,7 @@
   background: var(--fill-1);
 }
 
-.inspector-diff-threads .inspector-thread {
+.inspector-diff-thread-row .inspector-thread {
   background: var(--card);
   box-shadow: inset 0 0 0 1px var(--line);
 }
@@ -471,6 +479,11 @@
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-1);
+}
+
+.inspector-thread-side {
+  font-size: 10px;
+  color: var(--text-3);
 }
 
 .inspector-thread-resolved {

@@ -159,10 +159,15 @@ describe("fetchPrDetail", () => {
   it("valt terug op RIGHT bij een ontbrekende of onbekende diffSide", async () => {
     const detail = await detailWith({
       reviewThreads: {
-        nodes: [threadNode({}), threadNode({ diffSide: "SIDEWAYS" })],
+        nodes: [
+          threadNode({}),
+          threadNode({ diffSide: "SIDEWAYS" }),
+          threadNode({ diffSide: "toString" }),
+        ],
       },
     });
     expect(detail.reviewThreads.map((t) => t.diffSide)).toEqual([
+      "RIGHT",
       "RIGHT",
       "RIGHT",
     ]);

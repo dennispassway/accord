@@ -51,7 +51,7 @@ import { isTypingTarget, listKeyToMove } from "./listKeyToMove";
 import { loadMethod } from "./MergeSection";
 import { isAnyMenuOverlayOpen } from "./menuOverlay";
 import { PrContextMenu } from "./PrContextMenu";
-import { PrInspector } from "./PrInspector";
+import { type InspectorSection, PrInspector } from "./PrInspector";
 import { keyOfPr, PrList } from "./PrList";
 import { PANEL_BOUNDS } from "./panelLayout";
 import { ResizeHandle } from "./ResizeHandle";
@@ -289,7 +289,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [inspector, setInspector] = useState<null | {
-    tab: "diff" | "comments";
+    tab: InspectorSection;
     key: string;
   }>(null);
   const [contextMenu, setContextMenu] = useState<{

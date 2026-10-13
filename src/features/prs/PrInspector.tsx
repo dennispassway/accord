@@ -2,9 +2,9 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import { CommentsView } from "./CommentsView";
-import type { DiffViewMode } from "./cockpitPrefs";
-import { DIFF_VIEW_MODES, loadDiffView, saveDiffView } from "./cockpitPrefs";
-import { countChanges, DiffView } from "./DiffView";
+import { type DiffViewMode, loadDiffView, saveDiffView } from "./cockpitPrefs";
+import { DiffView } from "./DiffView";
+import { groupThreadsByFile } from "./diffModel";
 import { parseDiff } from "./diffParse";
 import { CloseIcon, ExternalLinkIcon } from "./icons";
 import "./inspector.css";
@@ -12,7 +12,7 @@ import { PrDescription } from "./PrDescription";
 import { usePrDetail } from "./usePrDetail";
 import { latestVerdict, VerdictBadge } from "./VerdictBadge";
 
-type InspectorSection = "diff" | "comments";
+export type InspectorSection = "diff" | "comments";
 
 const DIFF_VIEW_LABELS: Record<DiffViewMode, string> = {
   unified: "Unified",
@@ -28,12 +28,8 @@ interface PrInspectorProps {
   onFixComments?: () => void;
 }
 
-/**
- * PR-inspector: één leesstroom met beschrijving, diff met threads op hun
- * regel en onderaan het gesprek. Geopend vanuit het detailpaneel of via
- * toets D. Zelfde scrim/sheet-patroon als SettingsSheet, maar breder en met
- * eigen z-index (32/33) zodat hij boven de settings-sheet kan.
- */
+/** Zelfde scrim/sheet-patroon als SettingsSheet, maar breder en met eigen
+ * z-index (32/33) zodat hij boven de settings-sheet kan. */
 export function PrInspector({
   pr,
   initialSection,
@@ -52,20 +48,21 @@ export function PrInspector({
   const verdict = latestVerdict(pr);
 
   const files = useMemo(() => (detail ? parseDiff(detail.diff) : []), [detail]);
-  const totals = useMemo(() => {
-    let add = 0;
-    let del = 0;
-    for (const file of files) {
-      const counts = countChanges(file.lines);
-      add += counts.add;
-      del += counts.del;
-    }
-    return { add, del };
-  }, [files]);
-  const elsewhereThreads = useMemo(() => {
-    const paths = new Set(files.map((file) => file.path));
-    return (detail?.reviewThreads ?? []).filter((t) => !paths.has(t.path));
-  }, [detail, files]);
+  const { byPath, elsewhere } = useMemo(
+    () => groupThreadsByFile(files, detail?.reviewThreads ?? []),
+    [files, detail],
+  );
+  // Refs i.p.v. state: een toetsaanslag in een antwoord mag de diff niet
+  // opnieuw renderen.
+  const drafts = useRef(new Map<string, string>());
+  const sending = useRef(new Map<string, Promise<string | null>>());
+
+  const threadActions = {
+    onReply: reply,
+    onSetResolved: setResolved,
+    drafts: drafts.current,
+    sending: sending.current,
+  };
 
   // Eenmalig naar het gesprek scrollen als de inspector daarvoor geopend is.
   // Pas na status "ready": eerder bestaat de sectie niet.
@@ -108,7 +105,7 @@ export function PrInspector({
               </button>
             )}
           <fieldset className="inspector-segmented" aria-label="Weergave">
-            {(Object.keys(DIFF_VIEW_MODES) as DiffViewMode[]).map((m) => (
+            {(Object.keys(DIFF_VIEW_LABELS) as DiffViewMode[]).map((m) => (
               <button
                 key={m}
                 type="button"
@@ -172,18 +169,17 @@ export function PrInspector({
             <>
               <PrDescription
                 body={detail.body}
-                fileCount={files.length}
-                add={totals.add}
-                del={totals.del}
+                fileCount={detail.diffTooLarge ? undefined : files.length}
+                add={pr.additions}
+                del={pr.deletions}
               />
               <DiffView
-                diff={detail.diff}
+                files={files}
                 tooLarge={detail.diffTooLarge}
                 url={pr.url}
                 mode={mode}
-                threads={detail.reviewThreads}
-                onReply={reply}
-                onSetResolved={setResolved}
+                threadsByPath={byPath}
+                {...threadActions}
               />
               <section
                 ref={conversationRef}
@@ -192,9 +188,8 @@ export function PrInspector({
                 <h3 className="inspector-comments-heading">Gesprek</h3>
                 <CommentsView
                   issueComments={detail.issueComments}
-                  elsewhereThreads={elsewhereThreads}
-                  onReply={reply}
-                  onSetResolved={setResolved}
+                  elsewhereThreads={elsewhere}
+                  {...threadActions}
                 />
               </section>
             </>

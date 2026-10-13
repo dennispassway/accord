@@ -33,7 +33,7 @@ export type DiffSide = "LEFT" | "RIGHT";
 const DIFF_SIDES: Record<DiffSide, true> = { LEFT: true, RIGHT: true };
 
 function parseDiffSide(value: unknown): DiffSide {
-  return typeof value === "string" && value in DIFF_SIDES
+  return typeof value === "string" && Object.keys(DIFF_SIDES).includes(value)
     ? (value as DiffSide)
     : "RIGHT";
 }

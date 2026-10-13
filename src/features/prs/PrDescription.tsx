@@ -4,7 +4,8 @@ import "./inspector.css";
 
 interface PrDescriptionProps {
   body: string;
-  fileCount: number;
+  /** Weglaten als de diff te groot is: het aantal is dan niet bekend. */
+  fileCount?: number;
   add: number;
   del: number;
 }
@@ -28,7 +29,8 @@ export function PrDescription({
   return (
     <section className="inspector-description">
       <div className="inspector-description-meta">
-        {fileCount} {fileCount === 1 ? "bestand" : "bestanden"}
+        {fileCount !== undefined &&
+          `${fileCount} ${fileCount === 1 ? "bestand" : "bestanden"}`}
         <span className="inspector-diff-add">+{add}</span>
         <span className="inspector-diff-del">−{del}</span>
       </div>

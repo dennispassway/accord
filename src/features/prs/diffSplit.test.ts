@@ -153,12 +153,17 @@ describe("buildSplitItems", () => {
     const items = buildSplitItems(
       lines(
         ["meta", "index abc..def 100644"],
-        ["hunk", "@@ -1,1 +1,1 @@"],
+        ["hunk", "@@ -1,1 +1,1 @@ fn x()"],
         ["context", " x"],
       ),
     );
     expect(items).toHaveLength(2);
-    expect(items[0]).toEqual({ kind: "hunk", text: "@@ -1,1 +1,1 @@" });
+    expect(items[0]).toEqual({
+      kind: "hunk",
+      oldStart: 1,
+      newStart: 1,
+      context: "fn x()",
+    });
     expect(items[1]?.kind).toBe("row");
   });
 
