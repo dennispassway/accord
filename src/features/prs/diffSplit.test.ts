@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { buildUnifiedItems } from "./diffModel";
 import type { DiffLine } from "./diffParse";
-import { buildSplitItems } from "./diffSplit";
+import { splitFromUnified } from "./diffSplit";
+
+const buildSplitItems = (lines: readonly DiffLine[]) =>
+  splitFromUnified(buildUnifiedItems(lines));
 
 function lines(...pairs: [DiffLine["kind"], string][]): DiffLine[] {
   return pairs.map(([kind, text]) => ({ kind, text }));

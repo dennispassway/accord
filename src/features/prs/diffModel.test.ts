@@ -372,11 +372,10 @@ describe("hiddenAbove / hiddenBelow", () => {
     });
   });
 
-  it("geeft null onder zonder fileLength of als de hunk het einde raakt", () => {
+  it("geeft null onder als de hunk het einde raakt", () => {
     const items = buildUnifiedItems(
       lines(["hunk", "@@ -1,2 +1,2 @@"], ctx(1), ctx(2)),
     );
-    expect(hiddenBelow(items, null)).toBeNull();
     expect(hiddenBelow(items, 2)).toBeNull();
   });
 
@@ -430,7 +429,7 @@ describe("hiddenAbove / hiddenBelow", () => {
         ["hunk", "@@ -5,2 +4,0 @@"],
         ["del", "-a"],
         ["del", "-b"],
-        ["hunk", "@@ -20,1 +19,1 @@"],
+        ["hunk", "@@ -20,1 +18,1 @@"],
         ctx(20),
       ),
     );
@@ -439,10 +438,11 @@ describe("hiddenAbove / hiddenBelow", () => {
       newTo: 4,
       oldOffset: 0,
     });
+    // Twee oude regels vielen weg: oud 20 is nieuw 18, dus offset 2.
     expect(hiddenAbove(items, 1)).toEqual({
       newFrom: 5,
-      newTo: 18,
-      oldOffset: 1,
+      newTo: 17,
+      oldOffset: 2,
     });
     expect(hiddenBelow(items.slice(0, 3), 10)).toEqual({
       newFrom: 5,

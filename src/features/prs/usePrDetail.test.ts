@@ -10,7 +10,6 @@ import {
   applyResolved,
   detailFromCache,
   mockDetailState,
-  newSideLines,
   stateAfterFailedRefetch,
 } from "./usePrDetail";
 
@@ -168,36 +167,5 @@ describe("stateAfterFailedRefetch", () => {
 
   it("geeft null als er nog geen detail is om lokaal bij te werken", () => {
     expect(stateAfterFailedRefetch(null, (d) => d)).toBeNull();
-  });
-});
-
-describe("newSideLines", () => {
-  const diff = [
-    "diff --git a/a.ts b/a.ts",
-    "--- a/a.ts",
-    "+++ b/a.ts",
-    "@@ -3,3 +3,3 @@",
-    " keep",
-    "-oud",
-    "+nieuw",
-    " end",
-    "diff --git a/b.ts b/b.ts",
-    "--- a/b.ts",
-    "+++ b/b.ts",
-    "@@ -1 +1 @@",
-    "-x",
-    "+y",
-  ].join("\n");
-
-  it("geeft alleen de nieuwe kant van het gevraagde bestand per regelnummer", () => {
-    expect([...newSideLines(diff, "a.ts")]).toEqual([
-      [3, "keep"],
-      [4, "nieuw"],
-      [5, "end"],
-    ]);
-  });
-
-  it("geeft niets voor een onbekend pad", () => {
-    expect(newSideLines(diff, "nope.ts").size).toBe(0);
   });
 });

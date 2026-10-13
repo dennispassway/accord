@@ -13,6 +13,7 @@ import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import "./highlight.css";
+import type { Segment } from "./wordDiff";
 
 export interface HighlightRow {
   type: "add" | "del" | "context";
@@ -110,6 +111,54 @@ function highlightStream(texts: string[], language: string): string[] {
     ignoreIllegals: true,
   });
   return splitLines(value);
+}
+
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#x27;",
+};
+
+export function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch] ?? ch);
+}
+
+const WORD_OPEN = '<span class="inspector-diff-word">';
+
+/**
+ * Legt een woordmarkering over html die al ge-escaped is (hljs-uitvoer of
+ * `escapeHtml`). De segmenten dekken de platte tekst achter die html; een
+ * entity en een emoji tellen als één teken. Rond elke tag wordt de markering
+ * gesloten en heropend, zodat hij nooit tegen een syntax-span in nest.
+ */
+export function markWords(html: string, segments: readonly Segment[]): string {
+  const flags = segments.flatMap((s) => Array.from(s.text, () => s.changed));
+  let out = "";
+  let pos = 0;
+  let open = false;
+  const mark = (on: boolean) => {
+    if (on === open) return;
+    out += on ? WORD_OPEN : "</span>";
+    open = on;
+  };
+  for (const part of html.split(/(<[^>]*>|&[#\w]+;)/)) {
+    if (part.startsWith("<")) {
+      mark(false);
+      out += part;
+    } else if (/^&[#\w]+;$/.test(part)) {
+      mark(flags[pos++] ?? false);
+      out += part;
+    } else {
+      for (const ch of part) {
+        mark(flags[pos++] ?? false);
+        out += ch;
+      }
+    }
+  }
+  mark(false);
+  return out;
 }
 
 /** HTML per rij (door highlight.js ge-escaped, veilig voor innerHTML), of null als de taal onbekend is of de invoer te groot. */

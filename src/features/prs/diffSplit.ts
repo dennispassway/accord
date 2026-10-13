@@ -4,12 +4,12 @@
  * naast elkaar gezet.
  */
 import {
-  buildUnifiedItems,
+  lineKey,
   type UnifiedHunk,
   type UnifiedItem,
   type UnifiedRow,
 } from "./diffModel";
-import type { DiffLine } from "./diffParse";
+import { type Segment, wordDiff } from "./wordDiff";
 
 interface SplitCell {
   kind: "add" | "del" | "context" | "empty";
@@ -22,11 +22,6 @@ export type SplitItem = SplitRow | UnifiedHunk;
 
 const EMPTY: SplitCell = { kind: "empty", text: "", lineNo: null };
 
-export function buildSplitItems(lines: readonly DiffLine[]): SplitItem[] {
-  return splitFromUnified(buildUnifiedItems(lines));
-}
-
-/** Zet ook items met uitgeklapte context naast elkaar. */
 export function splitFromUnified(unified: readonly UnifiedItem[]): SplitItem[] {
   const items: SplitItem[] = [];
 
@@ -76,4 +71,23 @@ export function splitFromUnified(unified: readonly UnifiedItem[]): SplitItem[] {
   }
 
   return items;
+}
+
+/** Woordmarkering per regel (sleutel: `lineKey`) voor de rijen die split naast
+ * elkaar zet: de i-de verwijderde met de i-de toegevoegde regel van een blok.
+ * Alleen regels met een echt verschil. */
+export function wordSegments(
+  items: readonly UnifiedItem[],
+): Map<string, Segment[]> {
+  const out = new Map<string, Segment[]>();
+  for (const item of splitFromUnified(items)) {
+    if (item.kind !== "row") continue;
+    const { left, right } = item;
+    if (left.kind !== "del" || right.kind !== "add") continue;
+    const diff = wordDiff(left.text, right.text);
+    if (![...diff.old, ...diff.new].some((s) => s.changed)) continue;
+    out.set(lineKey("del", left.lineNo, null), diff.old);
+    out.set(lineKey("add", null, right.lineNo), diff.new);
+  }
+  return out;
 }

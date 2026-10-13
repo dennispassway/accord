@@ -1,41 +1,25 @@
 import { describe, expect, it } from "vitest";
 import appCss from "../../App.css?raw";
+import { contrast, hexToRgb, mix, type Rgb } from "../../contrastHelpers";
 import highlightCss from "./highlight.css?raw";
+import inspectorCss from "./inspector.css?raw";
 
-type Rgb = [number, number, number];
-
-/** Een add/del-rij krijgt ~10% van --ok/--err over de code-achtergrond. */
-const ROW_TINT = 0.1;
-
-/** De echte rijtinten in inspector.css en het gewijzigde woord erbovenop. */
-const ADD_ROW_TINT = 0.14;
-const DEL_ROW_TINT = 0.12;
-const WORD_TINT = 0.3;
-
-function hexToRgb(hex: string): Rgb {
-  const parse = (i: number) => Number.parseInt(hex.slice(i, i + 2), 16);
-  return [parse(1), parse(3), parse(5)];
+/** Het tintpercentage van `selector` uit inspector.css, als fractie. */
+function tint(selector: string, token: "ok" | "err"): number {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const percent = inspectorCss.match(
+    new RegExp(
+      `${escaped}\\s*\\{[^}]*?color-mix\\(in oklab, var\\(--${token}\\) (\\d+)%`,
+    ),
+  )?.[1];
+  if (percent === undefined) throw new Error(`tint van ${selector} ontbreekt`);
+  return Number(percent) / 100;
 }
 
-function luminance([r, g, b]: Rgb): number {
-  const ch = (v: number) => {
-    const c = v / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
-}
-
-function contrast(a: Rgb, b: Rgb): number {
-  const la = luminance(a);
-  const lb = luminance(b);
-  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-}
-
-function mix(fg: Rgb, alpha: number, bg: Rgb): Rgb {
-  return [0, 1, 2].map(
-    (i) => (fg[i] as number) * alpha + (bg[i] as number) * (1 - alpha),
-  ) as Rgb;
-}
+/** De echte rijtinten en het gewijzigde woord erbovenop. */
+const ADD_ROW_TINT = tint(".inspector-diff-cell-add", "ok");
+const DEL_ROW_TINT = tint(".inspector-diff-cell-del", "err");
+const WORD_TINT = tint(".inspector-diff-cell-add .inspector-diff-word", "ok");
 
 function block(css: string, theme: "dark" | "light"): string {
   const start = css.indexOf(`[data-theme="${theme}"]`);
@@ -85,8 +69,8 @@ for (const theme of ["dark", "light"] as const) {
     const base = codeBg(theme);
     const backgrounds: [string, Rgb][] = [
       ["code", base],
-      ["add-rij", mix(hexToken(appCss, theme, "ok"), ROW_TINT, base)],
-      ["del-rij", mix(hexToken(appCss, theme, "err"), ROW_TINT, base)],
+      ["add-rij", mix(hexToken(appCss, theme, "ok"), ADD_ROW_TINT, base)],
+      ["del-rij", mix(hexToken(appCss, theme, "err"), DEL_ROW_TINT, base)],
     ];
     for (const name of syntaxTokens()) {
       for (const [label, bg] of backgrounds) {

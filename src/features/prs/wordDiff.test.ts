@@ -49,6 +49,12 @@ describe("wordDiff", () => {
     expect(changed(r.new)).toEqual([", b"]);
   });
 
+  it("breekt een emoji niet in twee helften", () => {
+    const r = wordDiff("ab \u{1F600}", "ab \u{1F601}");
+    expect(changed(r.old)).toEqual(["\u{1F600}"]);
+    expect(changed(r.new)).toEqual(["\u{1F601}"]);
+  });
+
   it("splitst op leestekens en witruimte", () => {
     const r = wordDiff("foo.bar(baz)", "foo.qux(baz)");
     expect(changed(r.old)).toEqual(["bar"]);

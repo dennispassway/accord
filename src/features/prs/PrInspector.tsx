@@ -5,7 +5,6 @@ import { CommentsView } from "./CommentsView";
 import { type DiffViewMode, loadDiffView, saveDiffView } from "./cockpitPrefs";
 import { DiffView } from "./DiffView";
 import { groupThreadsByFile } from "./diffModel";
-import { parseDiff } from "./diffParse";
 import { CloseIcon, ExternalLinkIcon } from "./icons";
 import "./inspector.css";
 import { PrDescription } from "./PrDescription";
@@ -48,30 +47,14 @@ export function PrInspector({
     retry,
     reply,
     setResolved,
+    files,
+    diffTooLarge,
     loadFileLines,
-    loadPerFileDiff,
+    loadPerFile,
   } = usePrDetail(pr, onAuthError);
 
   const verdict = latestVerdict(pr);
 
-  // De diff per bestand voor een PR waarvan de hele diff te groot was. De
-  // sleutel hoort erbij: een antwoord dat landt nadat de gebruiker naar een
-  // andere PR ging wordt zo niet onder die PR getoond.
-  const prKey = keyOfPr(pr);
-  const [perFile, setPerFile] = useState<{ key: string; diff: string } | null>(
-    null,
-  );
-  const perFileDiff = perFile?.key === prKey ? perFile.diff : null;
-  const tooLarge = detail?.diffTooLarge === true && perFileDiff === null;
-
-  async function loadPerFile() {
-    setPerFile({ key: prKey, diff: await loadPerFileDiff() });
-  }
-
-  const files = useMemo(
-    () => (detail ? parseDiff(perFileDiff ?? detail.diff) : []),
-    [detail, perFileDiff],
-  );
   const { byPath, elsewhere } = useMemo(
     () => groupThreadsByFile(files, detail?.reviewThreads ?? []),
     [files, detail],
@@ -193,19 +176,23 @@ export function PrInspector({
             <>
               <PrDescription
                 body={detail.body}
-                fileCount={tooLarge ? undefined : files.length}
+                fileCount={diffTooLarge ? undefined : files.length}
                 add={pr.additions}
                 del={pr.deletions}
               />
+              {/* De key (PR + commit) zet alle lokale uitklap- en laadstaat
+                  terug: een antwoord dat na een wissel landt, belandt dan
+                  op een weggehaald component (async-antwoord-na-wissel.md). */}
               <DiffView
+                key={`${keyOfPr(pr)}:${detail.headSha}`}
                 files={files}
-                tooLarge={tooLarge}
+                tooLarge={diffTooLarge}
                 url={pr.url}
                 mode={mode}
                 threadsByPath={byPath}
-                subject={`${prKey}:${detail.headSha}`}
-                headSha={detail.headSha}
-                loadFileLines={loadFileLines}
+                loadFileLines={
+                  detail.headSha === "" ? undefined : loadFileLines
+                }
                 onLoadPerFile={loadPerFile}
                 {...threadActions}
               />

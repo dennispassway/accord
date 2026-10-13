@@ -78,24 +78,38 @@ describe("DiffView syntax en woorden", () => {
 
 describe("DiffView context uitklappen", () => {
   const load = async () => ["x"];
+  // Elke uitklapknop heeft een aria-label dat op "dit blok tonen" eindigt.
+  const BUTTON = "dit blok tonen";
 
-  it("toont boven het hunk het aantal verborgen regels en onderaan de rest", () => {
-    const html = render(DIFF, { headSha: "abc", loadFileLines: load });
+  it("toont boven het hunk het aantal verborgen regels en onderaan een stap en alles", () => {
+    const html = render(DIFF, { loadFileLines: load });
     expect(html).toContain("↑ 9 regels tonen");
-    expect(html).toContain("↓ Rest van het bestand tonen");
+    expect(html).toContain("↓ 20 regels");
+    expect(html).toContain("Tot 500 regels tonen");
+  });
+
+  it("biedt bij een groot gat een stap van 20 van N en een alles-knop", () => {
+    const far = DIFF.replace("@@ -10,3 +10,3 @@", "@@ -50,3 +50,3 @@");
+    const html = render(far, { loadFileLines: load });
+    expect(html).toContain("↑ 20 van 49 regels");
+    expect(html.match(/Alles tonen/g)).toHaveLength(1);
+  });
+
+  it("toont bij een gat van 700 regels een knop voor 500", () => {
+    const far = DIFF.replace("@@ -10,3 +10,3 @@", "@@ -701,3 +701,3 @@");
+    const html = render(far, { loadFileLines: load });
+    expect(html).toContain("↑ 20 van 700 regels");
+    expect(html).toContain("500 regels tonen");
   });
 
   it("toont geen knop boven een hunk dat op regel 1 begint", () => {
-    const html = render(HEAD_AT_ONE, { headSha: "abc", loadFileLines: load });
+    const html = render(HEAD_AT_ONE, { loadFileLines: load });
     expect(html).not.toContain("↑");
-    expect(html).toContain("↓ Rest van het bestand tonen");
+    expect(html).toContain("↓ 20 regels");
   });
 
-  it("toont geen uitklapknoppen zonder headSha of zonder loader", () => {
-    expect(render(DIFF, { headSha: "", loadFileLines: load })).not.toContain(
-      "regels tonen",
-    );
-    expect(render(DIFF, { headSha: "abc" })).not.toContain("regels tonen");
+  it("toont geen uitklapknoppen zonder loader", () => {
+    expect(render(DIFF)).not.toContain(BUTTON);
   });
 
   it("toont geen uitklapknoppen bij een nieuw bestand", () => {
@@ -106,9 +120,7 @@ describe("DiffView context uitklappen", () => {
 +a
 +b
 `;
-    expect(render(added, { headSha: "abc", loadFileLines: load })).not.toMatch(
-      /tonen/,
-    );
+    expect(render(added, { loadFileLines: load })).not.toContain(BUTTON);
   });
 });
 

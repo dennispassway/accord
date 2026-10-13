@@ -17,7 +17,7 @@ export interface DiffFile {
 /** Vóór de eerste @@ van een bestand is alles kopregel; binnen een hunk
  * beslist alleen het eerste teken. Een verwijderde `-- x` of toegevoegde `++i`
  * begint namelijk met `---`/`+++` en is een gewone regel. */
-function classifyLine(line: string, inHunk: boolean): DiffLine["kind"] {
+export function classifyLine(line: string, inHunk: boolean): DiffLine["kind"] {
   if (line.startsWith("@@")) return "hunk";
   if (!inHunk) return "meta";
   if (line.startsWith("+")) return "add";

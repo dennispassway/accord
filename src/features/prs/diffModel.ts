@@ -1,7 +1,5 @@
 import type { DiffSide } from "../../lib/github/prDetail";
-import { TOO_LARGE_LINE } from "../../lib/github/prFiles";
 import { type DiffFile, type DiffLine, unquoteGitPath } from "./diffParse";
-import { type Segment, wordDiff } from "./wordDiff";
 
 export interface UnifiedRow {
   kind: "row";
@@ -160,12 +158,24 @@ function metaValue(lines: readonly DiffLine[], prefix: string): string | null {
   return line ? line.text.slice(prefix.length) : null;
 }
 
+/** Metaregel die een bestand zonder patch als te groot markeert (zie prFilesDiff). */
+export const TOO_LARGE_LINE = "Accord: te groot om te tonen";
+/** Metaregels voor bestanden zonder patch waarvan de aard niet uit de API volgt (zie prFilesDiff). */
+export const NO_TEXT_DIFF_LINE = "Accord: geen tekstdiff";
+export const MODE_ONLY_LINE = "Accord: alleen bestandsrechten gewijzigd";
+
 /** Korte omschrijving voor een bestand zonder hunks, afgeleid uit de
  * kopregels; null als het bestand wel hunks heeft. */
 export function fileStatus(lines: readonly DiffLine[]): string | null {
   if (lines.some((l) => l.kind === "hunk")) return null;
   if (lines.some((l) => l.text === TOO_LARGE_LINE)) {
     return "Te groot om te tonen";
+  }
+  if (lines.some((l) => l.text === NO_TEXT_DIFF_LINE)) {
+    return "Geen tekstdiff (binair of leeg)";
+  }
+  if (lines.some((l) => l.text === MODE_ONLY_LINE)) {
+    return "Alleen bestandsrechten gewijzigd";
   }
   if (
     lines.some(
@@ -274,12 +284,11 @@ export function hiddenAbove(
   return null;
 }
 
-/** Het gat na de laatste hunk tot het einde van het bestand. Null als er niets verborgen is of fileLength onbekend (null). */
+/** Het gat na de laatste hunk tot het einde van het bestand. Null als er niets verborgen is. */
 export function hiddenBelow(
   items: readonly UnifiedItem[],
-  fileLength: number | null,
+  fileLength: number,
 ): HiddenRange | null {
-  if (fileLength == null) return null;
   let nextOld = 0;
   let nextNew = 0;
   let usable = false;
@@ -306,106 +315,36 @@ export function lineKey(
   return type === "del" ? `old${oldNo}` : `new${newNo}`;
 }
 
-const HTML_ESCAPES: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#x27;",
-};
+/** Aantal regels dat één klik op "tonen" uitklapt. */
+export const EXPAND_STEP = 20;
+/** Bovengrens van "alles tonen": een gat van duizenden regels blijft opdeelbaar. */
+export const EXPAND_ALL_MAX = 500;
 
-export function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch] ?? ch);
+/** Hoeveel regels er per gat zijn uitgeklapt: boven elk hunk (op hunkindex,
+ * vanaf de kant van het hunk) en onder het laatste hunk (vanaf het hunk). */
+export interface Expansion {
+  above: ReadonlyMap<number, number>;
+  below: number;
 }
 
-const WORD_OPEN = '<span class="inspector-diff-word">';
-
-/**
- * Legt een woordmarkering over html die al ge-escaped is (hljs-uitvoer of
- * `escapeHtml`). De segmenten dekken de platte tekst achter die html; een
- * entity telt als één teken. Rond elke tag wordt de markering gesloten en
- * heropend, zodat hij nooit tegen een syntax-span in nest.
- */
-export function markWords(html: string, segments: readonly Segment[]): string {
-  const flags = segments.flatMap((s) =>
-    Array.from({ length: s.text.length }, () => s.changed),
-  );
-  let out = "";
-  let pos = 0;
-  let open = false;
-  const mark = (on: boolean) => {
-    if (on === open) return;
-    out += on ? WORD_OPEN : "</span>";
-    open = on;
-  };
-  for (const part of html.split(/(<[^>]*>|&[#\w]+;)/)) {
-    if (part.startsWith("<")) {
-      mark(false);
-      out += part;
-    } else if (/^&[#\w]+;$/.test(part)) {
-      mark(flags[pos++] ?? false);
-      out += part;
-    } else {
-      for (const ch of part) {
-        mark(flags[pos++] ?? false);
-        out += ch;
-      }
-    }
-  }
-  mark(false);
-  return out;
-}
-
-function run(
-  items: readonly UnifiedItem[],
-  from: number,
-  type: UnifiedRow["type"],
-): UnifiedRow[] {
-  const rows: UnifiedRow[] = [];
-  for (let i = from; i < items.length; i++) {
-    const item = items[i];
-    if (item?.kind !== "row" || item.type !== type) break;
-    rows.push(item);
-  }
-  return rows;
-}
-
-/** Woordmarkering per regel (sleutel: `lineKey`): de i-de verwijderde regel van een blok met de i-de toegevoegde die er direct op volgt. Alleen regels met een echt verschil. */
-export function wordSegments(
-  items: readonly UnifiedItem[],
-): Map<string, Segment[]> {
-  const out = new Map<string, Segment[]>();
-  let i = 0;
-  while (i < items.length) {
-    const item = items[i];
-    if (item?.kind !== "row" || item.type !== "del") {
-      i++;
-      continue;
-    }
-    const dels = run(items, i, "del");
-    const adds = run(items, i + dels.length, "add");
-    for (let n = 0; n < Math.min(dels.length, adds.length); n++) {
-      const del = dels[n];
-      const add = adds[n];
-      if (!del || !add) continue;
-      const diff = wordDiff(del.text, add.text);
-      if (![...diff.old, ...diff.new].some((s) => s.changed)) continue;
-      out.set(lineKey("del", del.oldNo, null), diff.old);
-      out.set(lineKey("add", null, add.newNo), diff.new);
-    }
-    i += dels.length + adds.length;
-  }
-  return out;
-}
-
-function contextRows(
+function pushContext(
+  out: UnifiedItem[],
   fileLines: readonly string[],
   range: HiddenRange | null,
-): UnifiedRow[] {
-  if (range === null) return [];
-  const rows: UnifiedRow[] = [];
-  for (let newNo = range.newFrom; newNo <= range.newTo; newNo++) {
-    rows.push({
+  count: number,
+  from: "start" | "end",
+): void {
+  if (range === null) return;
+  const first =
+    from === "start"
+      ? range.newFrom
+      : Math.max(range.newFrom, range.newTo - count + 1);
+  const last =
+    from === "start"
+      ? Math.min(range.newTo, range.newFrom + count - 1)
+      : range.newTo;
+  for (let newNo = first; newNo <= last; newNo++) {
+    out.push({
       kind: "row",
       type: "context",
       oldNo: newNo + range.oldOffset,
@@ -413,29 +352,74 @@ function contextRows(
       text: fileLines[newNo - 1] ?? "",
     });
   }
-  return rows;
 }
 
-/** Voegt de verborgen regels boven de gekozen hunks (0-based) en eventueel na het laatste hunk in als contextrijen. */
+/** Voegt de uitgeklapte regels als contextrijen in: boven een hunk de regels die er het dichtst bij liggen, onder het laatste hunk de eerste. */
 export function expandContext(
   items: readonly UnifiedItem[],
   fileLines: readonly string[],
-  above: ReadonlySet<number>,
-  below: boolean,
+  { above, below }: Expansion,
 ): UnifiedItem[] {
   const out: UnifiedItem[] = [];
   let hunk = -1;
   for (const item of items) {
     if (item.kind === "hunk") {
       hunk++;
-      if (above.has(hunk)) {
-        out.push(...contextRows(fileLines, hiddenAbove(items, hunk)));
+      const count = above.get(hunk) ?? 0;
+      if (count > 0) {
+        pushContext(out, fileLines, hiddenAbove(items, hunk), count, "end");
       }
     }
     out.push(item);
   }
-  if (below) {
-    out.push(...contextRows(fileLines, hiddenBelow(items, fileLines.length)));
+  if (below > 0) {
+    pushContext(
+      out,
+      fileLines,
+      hiddenBelow(items, fileLines.length),
+      below,
+      "start",
+    );
   }
   return out;
+}
+
+const stripCr = (text: string) => text.replace(/\r$/, "");
+
+/** Klopt elke regel van de diff aan de nieuwe kant met het opgehaalde bestand? Zo niet, dan is de PR intussen gewijzigd en zou uitgeklapte context op de verkeerde regels staan. */
+export function matchesFile(
+  items: readonly UnifiedItem[],
+  fileLines: readonly string[],
+): boolean {
+  return items.every(
+    (item) =>
+      item.kind === "hunk" ||
+      item.newNo === null ||
+      stripCr(item.text) === stripCr(fileLines[item.newNo - 1] ?? "\u0000"),
+  );
+}
+
+/** Aaneengesloten reeksen rijen (geen gat in oud of nieuw): één highlight-run per reeks, zodat een open commentaar of template literal niet in de volgende hunk doorlekt. */
+export function contiguousRuns(items: readonly UnifiedItem[]): UnifiedRow[][] {
+  const runs: UnifiedRow[][] = [];
+  let current: UnifiedRow[] = [];
+  let lastOld: number | null = null;
+  let lastNew: number | null = null;
+  for (const item of items) {
+    if (item.kind === "hunk") continue;
+    const breaks =
+      (item.newNo !== null && lastNew !== null && item.newNo !== lastNew + 1) ||
+      (item.oldNo !== null && lastOld !== null && item.oldNo !== lastOld + 1);
+    if (breaks && current.length > 0) {
+      runs.push(current);
+      current = [];
+      lastOld = null;
+      lastNew = null;
+    }
+    current.push(item);
+    if (item.oldNo !== null) lastOld = item.oldNo;
+    if (item.newNo !== null) lastNew = item.newNo;
+  }
+  if (current.length > 0) runs.push(current);
+  return runs;
 }

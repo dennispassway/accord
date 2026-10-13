@@ -6,7 +6,7 @@ export interface Segment {
 /** Onder dit aandeel gedeelde tekens is de regel herschreven, geen aangepast. */
 const MIN_SHARED = 0.3;
 
-const tokenize = (s: string): string[] => s.match(/\w+|\s+|[^\w\s]/g) ?? [];
+const tokenize = (s: string): string[] => s.match(/\w+|\s+|[^\w\s]/gu) ?? [];
 
 function toSegments(
   tokens: string[],
