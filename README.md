@@ -219,6 +219,15 @@ The Rust side is tested with cargo:
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
+The Codex Git sandbox regression test is opt-in. It creates a temporary local
+repository and worktree, reproduces the blocked Git metadata access, and checks
+fetch/commit with the required writable roots. It makes no model or GitHub calls.
+Run it outside another sandbox with the Codex CLI installed:
+
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml codex_git_sandbox_allows_fetch_and_commit_only_with_both_git_roots -- --ignored
+```
+
 ### Layout
 
 - `src/lib/github/` - the data layer: domain model, GraphQL queries and parsing,
