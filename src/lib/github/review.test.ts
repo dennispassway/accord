@@ -119,3 +119,91 @@ describe("submitReview", () => {
     await expect(call).rejects.toThrow(/retry-after: 30s/);
   });
 });
+
+describe("submitReview met regelopmerkingen", () => {
+  const ok = () =>
+    fakeFetch(
+      json(200, {
+        data: { addPullRequestReview: { pullRequestReview: { id: "PRR_1" } } },
+      }),
+    );
+  const thread = {
+    path: "src/a.ts",
+    line: 12,
+    side: "RIGHT" as const,
+    body: "Waarom hier?",
+  };
+
+  it("stuurt threads mee als variabele en declareert ze in de mutatie", async () => {
+    const { fetchImpl, calls } = ok();
+
+    await submitReview("token", "PR_1", "COMMENT", "", fetchImpl, [thread]);
+
+    expect(calls[0]?.body.variables).toEqual({
+      pullRequestId: "PR_1",
+      event: "COMMENT",
+      body: "",
+      threads: [thread],
+    });
+    expect(calls[0]?.body.query).toContain("DraftPullRequestReviewThread");
+  });
+
+  it("laat threads weg bij een lege lijst", async () => {
+    const { fetchImpl, calls } = ok();
+
+    await submitReview("token", "PR_1", "APPROVE", "", fetchImpl, []);
+
+    expect(calls[0]?.body.variables).not.toHaveProperty("threads");
+  });
+
+  it("staat reageren zonder tekst toe als er een thread is", async () => {
+    const { fetchImpl } = ok();
+    await expect(
+      submitReview("token", "PR_1", "COMMENT", "  ", fetchImpl, [thread]),
+    ).resolves.toBeUndefined();
+  });
+
+  it("weigert changes vragen zonder tekst ook als er een thread is", async () => {
+    const { fetchImpl, calls } = ok();
+    await expect(
+      submitReview("token", "PR_1", "REQUEST_CHANGES", "", fetchImpl, [thread]),
+    ).rejects.toThrow(/verplicht/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("behandelt null en undefined als lege tekst", async () => {
+    const { fetchImpl, calls } = ok();
+    await expect(
+      submitReview(
+        "token",
+        "PR_1",
+        "COMMENT",
+        null as unknown as string,
+        fetchImpl,
+      ),
+    ).rejects.toThrow(/verplicht/);
+    await expect(
+      submitReview(
+        "token",
+        "PR_1",
+        "COMMENT",
+        undefined as unknown as string,
+        fetchImpl,
+      ),
+    ).rejects.toThrow(/verplicht/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each(["", "   ", null, undefined])(
+    "weigert een thread met lege tekst (%s) vóór de aanvraag",
+    async (empty) => {
+      const { fetchImpl, calls } = ok();
+      await expect(
+        submitReview("token", "PR_1", "APPROVE", "", fetchImpl, [
+          { ...thread, body: empty as unknown as string },
+        ]),
+      ).rejects.toThrow(/opmerking/);
+      expect(calls).toHaveLength(0);
+    },
+  );
+});
