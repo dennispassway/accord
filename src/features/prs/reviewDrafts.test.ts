@@ -7,7 +7,6 @@ import {
   draftsToThreads,
   loadDrafts,
   type ReviewDraft,
-  reviewBlockedReason,
   saveDrafts,
 } from "./reviewDrafts";
 
@@ -176,6 +175,18 @@ describe("createDraftStore", () => {
     expect(store.get("r#1").map((d) => d.body)).toEqual(["Anders", "Kijk"]);
   });
 
+  it("maakt geen nieuw object en meldt niets als de tekst gelijk blijft", () => {
+    const store = make();
+    store.add("r#1", input);
+    const before = store.get("r#1");
+    let calls = 0;
+    store.subscribe("r#1", () => calls++);
+    store.edit("r#1", "id1", "Kijk");
+    expect(store.get("r#1")).toBe(before);
+    expect(store.get("r#1")[0]).toBe(before[0]);
+    expect(calls).toBe(0);
+  });
+
   it("negeert een bewerking naar een lege tekst", () => {
     const store = make();
     store.add("r#1", input);
@@ -190,6 +201,31 @@ describe("createDraftStore", () => {
     store.add("r#1", { ...input, line: 5 });
     store.remove("r#1", ["id1", "id3"]);
     expect(store.get("r#1").map((d) => d.id)).toEqual(["id2"]);
+  });
+
+  it("verwijdert met removeIfUnchanged alleen concepten die nog hetzelfde object zijn", () => {
+    const store = make();
+    store.add("r#1", input);
+    store.add("r#1", { ...input, line: 4 });
+    const sent = store.get("r#1");
+    store.edit("r#1", "id1", "bewerkt");
+    store.removeIfUnchanged("r#1", sent);
+    expect(store.get("r#1").map((d) => d.body)).toEqual(["bewerkt"]);
+  });
+
+  it("telt de concepten buiten de diff die de inspector heeft gemeld", () => {
+    const store = make();
+    store.add("r#1", input);
+    store.add("r#1", { ...input, line: 4 });
+    expect(store.outsideCount("r#1")).toBe(0);
+    let calls = 0;
+    store.subscribe("r#1", () => calls++);
+    store.setOutside("r#1", new Set(["id2", "bestaat-niet"]));
+    expect(store.outsideCount("r#1")).toBe(1);
+    expect(calls).toBe(1);
+    store.remove("r#1", ["id2"]);
+    expect(store.outsideCount("r#1")).toBe(0);
+    expect(store.outsideCount("r#2")).toBe(0);
   });
 
   it("wist alles van één PR en laat een andere PR met hetzelfde nummer staan", () => {
@@ -234,26 +270,6 @@ describe("createDraftStore", () => {
     });
     expect(() => store.add("r#1", input)).not.toThrow();
     expect(store.get("r#1")).toHaveLength(1);
-  });
-});
-
-describe("reviewBlockedReason", () => {
-  it("laat goedkeuren toe zonder tekst en zonder concepten", () => {
-    expect(reviewBlockedReason("APPROVE", "", 0)).toBeNull();
-  });
-
-  it("eist tekst bij changes vragen, ook met concepten", () => {
-    expect(reviewBlockedReason("REQUEST_CHANGES", " ", 3)).not.toBeNull();
-    expect(reviewBlockedReason("REQUEST_CHANGES", "Fix", 0)).toBeNull();
-  });
-
-  it("eist tekst bij reageren zonder concepten", () => {
-    expect(reviewBlockedReason("COMMENT", "", 0)).not.toBeNull();
-    expect(reviewBlockedReason("COMMENT", "Hoi", 0)).toBeNull();
-  });
-
-  it("laat reageren zonder tekst toe als er concepten zijn", () => {
-    expect(reviewBlockedReason("COMMENT", "", 1)).toBeNull();
   });
 });
 

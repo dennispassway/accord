@@ -13,6 +13,7 @@ import {
   nextStateOnLoadError,
   shouldRefreshOnVisible,
   shouldRetryRefresh,
+  submitSingleThread,
   submitWithDrafts,
 } from "./usePrs";
 
@@ -313,7 +314,7 @@ describe("submitWithDrafts", () => {
     const { store, send } = setup();
     store.add("a/x#1", input);
     store.add("b/x#1", { ...input, body: "andere repo" });
-    await submitWithDrafts("a/x#1", "APPROVE", "", store, send);
+    await submitWithDrafts("a/x#1", "APPROVE", "", false, store, send);
     expect(send).toHaveBeenCalledWith("APPROVE", "", [
       { path: "a.ts", line: 3, side: "RIGHT", body: "Kijk" },
     ]);
@@ -328,7 +329,7 @@ describe("submitWithDrafts", () => {
       throw new Error("GitHub zegt nee");
     });
     await expect(
-      submitWithDrafts("a/x#1", "COMMENT", "", store, send),
+      submitWithDrafts("a/x#1", "COMMENT", "", false, store, send),
     ).rejects.toThrow("GitHub zegt nee");
     expect(store.get("a/x#1")).toHaveLength(1);
   });
@@ -339,22 +340,36 @@ describe("submitWithDrafts", () => {
     const send = vi.fn(async () => {
       store.add("a/x#1", { ...input, line: 9, body: "later" });
     });
-    await submitWithDrafts("a/x#1", "COMMENT", "", store, send);
+    await submitWithDrafts("a/x#1", "COMMENT", "", false, store, send);
     expect(store.get("a/x#1").map((d) => d.body)).toEqual(["later"]);
+  });
+
+  it("wist een concept dat tijdens het versturen is bewerkt niet", async () => {
+    const { store } = setup();
+    store.add("a/x#1", input);
+    const send = vi.fn(async () => {
+      store.edit("a/x#1", "id1", "bewerkt na verzenden");
+    });
+    await submitWithDrafts("a/x#1", "COMMENT", "", false, store, send);
+    expect(store.get("a/x#1").map((d) => d.body)).toEqual([
+      "bewerkt na verzenden",
+    ]);
   });
 
   it("weigert reageren zonder tekst en zonder concepten, zonder te versturen", async () => {
     const { store, send } = setup();
     await expect(
-      submitWithDrafts("a/x#1", "COMMENT", "  ", store, send),
-    ).rejects.toThrow("Schrijf een reactie");
+      submitWithDrafts("a/x#1", "COMMENT", "  ", false, store, send),
+    ).rejects.toThrow(
+      "Een reactie is verplicht bij reageren zonder opmerkingen op regels",
+    );
     expect(send).not.toHaveBeenCalled();
   });
 
   it("laat reageren zonder tekst toe met concepten", async () => {
     const { store, send } = setup();
     store.add("a/x#1", input);
-    await submitWithDrafts("a/x#1", "COMMENT", "", store, send);
+    await submitWithDrafts("a/x#1", "COMMENT", "", false, store, send);
     expect(send).toHaveBeenCalledTimes(1);
   });
 
@@ -362,9 +377,101 @@ describe("submitWithDrafts", () => {
     const { store, send } = setup();
     store.add("a/x#1", input);
     await expect(
-      submitWithDrafts("a/x#1", "REQUEST_CHANGES", "", store, send),
-    ).rejects.toThrow("changes");
+      submitWithDrafts("a/x#1", "REQUEST_CHANGES", "", false, store, send),
+    ).rejects.toThrow("Een reactie is verplicht bij changes vragen");
     expect(send).not.toHaveBeenCalled();
     expect(store.get("a/x#1")).toHaveLength(1);
+  });
+
+  it("weigert goedkeuren van een eigen PR en laat de concepten staan", async () => {
+    const { store, send } = setup();
+    store.add("a/x#1", input);
+    await expect(
+      submitWithDrafts("a/x#1", "APPROVE", "", true, store, send),
+    ).rejects.toThrow("Je kunt je eigen PR niet goedkeuren");
+    expect(send).not.toHaveBeenCalled();
+    expect(store.get("a/x#1")).toHaveLength(1);
+  });
+
+  it("weigert een tweede review op dezelfde PR terwijl de eerste loopt", async () => {
+    const { store } = setup();
+    store.add("a/x#1", input);
+    let release: () => void = () => {};
+    const slow = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const first = submitWithDrafts("a/x#1", "APPROVE", "", false, store, slow);
+    await expect(
+      submitWithDrafts("a/x#1", "COMMENT", "", false, store, slow),
+    ).rejects.toThrow("Er wordt al een review verstuurd");
+    expect(slow).toHaveBeenCalledTimes(1);
+    release();
+    await first;
+    expect(store.get("a/x#1")).toEqual([]);
+  });
+
+  it("geeft het slot vrij na een fout, zodat een nieuwe poging kan", async () => {
+    const { store, send } = setup();
+    const failing = vi.fn(async () => {
+      throw new Error("nee");
+    });
+    await expect(
+      submitWithDrafts("a/x#1", "APPROVE", "", false, store, failing),
+    ).rejects.toThrow("nee");
+    await submitWithDrafts("a/x#1", "APPROVE", "", false, store, send);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("laat een andere PR met hetzelfde nummer ongemoeid tijdens een lopende review", async () => {
+    const { store, send } = setup();
+    let release: () => void = () => {};
+    const slow = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const first = submitWithDrafts("a/x#1", "APPROVE", "", false, store, slow);
+    await submitWithDrafts("b/x#1", "APPROVE", "", false, store, send);
+    expect(send).toHaveBeenCalledTimes(1);
+    release();
+    await first;
+  });
+});
+
+describe("submitSingleThread", () => {
+  const thread = { path: "a.ts", line: 3, side: "RIGHT" as const, body: "Los" };
+
+  it("stuurt één COMMENT-review met alleen deze thread", async () => {
+    const send = vi.fn(async () => {});
+    await submitSingleThread("a/x#2", thread, send);
+    expect(send).toHaveBeenCalledWith("COMMENT", "", [thread]);
+  });
+
+  it("deelt het slot met de andere reviewroutes van dezelfde PR", async () => {
+    const store = createDraftStore(
+      { load: () => [], save: () => {} },
+      () => "id",
+      () => new Date(),
+    );
+    let release: () => void = () => {};
+    const slow = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const loose = submitSingleThread("a/x#3", thread, slow);
+    await expect(
+      submitWithDrafts("a/x#3", "APPROVE", "", false, store, async () => {}),
+    ).rejects.toThrow("Er wordt al een review verstuurd");
+    release();
+    await loose;
+    await expect(
+      submitSingleThread("a/x#3", thread, async () => {}),
+    ).resolves.toBeUndefined();
   });
 });

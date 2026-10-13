@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AuthError, GithubApiError } from "./queries";
-import { submitReview } from "./review";
+import { reviewBlockedReason, submitReview } from "./review";
 
 type Call = { url: string; body: { query: string; variables: unknown } };
 
@@ -156,6 +156,21 @@ describe("submitReview met regelopmerkingen", () => {
     expect(calls[0]?.body.variables).not.toHaveProperty("threads");
   });
 
+  it("weigert goedkeuren van een eigen PR zonder aanvraag", async () => {
+    const { fetchImpl, calls } = ok();
+    await expect(
+      submitReview("token", "PR_1", "APPROVE", "", fetchImpl, [], true),
+    ).rejects.toThrow("Je kunt je eigen PR niet goedkeuren");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("staat reageren op een eigen PR toe", async () => {
+    const { fetchImpl } = ok();
+    await expect(
+      submitReview("token", "PR_1", "COMMENT", "Hoi", fetchImpl, [], true),
+    ).resolves.toBeUndefined();
+  });
+
   it("staat reageren zonder tekst toe als er een thread is", async () => {
     const { fetchImpl } = ok();
     await expect(
@@ -206,4 +221,38 @@ describe("submitReview met regelopmerkingen", () => {
       expect(calls).toHaveLength(0);
     },
   );
+});
+
+describe("reviewBlockedReason", () => {
+  it("laat goedkeuren toe zonder tekst en zonder concepten", () => {
+    expect(reviewBlockedReason("APPROVE", "", 0, false)).toBeNull();
+  });
+
+  it("eist tekst bij changes vragen, ook met concepten", () => {
+    expect(reviewBlockedReason("REQUEST_CHANGES", " ", 3, false)).toBe(
+      "Een reactie is verplicht bij changes vragen",
+    );
+    expect(reviewBlockedReason("REQUEST_CHANGES", "Fix", 0, false)).toBeNull();
+  });
+
+  it("eist tekst bij reageren zonder concepten", () => {
+    expect(reviewBlockedReason("COMMENT", "", 0, false)).toBe(
+      "Een reactie is verplicht bij reageren zonder opmerkingen op regels",
+    );
+    expect(reviewBlockedReason("COMMENT", "Hoi", 0, false)).toBeNull();
+  });
+
+  it("laat reageren zonder tekst toe als er concepten zijn", () => {
+    expect(reviewBlockedReason("COMMENT", "", 1, false)).toBeNull();
+  });
+
+  it("staat op een eigen PR alleen reageren toe", () => {
+    expect(reviewBlockedReason("APPROVE", "", 0, true)).toBe(
+      "Je kunt je eigen PR niet goedkeuren",
+    );
+    expect(reviewBlockedReason("REQUEST_CHANGES", "Fix", 0, true)).toBe(
+      "Je kunt geen changes vragen op je eigen PR",
+    );
+    expect(reviewBlockedReason("COMMENT", "Hoi", 0, true)).toBeNull();
+  });
 });

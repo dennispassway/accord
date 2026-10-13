@@ -6,7 +6,10 @@ import { mergePullRequest } from "../../lib/github/merge";
 import { isTransientKind, NetworkError } from "../../lib/github/networkError";
 import { AuthError, fetchAllPrs } from "../../lib/github/queries";
 import type { DraftThread, ReviewEvent } from "../../lib/github/review";
-import { submitReview as submitReviewMutation } from "../../lib/github/review";
+import {
+  reviewBlockedReason,
+  submitReview as submitReviewMutation,
+} from "../../lib/github/review";
 import { tauriFetch } from "../../lib/github/tauriFetch";
 import { MOCK_ME, MOCK_PRS } from "../../lib/mock/fixtures";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
@@ -16,7 +19,6 @@ import { keyOfPr } from "./PrList";
 import {
   type DraftStore,
   draftsToThreads,
-  reviewBlockedReason,
   reviewDraftStore,
 } from "./reviewDrafts";
 
@@ -72,29 +74,68 @@ export function applyReviewOutcome(
   };
 }
 
+const reviewsInFlight = new Set<string>();
+
+/** Eén review tegelijk per PR, voor alle routes (afrondpaneel, detailpaneel,
+ * sneltoets A, los versturen): twee overlappende verzendingen zouden dezelfde
+ * concepten dubbel plaatsen. Het slot staat vóór het lezen van de concepten en
+ * gaat pas los na de request en de afhandeling van de concepten. */
+async function withReviewLock<T>(
+  prKey: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  if (reviewsInFlight.has(prKey)) {
+    throw new Error("Er wordt al een review verstuurd");
+  }
+  reviewsInFlight.add(prKey);
+  try {
+    return await run();
+  } finally {
+    reviewsInFlight.delete(prKey);
+  }
+}
+
+type SendReview = (
+  event: ReviewEvent,
+  body: string,
+  threads: DraftThread[],
+) => Promise<void>;
+
 /** Verstuurt een review met de concepten van de PR als regelopmerkingen.
  * De concepten worden hier gelezen, op het moment van versturen, en pas na
- * succes gewist: alleen de verstuurde ids, zodat een concept dat intussen is
- * bijgekomen blijft staan. Bij een fout blijven alle concepten staan. */
-export async function submitWithDrafts(
+ * succes gewist: alleen de verstuurde objecten, zodat een concept dat intussen
+ * is bijgekomen of bewerkt blijft staan. Bij een fout blijven alle concepten
+ * staan. */
+export function submitWithDrafts(
   prKey: string,
   event: ReviewEvent,
   body: string,
+  authoredByMe: boolean,
   store: DraftStore,
-  send: (
-    event: ReviewEvent,
-    body: string,
-    threads: DraftThread[],
-  ) => Promise<void>,
+  send: SendReview,
 ): Promise<void> {
-  const drafts = store.get(prKey);
-  const reason = reviewBlockedReason(event, body, drafts.length);
-  if (reason !== null) throw new Error(reason);
-  await send(event, body, draftsToThreads(drafts));
-  store.remove(
-    prKey,
-    drafts.map((d) => d.id),
-  );
+  return withReviewLock(prKey, async () => {
+    const drafts = store.get(prKey);
+    const reason = reviewBlockedReason(
+      event,
+      body,
+      drafts.length,
+      authoredByMe,
+    );
+    if (reason !== null) throw new Error(reason);
+    await send(event, body, draftsToThreads(drafts));
+    store.removeIfUnchanged(prKey, drafts);
+  });
+}
+
+/** Eén opmerking los versturen: een COMMENT-review met alleen deze thread,
+ * zonder de concepten aan te raken. */
+export function submitSingleThread(
+  prKey: string,
+  thread: DraftThread,
+  send: SendReview,
+): Promise<void> {
+  return withReviewLock(prKey, () => send("COMMENT", "", [thread]));
 }
 
 export function nextStateOnLoadError(
@@ -423,6 +464,7 @@ export function usePrs(
           body,
           tauriFetch,
           threads,
+          pr.authoredByMe,
         );
       } catch (error) {
         if (error instanceof AuthError) {
@@ -442,17 +484,18 @@ export function usePrs(
         keyOfPr(pr),
         event,
         body,
+        pr.authoredByMe,
         reviewDraftStore,
         (e, b, threads) => sendReview(pr, e, b, threads),
       ),
     [sendReview],
   );
 
-  /** Eén opmerking los versturen: een COMMENT-review met alleen deze thread,
-   * zonder de concepten aan te raken. */
   const submitThread = useCallback(
     (pr: PullRequest, thread: DraftThread) =>
-      sendReview(pr, "COMMENT", "", [thread]),
+      submitSingleThread(keyOfPr(pr), thread, (e, b, threads) =>
+        sendReview(pr, e, b, threads),
+      ),
     [sendReview],
   );
 

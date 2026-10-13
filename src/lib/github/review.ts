@@ -22,8 +22,33 @@ mutation AddPullRequestReview($pullRequestId: ID!, $event: PullRequestReviewEven
 const FORBIDDEN_MESSAGE =
   "Geen schrijfrechten om te reviewen, of een GitHub rate limit";
 
-/** Reviewt een PR via de addPullRequestReview GraphQL-mutatie. Changes vragen
- * en reageren vereisen een niet-lege reactie; goedkeuren niet. */
+/** De ene beslissing of een review verstuurd mag worden; de verzending en
+ * alle UI (knoppen, afrondpaneel) lezen deze reden. Goedkeuren mag zonder
+ * tekst, changes vragen niet, reageren alleen met regelopmerkingen. Op een
+ * eigen PR kan alleen gereageerd worden. */
+export function reviewBlockedReason(
+  event: ReviewEvent,
+  body: string,
+  draftCount: number,
+  authoredByMe: boolean,
+): string | null {
+  if (authoredByMe && event === "APPROVE") {
+    return "Je kunt je eigen PR niet goedkeuren";
+  }
+  if (authoredByMe && event === "REQUEST_CHANGES") {
+    return "Je kunt geen changes vragen op je eigen PR";
+  }
+  if (body.trim() !== "") return null;
+  if (event === "REQUEST_CHANGES") {
+    return "Een reactie is verplicht bij changes vragen";
+  }
+  if (event === "COMMENT" && draftCount === 0) {
+    return "Een reactie is verplicht bij reageren zonder opmerkingen op regels";
+  }
+  return null;
+}
+
+/** Reviewt een PR via de addPullRequestReview GraphQL-mutatie. */
 export async function submitReview(
   token: string,
   prNodeId: string,
@@ -31,18 +56,18 @@ export async function submitReview(
   body: string,
   fetchImpl: FetchImpl,
   threads: readonly DraftThread[] = [],
+  authoredByMe = false,
 ): Promise<void> {
   if (threads.some((t) => (t.body ?? "").trim() === "")) {
     throw new Error("Een regelopmerking mag niet leeg zijn");
   }
-  const emptyBody = (body ?? "").trim() === "";
-  if (
-    emptyBody &&
-    (event === "REQUEST_CHANGES" ||
-      (event === "COMMENT" && threads.length === 0))
-  ) {
-    throw new Error("Een reactie is verplicht bij changes vragen of reageren");
-  }
+  const reason = reviewBlockedReason(
+    event,
+    body ?? "",
+    threads.length,
+    authoredByMe,
+  );
+  if (reason !== null) throw new Error(reason);
 
   await runMutation(
     token,
@@ -51,7 +76,8 @@ export async function submitReview(
       pullRequestId: prNodeId,
       event,
       body,
-      // Lege lijst weglaten: GitHub behandelt een weggelaten variabele als geen threads.
+      // Zonder concepten dezelfde variabelen als vóór regelopmerkingen
+      // bestonden: een lege lijst is nooit tegen GitHub zelf getoetst.
       ...(threads.length > 0 && { threads }),
     },
     fetchImpl,
