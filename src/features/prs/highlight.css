@@ -1,0 +1,102 @@
+/* Syntaxkleuren voor highlight.js-output in de diff. Elke waarde haalt 4,5:1
+   als 12px tekst op de code-achtergrond, ook op een add/del-tint
+   (highlightContrast.test.ts leest deze hex-waarden). */
+[data-theme="dark"] {
+  --hl-keyword: #ff8fb1;
+  --hl-string: #9fe0a8;
+  --hl-number: #f2b880;
+  --hl-comment: #9a9aa6;
+  --hl-title: #8ec5ff;
+  --hl-type: #7fdbd0;
+  --hl-attr: #c9b8ff;
+  --hl-literal: #f2b880;
+  --hl-meta: #b0b0bc;
+  --hl-variable: #f0c987;
+  --hl-tag: #ff8fb1;
+  --hl-regexp: #ffa59a;
+  --hl-symbol: #7fdbd0;
+}
+
+[data-theme="light"] {
+  --hl-keyword: #b3225d;
+  --hl-string: #0c6b34;
+  --hl-number: #8a4a00;
+  --hl-comment: #5f5f6b;
+  --hl-title: #1a4fb5;
+  --hl-type: #0b6a66;
+  --hl-attr: #5636bd;
+  --hl-literal: #8a4a00;
+  --hl-meta: #55555f;
+  --hl-variable: #7a5200;
+  --hl-tag: #b3225d;
+  --hl-regexp: #a8281b;
+  --hl-symbol: #0b6a66;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-doctag {
+  color: var(--hl-keyword);
+}
+.hljs-string,
+.hljs-template-variable,
+.hljs-addition {
+  color: var(--hl-string);
+}
+.hljs-number {
+  color: var(--hl-number);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section {
+  color: var(--hl-title);
+}
+.hljs-type,
+.hljs-built_in,
+.hljs-title.class_ {
+  color: var(--hl-type);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: var(--hl-attr);
+}
+.hljs-literal {
+  color: var(--hl-literal);
+}
+.hljs-meta,
+.hljs-meta .hljs-keyword {
+  color: var(--hl-meta);
+}
+.hljs-variable,
+.hljs-params {
+  color: var(--hl-variable);
+}
+.hljs-tag,
+.hljs-name {
+  color: var(--hl-tag);
+}
+.hljs-regexp {
+  color: var(--hl-regexp);
+}
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link {
+  color: var(--hl-symbol);
+}
+.hljs-deletion {
+  color: inherit;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
