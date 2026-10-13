@@ -191,6 +191,9 @@
 
 .inspector-diff-line-hunk {
   grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 0 10px;
   min-height: 20px;
   white-space: pre;
@@ -235,6 +238,34 @@
 
 .inspector-diff-cell-empty {
   background: var(--fill-1);
+}
+
+/* Gewijzigd woord: sterkere tint over de rijtint, tekst in --text-1 (de
+   syntaxkleuren halen 4,5:1 niet op die tint; highlightContrast.test.ts). */
+.inspector-diff-word {
+  border-radius: 2px;
+  color: var(--text-1);
+}
+
+.inspector-diff-cell-add .inspector-diff-word {
+  background: color-mix(in oklab, var(--ok) 30%, transparent);
+}
+
+.inspector-diff-cell-del .inspector-diff-word {
+  background: color-mix(in oklab, var(--err) 30%, transparent);
+}
+
+.inspector-diff-expand {
+  height: 18px;
+  padding: 0 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.inspector-diff-expand-error {
+  color: var(--err);
+  font-family: var(--font);
+  font-size: 11px;
 }
 
 /* Threads op hun regel: volle breedte van het zichtbare vlak, ook als de

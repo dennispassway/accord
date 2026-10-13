@@ -9,6 +9,7 @@ import { parseDiff } from "./diffParse";
 import { CloseIcon, ExternalLinkIcon } from "./icons";
 import "./inspector.css";
 import { PrDescription } from "./PrDescription";
+import { keyOfPr } from "./PrList";
 import { usePrDetail } from "./usePrDetail";
 import { latestVerdict, VerdictBadge } from "./VerdictBadge";
 
@@ -40,14 +41,37 @@ export function PrInspector({
   const [mode, setMode] = useState<DiffViewMode>(loadDiffView);
   const conversationRef = useRef<HTMLElement>(null);
   const scrolledRef = useRef(false);
-  const { status, detail, error, retry, reply, setResolved } = usePrDetail(
-    pr,
-    onAuthError,
-  );
+  const {
+    status,
+    detail,
+    error,
+    retry,
+    reply,
+    setResolved,
+    loadFileLines,
+    loadPerFileDiff,
+  } = usePrDetail(pr, onAuthError);
 
   const verdict = latestVerdict(pr);
 
-  const files = useMemo(() => (detail ? parseDiff(detail.diff) : []), [detail]);
+  // De diff per bestand voor een PR waarvan de hele diff te groot was. De
+  // sleutel hoort erbij: een antwoord dat landt nadat de gebruiker naar een
+  // andere PR ging wordt zo niet onder die PR getoond.
+  const prKey = keyOfPr(pr);
+  const [perFile, setPerFile] = useState<{ key: string; diff: string } | null>(
+    null,
+  );
+  const perFileDiff = perFile?.key === prKey ? perFile.diff : null;
+  const tooLarge = detail?.diffTooLarge === true && perFileDiff === null;
+
+  async function loadPerFile() {
+    setPerFile({ key: prKey, diff: await loadPerFileDiff() });
+  }
+
+  const files = useMemo(
+    () => (detail ? parseDiff(perFileDiff ?? detail.diff) : []),
+    [detail, perFileDiff],
+  );
   const { byPath, elsewhere } = useMemo(
     () => groupThreadsByFile(files, detail?.reviewThreads ?? []),
     [files, detail],
@@ -169,16 +193,20 @@ export function PrInspector({
             <>
               <PrDescription
                 body={detail.body}
-                fileCount={detail.diffTooLarge ? undefined : files.length}
+                fileCount={tooLarge ? undefined : files.length}
                 add={pr.additions}
                 del={pr.deletions}
               />
               <DiffView
                 files={files}
-                tooLarge={detail.diffTooLarge}
+                tooLarge={tooLarge}
                 url={pr.url}
                 mode={mode}
                 threadsByPath={byPath}
+                subject={`${prKey}:${detail.headSha}`}
+                headSha={detail.headSha}
+                loadFileLines={loadFileLines}
+                onLoadPerFile={loadPerFile}
                 {...threadActions}
               />
               <section

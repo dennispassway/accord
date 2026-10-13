@@ -6,6 +6,7 @@
 import {
   buildUnifiedItems,
   type UnifiedHunk,
+  type UnifiedItem,
   type UnifiedRow,
 } from "./diffModel";
 import type { DiffLine } from "./diffParse";
@@ -22,7 +23,11 @@ export type SplitItem = SplitRow | UnifiedHunk;
 const EMPTY: SplitCell = { kind: "empty", text: "", lineNo: null };
 
 export function buildSplitItems(lines: readonly DiffLine[]): SplitItem[] {
-  const unified = buildUnifiedItems(lines);
+  return splitFromUnified(buildUnifiedItems(lines));
+}
+
+/** Zet ook items met uitgeklapte context naast elkaar. */
+export function splitFromUnified(unified: readonly UnifiedItem[]): SplitItem[] {
   const items: SplitItem[] = [];
 
   function run(from: number, type: UnifiedRow["type"]): UnifiedRow[] {

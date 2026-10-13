@@ -7,6 +7,11 @@ type Rgb = [number, number, number];
 /** Een add/del-rij krijgt ~10% van --ok/--err over de code-achtergrond. */
 const ROW_TINT = 0.1;
 
+/** De echte rijtinten in inspector.css en het gewijzigde woord erbovenop. */
+const ADD_ROW_TINT = 0.14;
+const DEL_ROW_TINT = 0.12;
+const WORD_TINT = 0.3;
+
 function hexToRgb(hex: string): Rgb {
   const parse = (i: number) => Number.parseInt(hex.slice(i, i + 2), 16);
   return [parse(1), parse(3), parse(5)];
@@ -91,6 +96,24 @@ for (const theme of ["dark", "light"] as const) {
           ).toBeGreaterThanOrEqual(4.5);
         });
       }
+    }
+  });
+
+  // Een gewijzigd woord valt buiten de syntaxkleuren: die halen 4,5:1 niet op
+  // de sterkere tint. De tekst erin neemt --text-1.
+  describe(`gewijzigd woord (${theme})`, () => {
+    const base = codeBg(theme);
+    for (const [label, token, rowTint] of [
+      ["add", "ok", ADD_ROW_TINT],
+      ["del", "err", DEL_ROW_TINT],
+    ] as const) {
+      it(`--text-1 haalt 4,5:1 op het ${label}-woord`, () => {
+        const color = hexToken(appCss, theme, token);
+        const bg = mix(color, WORD_TINT, mix(color, rowTint, base));
+        expect(
+          contrast(hexToken(appCss, theme, "text-1"), bg),
+        ).toBeGreaterThanOrEqual(4.5);
+      });
     }
   });
 }

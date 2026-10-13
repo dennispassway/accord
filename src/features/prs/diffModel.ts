@@ -1,5 +1,7 @@
 import type { DiffSide } from "../../lib/github/prDetail";
+import { TOO_LARGE_LINE } from "../../lib/github/prFiles";
 import { type DiffFile, type DiffLine, unquoteGitPath } from "./diffParse";
+import { type Segment, wordDiff } from "./wordDiff";
 
 export interface UnifiedRow {
   kind: "row";
@@ -162,6 +164,9 @@ function metaValue(lines: readonly DiffLine[], prefix: string): string | null {
  * kopregels; null als het bestand wel hunks heeft. */
 export function fileStatus(lines: readonly DiffLine[]): string | null {
   if (lines.some((l) => l.kind === "hunk")) return null;
+  if (lines.some((l) => l.text === TOO_LARGE_LINE)) {
+    return "Te groot om te tonen";
+  }
   if (
     lines.some(
       (l) =>
@@ -290,4 +295,147 @@ export function hiddenBelow(
   }
   if (!usable || fileLength < nextNew) return null;
   return { newFrom: nextNew, newTo: fileLength, oldOffset: nextOld - nextNew };
+}
+
+/** Sleutel van een regel binnen één bestand: oud voor een verwijderde regel, nieuw voor de rest. */
+export function lineKey(
+  type: UnifiedRow["type"],
+  oldNo: number | null,
+  newNo: number | null,
+): string {
+  return type === "del" ? `old${oldNo}` : `new${newNo}`;
+}
+
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#x27;",
+};
+
+export function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch] ?? ch);
+}
+
+const WORD_OPEN = '<span class="inspector-diff-word">';
+
+/**
+ * Legt een woordmarkering over html die al ge-escaped is (hljs-uitvoer of
+ * `escapeHtml`). De segmenten dekken de platte tekst achter die html; een
+ * entity telt als één teken. Rond elke tag wordt de markering gesloten en
+ * heropend, zodat hij nooit tegen een syntax-span in nest.
+ */
+export function markWords(html: string, segments: readonly Segment[]): string {
+  const flags = segments.flatMap((s) =>
+    Array.from({ length: s.text.length }, () => s.changed),
+  );
+  let out = "";
+  let pos = 0;
+  let open = false;
+  const mark = (on: boolean) => {
+    if (on === open) return;
+    out += on ? WORD_OPEN : "</span>";
+    open = on;
+  };
+  for (const part of html.split(/(<[^>]*>|&[#\w]+;)/)) {
+    if (part.startsWith("<")) {
+      mark(false);
+      out += part;
+    } else if (/^&[#\w]+;$/.test(part)) {
+      mark(flags[pos++] ?? false);
+      out += part;
+    } else {
+      for (const ch of part) {
+        mark(flags[pos++] ?? false);
+        out += ch;
+      }
+    }
+  }
+  mark(false);
+  return out;
+}
+
+function run(
+  items: readonly UnifiedItem[],
+  from: number,
+  type: UnifiedRow["type"],
+): UnifiedRow[] {
+  const rows: UnifiedRow[] = [];
+  for (let i = from; i < items.length; i++) {
+    const item = items[i];
+    if (item?.kind !== "row" || item.type !== type) break;
+    rows.push(item);
+  }
+  return rows;
+}
+
+/** Woordmarkering per regel (sleutel: `lineKey`): de i-de verwijderde regel van een blok met de i-de toegevoegde die er direct op volgt. Alleen regels met een echt verschil. */
+export function wordSegments(
+  items: readonly UnifiedItem[],
+): Map<string, Segment[]> {
+  const out = new Map<string, Segment[]>();
+  let i = 0;
+  while (i < items.length) {
+    const item = items[i];
+    if (item?.kind !== "row" || item.type !== "del") {
+      i++;
+      continue;
+    }
+    const dels = run(items, i, "del");
+    const adds = run(items, i + dels.length, "add");
+    for (let n = 0; n < Math.min(dels.length, adds.length); n++) {
+      const del = dels[n];
+      const add = adds[n];
+      if (!del || !add) continue;
+      const diff = wordDiff(del.text, add.text);
+      if (![...diff.old, ...diff.new].some((s) => s.changed)) continue;
+      out.set(lineKey("del", del.oldNo, null), diff.old);
+      out.set(lineKey("add", null, add.newNo), diff.new);
+    }
+    i += dels.length + adds.length;
+  }
+  return out;
+}
+
+function contextRows(
+  fileLines: readonly string[],
+  range: HiddenRange | null,
+): UnifiedRow[] {
+  if (range === null) return [];
+  const rows: UnifiedRow[] = [];
+  for (let newNo = range.newFrom; newNo <= range.newTo; newNo++) {
+    rows.push({
+      kind: "row",
+      type: "context",
+      oldNo: newNo + range.oldOffset,
+      newNo,
+      text: fileLines[newNo - 1] ?? "",
+    });
+  }
+  return rows;
+}
+
+/** Voegt de verborgen regels boven de gekozen hunks (0-based) en eventueel na het laatste hunk in als contextrijen. */
+export function expandContext(
+  items: readonly UnifiedItem[],
+  fileLines: readonly string[],
+  above: ReadonlySet<number>,
+  below: boolean,
+): UnifiedItem[] {
+  const out: UnifiedItem[] = [];
+  let hunk = -1;
+  for (const item of items) {
+    if (item.kind === "hunk") {
+      hunk++;
+      if (above.has(hunk)) {
+        out.push(...contextRows(fileLines, hiddenAbove(items, hunk)));
+      }
+    }
+    out.push(item);
+  }
+  if (below) {
+    out.push(...contextRows(fileLines, hiddenBelow(items, fileLines.length)));
+  }
+  return out;
 }

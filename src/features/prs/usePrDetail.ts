@@ -2,8 +2,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import { deriveAuthor } from "../../lib/github/domain";
+import { fetchFileLines } from "../../lib/github/fileContents";
 import type { PrComment, PrDetail } from "../../lib/github/prDetail";
 import { fetchPrDetail } from "../../lib/github/prDetail";
+import { buildDiffFromFiles, fetchPrFiles } from "../../lib/github/prFiles";
 import { AuthError } from "../../lib/github/queries";
 import { tauriFetch } from "../../lib/github/tauriFetch";
 import { replyToThread, setThreadResolved } from "../../lib/github/threads";
@@ -11,8 +13,11 @@ import {
   MOCK_PR_DETAIL_FALLBACK,
   MOCK_PR_DETAILS,
 } from "../../lib/mock/detailFixtures";
+import { mockFileLines } from "../../lib/mock/fileLines";
 import { MOCK_ME } from "../../lib/mock/fixtures";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
+import { buildUnifiedItems } from "./diffModel";
+import { parseDiff } from "./diffParse";
 import { keyOfPr } from "./PrList";
 
 const IS_MOCK = isMockApp(mockMode());
@@ -61,6 +66,19 @@ export function detailFromCache(
   return cached == null
     ? null
     : { status: "ready", detail: cached, error: null };
+}
+
+/** De nieuwe kant van `path` in de diff, per regelnummer: de bron voor de
+ * synthetische bestandsinhoud in de mockmodus. */
+export function newSideLines(diff: string, path: string): Map<number, string> {
+  const file = parseDiff(diff).find((f) => f.path === path);
+  const lines = new Map<number, string>();
+  for (const item of buildUnifiedItems(file?.lines ?? [])) {
+    if (item.kind === "row" && item.newNo != null) {
+      lines.set(item.newNo, item.text);
+    }
+  }
+  return lines;
 }
 
 /** Voegt comment toe aan de thread met threadId (elders ongewijzigd). Puur,
@@ -317,6 +335,60 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
     [withToken],
   );
 
+  /** Leesactie met het bewaarde token; een afgewezen token meldt de caller en
+   * gooit door, zodat de aanroeper zijn eigen foutregel toont. */
+  const withReadToken = useCallback(
+    async <T>(read: (token: string) => Promise<T>): Promise<T> => {
+      const token = await invoke<string | null>("get_token");
+      if (token == null || token === "") {
+        throw new Error("Geen GitHub-token gevonden.");
+      }
+      try {
+        return await read(token);
+      } catch (error) {
+        if (error instanceof AuthError) onAuthErrorRef.current();
+        throw error;
+      }
+    },
+    [],
+  );
+
+  const fileCacheRef = useRef(new Map<string, Promise<string[]>>());
+  const detail = state.detail;
+  const headSha = detail?.headSha ?? "";
+  const diffText = detail?.diff ?? "";
+
+  /** Regels van één bestand op de head-commit, één keer opgehaald per
+   * PR-sleutel, commit en pad. Een mislukte poging blijft niet in de cache. */
+  const loadFileLines = useCallback(
+    (path: string): Promise<string[]> => {
+      if (IS_MOCK) {
+        return Promise.resolve(mockFileLines(newSideLines(diffText, path)));
+      }
+      if (headSha === "") return Promise.reject(new Error("Geen commit."));
+      const cacheKey = `${prKey}:${headSha}:${path}`;
+      const hit = fileCacheRef.current.get(cacheKey);
+      if (hit != null) return hit;
+      const pending = withReadToken((token) =>
+        fetchFileLines(token, pr.repoId, path, headSha, tauriFetch),
+      );
+      fileCacheRef.current.set(cacheKey, pending);
+      pending.catch(() => fileCacheRef.current.delete(cacheKey));
+      return pending;
+    },
+    [prKey, headSha, diffText, pr.repoId, withReadToken],
+  );
+
+  /** Unified diff opgebouwd uit /pulls/{n}/files, voor een PR waarvan het
+   * diff-endpoint 406 gaf. */
+  const loadPerFileDiff = useCallback(async (): Promise<string> => {
+    if (IS_MOCK) return "";
+    const files = await withReadToken((token) =>
+      fetchPrFiles(token, pr.repoId, pr.number, tauriFetch),
+    );
+    return buildDiffFromFiles(files);
+  }, [pr.repoId, pr.number, withReadToken]);
+
   return {
     status: state.status,
     detail: state.detail,
@@ -324,5 +396,7 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
     retry,
     reply,
     setResolved,
+    loadFileLines,
+    loadPerFileDiff,
   };
 }
