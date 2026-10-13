@@ -6,27 +6,40 @@ import { modKey } from "../../lib/platform";
 import "./detail.css";
 import { CheckIcon } from "./icons";
 import { isAnyMenuOverlayOpen } from "./menuOverlay";
+import { keyOfPr } from "./PrList";
+import { reviewBlockedReason, useReviewDrafts } from "./reviewDrafts";
 
 export interface ReviewButtonsState {
   approveEnabled: boolean;
   requestChangesEnabled: boolean;
   commentEnabled: boolean;
+  /** Waarom de knop uit staat los van `busy`; uit `reviewBlockedReason`. */
+  requestChangesReason: string | null;
+  commentReason: string | null;
 }
 
 /**
- * Pure beslissing welke reviewknoppen aan staan: goedkeuren mag zonder
- * tekst, changes vragen en reageren hebben allebei een niet-lege reactie
- * nodig. `busy` zet ze alle drie uit.
+ * Pure beslissing welke reviewknoppen aan staan, uit `reviewBlockedReason`
+ * (dezelfde regel als de verzending): goedkeuren mag zonder tekst, changes
+ * vragen niet, reageren alleen met concepten. `busy` zet ze alle drie uit.
  */
 export function reviewButtonsState(
   text: string,
   busy: boolean,
+  draftCount: number,
 ): ReviewButtonsState {
-  const hasText = text.trim() !== "";
+  const requestChangesReason = reviewBlockedReason(
+    "REQUEST_CHANGES",
+    text,
+    draftCount,
+  );
+  const commentReason = reviewBlockedReason("COMMENT", text, draftCount);
   return {
     approveEnabled: !busy,
-    requestChangesEnabled: !busy && hasText,
-    commentEnabled: !busy && hasText,
+    requestChangesEnabled: !busy && requestChangesReason === null,
+    commentEnabled: !busy && commentReason === null,
+    requestChangesReason,
+    commentReason,
   };
 }
 
@@ -76,7 +89,8 @@ export function ReviewActions({
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const buttons = reviewButtonsState(body, busy);
+  const draftCount = useReviewDrafts(keyOfPr(pr)).length;
+  const buttons = reviewButtonsState(body, busy, draftCount);
   /** Synchrone vlag naast `busy`: React rendert `busy` niet meteen, dus een
    * tweede submit binnen dezelfde tik zou anders vóór de re-render nog door
    * de `busy`-check heen glippen. */
@@ -127,7 +141,7 @@ export function ReviewActions({
   function handleTextareaKeyDown(
     event: ReactKeyboardEvent<HTMLTextAreaElement>,
   ) {
-    if (modKey(event) && event.key === "Enter" && body.trim() !== "") {
+    if (modKey(event) && event.key === "Enter" && buttons.commentEnabled) {
       event.preventDefault();
       submit("COMMENT");
     }
@@ -140,7 +154,7 @@ export function ReviewActions({
         value={body}
         onChange={(event) => setBody(event.target.value)}
         onKeyDown={handleTextareaKeyDown}
-        placeholder="Reactie: optioneel bij goedkeuren, verplicht bij changes vragen of reageren"
+        placeholder="Reactie (optioneel bij goedkeuren)"
         disabled={busy}
       />
       <div className="detail-review-row">
@@ -158,6 +172,7 @@ export function ReviewActions({
           type="button"
           className="detail-review-button detail-review-button-secondary"
           disabled={!buttons.requestChangesEnabled}
+          title={buttons.requestChangesReason ?? undefined}
           onClick={() => submit("REQUEST_CHANGES")}
         >
           Changes vragen
@@ -166,11 +181,19 @@ export function ReviewActions({
           type="button"
           className="detail-review-button detail-review-button-tertiary"
           disabled={!buttons.commentEnabled}
+          title={buttons.commentReason ?? undefined}
           onClick={() => submit("COMMENT")}
         >
           Reageren
         </button>
       </div>
+      {draftCount > 0 && (
+        <p className="detail-review-drafts">
+          {draftCount === 1
+            ? "1 opmerking in concept gaat mee"
+            : `${draftCount} opmerkingen in concept gaan mee`}
+        </p>
+      )}
       {error != null && <p className="detail-review-error">{error}</p>}
     </div>
   );

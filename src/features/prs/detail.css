@@ -788,6 +788,12 @@
   opacity: 0.6;
 }
 
+.detail-review-drafts {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
 .detail-review-error {
   margin: 0;
   font-size: 11px;

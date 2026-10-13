@@ -4,6 +4,7 @@ import { toPrNumber, toRepoId } from "../../lib/github/domain";
 import { NetworkError } from "../../lib/github/networkError";
 import { AuthError, GithubApiError } from "../../lib/github/queries";
 import { withRetry } from "../../lib/retry";
+import { createDraftStore } from "./reviewDrafts";
 import type { PrsState } from "./usePrs";
 import {
   applyReviewOutcome,
@@ -12,6 +13,7 @@ import {
   nextStateOnLoadError,
   shouldRefreshOnVisible,
   shouldRetryRefresh,
+  submitWithDrafts,
 } from "./usePrs";
 
 function pr(overrides: Partial<PullRequest> = {}): PullRequest {
@@ -292,5 +294,77 @@ describe("detectCiFlippedToRed", () => {
     });
 
     expect(detectCiFlippedToRed([], [after])).toEqual([]);
+  });
+});
+
+describe("submitWithDrafts", () => {
+  const input = { path: "a.ts", line: 3, side: "RIGHT" as const, body: "Kijk" };
+  function setup() {
+    let n = 0;
+    const store = createDraftStore(
+      { load: () => [], save: () => {} },
+      () => `id${++n}`,
+      () => new Date("2026-10-13T09:00:00.000Z"),
+    );
+    return { store, send: vi.fn(async () => {}) };
+  }
+
+  it("stuurt de concepten van deze PR als threads mee en wist ze na succes", async () => {
+    const { store, send } = setup();
+    store.add("a/x#1", input);
+    store.add("b/x#1", { ...input, body: "andere repo" });
+    await submitWithDrafts("a/x#1", "APPROVE", "", store, send);
+    expect(send).toHaveBeenCalledWith("APPROVE", "", [
+      { path: "a.ts", line: 3, side: "RIGHT", body: "Kijk" },
+    ]);
+    expect(store.get("a/x#1")).toEqual([]);
+    expect(store.get("b/x#1")).toHaveLength(1);
+  });
+
+  it("laat de concepten staan als versturen faalt", async () => {
+    const { store } = setup();
+    store.add("a/x#1", input);
+    const send = vi.fn(async () => {
+      throw new Error("GitHub zegt nee");
+    });
+    await expect(
+      submitWithDrafts("a/x#1", "COMMENT", "", store, send),
+    ).rejects.toThrow("GitHub zegt nee");
+    expect(store.get("a/x#1")).toHaveLength(1);
+  });
+
+  it("wist een concept dat tijdens het versturen is bijgekomen niet", async () => {
+    const { store } = setup();
+    store.add("a/x#1", input);
+    const send = vi.fn(async () => {
+      store.add("a/x#1", { ...input, line: 9, body: "later" });
+    });
+    await submitWithDrafts("a/x#1", "COMMENT", "", store, send);
+    expect(store.get("a/x#1").map((d) => d.body)).toEqual(["later"]);
+  });
+
+  it("weigert reageren zonder tekst en zonder concepten, zonder te versturen", async () => {
+    const { store, send } = setup();
+    await expect(
+      submitWithDrafts("a/x#1", "COMMENT", "  ", store, send),
+    ).rejects.toThrow("Schrijf een reactie");
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("laat reageren zonder tekst toe met concepten", async () => {
+    const { store, send } = setup();
+    store.add("a/x#1", input);
+    await submitWithDrafts("a/x#1", "COMMENT", "", store, send);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("weigert changes vragen zonder tekst ook met concepten", async () => {
+    const { store, send } = setup();
+    store.add("a/x#1", input);
+    await expect(
+      submitWithDrafts("a/x#1", "REQUEST_CHANGES", "", store, send),
+    ).rejects.toThrow("changes");
+    expect(send).not.toHaveBeenCalled();
+    expect(store.get("a/x#1")).toHaveLength(1);
   });
 });

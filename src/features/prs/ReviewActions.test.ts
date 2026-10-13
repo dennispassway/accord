@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isApproveShortcut, reviewButtonsState } from "./ReviewActions";
+import { reviewBlockedReason } from "./reviewDrafts";
 
 const baseEvent = {
   key: "a",
@@ -12,30 +13,48 @@ const baseEvent = {
 
 describe("reviewButtonsState", () => {
   it("staat goedkeuren toe zonder tekst", () => {
-    expect(reviewButtonsState("", false).approveEnabled).toBe(true);
+    expect(reviewButtonsState("", false, 0).approveEnabled).toBe(true);
+  });
+
+  it("zet reageren aan zonder tekst zodra er concepten meegaan", () => {
+    const state = reviewButtonsState("", false, 2);
+    expect(state.commentEnabled).toBe(true);
+  });
+
+  it("houdt changes vragen uit zonder tekst, ook met concepten", () => {
+    expect(reviewButtonsState("", false, 2).requestChangesEnabled).toBe(false);
+  });
+
+  it("geeft de reden van een uitgeschakelde knop uit dezelfde beslisfunctie", () => {
+    const state = reviewButtonsState("", false, 0);
+    expect(state.requestChangesReason).toBe(
+      reviewBlockedReason("REQUEST_CHANGES", "", 0),
+    );
+    expect(state.commentReason).toBe(reviewBlockedReason("COMMENT", "", 0));
+    expect(reviewButtonsState("", false, 1).commentReason).toBeNull();
   });
 
   it("houdt changes vragen en reageren uit zonder tekst", () => {
-    const state = reviewButtonsState("", false);
+    const state = reviewButtonsState("", false, 0);
     expect(state.requestChangesEnabled).toBe(false);
     expect(state.commentEnabled).toBe(false);
   });
 
   it("houdt changes vragen en reageren uit bij alleen whitespace", () => {
-    const state = reviewButtonsState("   ", false);
+    const state = reviewButtonsState("   ", false, 0);
     expect(state.requestChangesEnabled).toBe(false);
     expect(state.commentEnabled).toBe(false);
   });
 
   it("zet changes vragen en reageren aan zodra er tekst is", () => {
-    const state = reviewButtonsState("Kan dit anders?", false);
+    const state = reviewButtonsState("Kan dit anders?", false, 0);
     expect(state.requestChangesEnabled).toBe(true);
     expect(state.commentEnabled).toBe(true);
   });
 
   it("zet alle drie uit terwijl er al een aanvraag loopt", () => {
-    const state = reviewButtonsState("Kan dit anders?", true);
-    expect(state).toEqual({
+    const state = reviewButtonsState("Kan dit anders?", true, 0);
+    expect(state).toMatchObject({
       approveEnabled: false,
       requestChangesEnabled: false,
       commentEnabled: false,

@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { parseDiff } from "./diffParse";
 import {
+  createDraftStore,
+  type DraftStore,
+  draftsOutsideDiff,
   draftsToThreads,
   loadDrafts,
   type ReviewDraft,
+  reviewBlockedReason,
   saveDrafts,
 } from "./reviewDrafts";
 
@@ -119,5 +124,175 @@ describe("draftsToThreads", () => {
 
   it("geeft een lege lijst voor geen concepten", () => {
     expect(draftsToThreads([])).toEqual([]);
+  });
+});
+
+describe("createDraftStore", () => {
+  let n = 0;
+  const fixedNow = () => new Date("2026-10-13T09:00:00.000Z");
+  const make = (
+    persistence = { load: loadDrafts, save: saveDrafts },
+  ): DraftStore => {
+    n = 0;
+    return createDraftStore(persistence, () => `id${++n}`, fixedNow);
+  };
+  const input = { path: "a.ts", line: 3, side: "RIGHT" as const, body: "Kijk" };
+
+  it("voegt toe met id en createdAt en bewaart het", () => {
+    const store = make();
+    const added = store.add("r#1", input);
+    expect(added).toEqual({
+      id: "id1",
+      ...input,
+      createdAt: "2026-10-13T09:00:00.000Z",
+    });
+    expect(store.get("r#1")).toEqual([added]);
+    expect(loadDrafts("r#1")).toEqual([added]);
+  });
+
+  it("weigert een lege of witruimte-opmerking", () => {
+    const store = make();
+    expect(store.add("r#1", { ...input, body: "  " })).toBeNull();
+    expect(store.get("r#1")).toEqual([]);
+  });
+
+  it("geeft dezelfde array terug zolang er niets verandert", () => {
+    const store = make();
+    store.add("r#1", input);
+    expect(store.get("r#1")).toBe(store.get("r#1"));
+    expect(store.get("r#2")).toBe(store.get("r#2"));
+  });
+
+  it("leest bij de eerste toegang uit de opslag", () => {
+    saveDrafts("r#1", [draft()]);
+    expect(make().get("r#1")).toEqual([draft()]);
+  });
+
+  it("past de tekst van één concept aan en laat de rest staan", () => {
+    const store = make();
+    store.add("r#1", input);
+    store.add("r#1", { ...input, line: 4 });
+    store.edit("r#1", "id1", "Anders");
+    expect(store.get("r#1").map((d) => d.body)).toEqual(["Anders", "Kijk"]);
+  });
+
+  it("negeert een bewerking naar een lege tekst", () => {
+    const store = make();
+    store.add("r#1", input);
+    store.edit("r#1", "id1", " ");
+    expect(store.get("r#1")[0]?.body).toBe("Kijk");
+  });
+
+  it("verwijdert alleen de genoemde ids", () => {
+    const store = make();
+    store.add("r#1", input);
+    store.add("r#1", { ...input, line: 4 });
+    store.add("r#1", { ...input, line: 5 });
+    store.remove("r#1", ["id1", "id3"]);
+    expect(store.get("r#1").map((d) => d.id)).toEqual(["id2"]);
+  });
+
+  it("wist alles van één PR en laat een andere PR met hetzelfde nummer staan", () => {
+    const store = make();
+    store.add("a/x#1", input);
+    store.add("b/x#1", input);
+    store.clear("a/x#1");
+    expect(store.get("a/x#1")).toEqual([]);
+    expect(store.get("b/x#1")).toHaveLength(1);
+    expect(loadDrafts("a/x#1")).toEqual([]);
+  });
+
+  it("meldt alleen de luisteraars van die PR, en niet meer na afmelden", () => {
+    const store = make();
+    const mine: string[] = [];
+    const other: string[] = [];
+    const off = store.subscribe("r#1", () => mine.push("x"));
+    store.subscribe("r#2", () => other.push("x"));
+    store.add("r#1", input);
+    expect(mine).toHaveLength(1);
+    expect(other).toHaveLength(0);
+    off();
+    store.add("r#1", { ...input, line: 9 });
+    expect(mine).toHaveLength(1);
+  });
+
+  it("meldt niets bij een verwijdering van een onbekend id", () => {
+    const store = make();
+    store.add("r#1", input);
+    let calls = 0;
+    store.subscribe("r#1", () => calls++);
+    store.remove("r#1", ["bestaat-niet"]);
+    expect(calls).toBe(0);
+  });
+
+  it("houdt de concepten in het geheugen als opslaan faalt", () => {
+    const store = make({
+      load: () => [],
+      save: () => {
+        throw new Error("vol");
+      },
+    });
+    expect(() => store.add("r#1", input)).not.toThrow();
+    expect(store.get("r#1")).toHaveLength(1);
+  });
+});
+
+describe("reviewBlockedReason", () => {
+  it("laat goedkeuren toe zonder tekst en zonder concepten", () => {
+    expect(reviewBlockedReason("APPROVE", "", 0)).toBeNull();
+  });
+
+  it("eist tekst bij changes vragen, ook met concepten", () => {
+    expect(reviewBlockedReason("REQUEST_CHANGES", " ", 3)).not.toBeNull();
+    expect(reviewBlockedReason("REQUEST_CHANGES", "Fix", 0)).toBeNull();
+  });
+
+  it("eist tekst bij reageren zonder concepten", () => {
+    expect(reviewBlockedReason("COMMENT", "", 0)).not.toBeNull();
+    expect(reviewBlockedReason("COMMENT", "Hoi", 0)).toBeNull();
+  });
+
+  it("laat reageren zonder tekst toe als er concepten zijn", () => {
+    expect(reviewBlockedReason("COMMENT", "", 1)).toBeNull();
+  });
+});
+
+describe("draftsOutsideDiff", () => {
+  const files = parseDiff(`diff --git a/a.ts b/a.ts
+index 1..2 100644
+--- a/a.ts
++++ b/a.ts
+@@ -10,3 +10,3 @@
+ keep
+-oud
++nieuw
+ end
+`);
+  const at = (over: Partial<ReviewDraft>) => draft({ path: "a.ts", ...over });
+
+  it("herkent concepten op toegevoegde, verwijderde en contextregels", () => {
+    const drafts = [
+      at({ id: "add", line: 11, side: "RIGHT" }),
+      at({ id: "del", line: 11, side: "LEFT" }),
+      at({ id: "ctx", line: 10, side: "RIGHT" }),
+    ];
+    expect(draftsOutsideDiff(drafts, files).size).toBe(0);
+  });
+
+  it("markeert een regel buiten de hunks", () => {
+    const out = draftsOutsideDiff([at({ id: "x", line: 99 })], files);
+    expect([...out]).toEqual(["x"]);
+  });
+
+  it("markeert een RIGHT-concept voorbij de laatste nieuwe regel", () => {
+    // De nieuwe kant loopt tot en met regel 12.
+    expect([...draftsOutsideDiff([at({ id: "x", line: 13 })], files)]).toEqual([
+      "x",
+    ]);
+  });
+
+  it("markeert een bestand dat niet in de diff zit", () => {
+    const out = draftsOutsideDiff([at({ id: "x", path: "weg.ts" })], files);
+    expect([...out]).toEqual(["x"]);
   });
 });
