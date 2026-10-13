@@ -174,6 +174,7 @@ Deploys gaan niet meer rechtstreeks naar de live-map maar naar een eigen release
 ## Testen
 
 Draai \`deploy.sh\` op staging en controleer dat \`current\` naar de nieuwste map wijst.`,
+    headSha: "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
     diff: KEN167_DIFF,
     diffTooLarge: false,
     issueComments: [
@@ -242,6 +243,7 @@ Voegt een audit-log, een webhook-endpoint en btw-correcte facturatie toe aan de 
 ## Let op
 
 De webhook leest \`req.rawBody\`; de raw-body-parser moet voor die route aan staan.`,
+    headSha: "b2c3d4e5f60718293a4b5c6d7e8f901234567890",
     diff: HOC49_DIFF,
     diffTooLarge: false,
     issueComments: [
@@ -291,6 +293,7 @@ export const MOCK_PR_DETAIL_FALLBACK: PrDetail = {
 
 - vervangt de oude projectbeschrijving
 - geen codewijzigingen, zie \`README.md\``,
+  headSha: "c3d4e5f60718293a4b5c6d7e8f90123456789012",
   diff: `diff --git a/README.md b/README.md
 index abc1234..def5678 100644
 --- a/README.md

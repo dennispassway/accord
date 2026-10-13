@@ -63,6 +63,32 @@ const graphqlBody = {
   },
 };
 
+describe("fetchPrDetail headSha", () => {
+  const repoId = toRepoId("owner/repo");
+  const prNumber = toPrNumber(42);
+  const sha = "0123456789abcdef0123456789abcdef01234567";
+
+  async function headShaFor(pullRequest: unknown): Promise<string> {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(textResponse(200, "diff --git a b"))
+      .mockResolvedValueOnce(
+        jsonResponse(200, { data: { repository: { pullRequest } } }),
+      );
+    const detail = await fetchPrDetail("t", repoId, prNumber, fetchImpl);
+    return detail.headSha;
+  }
+
+  it("leest headRefOid als headSha", async () => {
+    expect(await headShaFor({ headRefOid: sha })).toBe(sha);
+  });
+
+  it("valt terug op '' als headRefOid ontbreekt of null is", async () => {
+    expect(await headShaFor({})).toBe("");
+    expect(await headShaFor({ headRefOid: null })).toBe("");
+  });
+});
+
 describe("fetchPrDetail", () => {
   const repoId = toRepoId("owner/repo");
   const prNumber = toPrNumber(42);

@@ -15,11 +15,14 @@ export interface UnifiedHunk {
   newStart: number;
   /** Tekst na de tweede @@ (functiecontext), getrimd; "" als leeg. */
   context: string;
+  /** Alleen gezet (op 0) als de kop een telling 0 noemt: dan is oldStart/newStart de regel VÓÓR het hunk. Afwezig betekent: telling > 0 of niet genoemd. */
+  oldCount?: 0;
+  newCount?: 0;
 }
 
 export type UnifiedItem = UnifiedRow | UnifiedHunk;
 
-const HUNK_HEADER = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/;
+const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/;
 
 export function buildUnifiedItems(lines: readonly DiffLine[]): UnifiedItem[] {
   const items: UnifiedItem[] = [];
@@ -33,13 +36,15 @@ export function buildUnifiedItems(lines: readonly DiffLine[]): UnifiedItem[] {
       const match = line.text.match(HUNK_HEADER);
       if (match) {
         oldNo = Number(match[1]);
-        newNo = Number(match[2]);
+        newNo = Number(match[3]);
       }
       items.push({
         kind: "hunk",
         oldStart: oldNo,
         newStart: newNo,
-        context: (match?.[3] ?? "").trim(),
+        context: (match?.[5] ?? "").trim(),
+        ...(match?.[2] === "0" ? { oldCount: 0 as const } : {}),
+        ...(match?.[4] === "0" ? { newCount: 0 as const } : {}),
       });
       continue;
     }
@@ -213,4 +218,76 @@ export function isGeneratedPath(path: string): boolean {
   if (MINIFIED.test(name)) return true;
   if (GENERATED_SUFFIXES.some((s) => name.endsWith(s))) return true;
   return parts.slice(0, -1).some((dir) => GENERATED_DIRS.has(dir));
+}
+
+export interface HiddenRange {
+  /** Eerste en laatste verborgen regel in het NIEUWE bestand (1-based, inclusief). */
+  newFrom: number;
+  newTo: number;
+  /** oldNo = newNo + oldOffset voor contextregels in dit gat. */
+  oldOffset: number;
+}
+
+// oldStart/newStart 0 betekent een nieuw of volledig verwijderd bestand: daar is geen context.
+function hasContext(hunk: UnifiedHunk): boolean {
+  return hunk.oldStart > 0 && hunk.newStart > 0;
+}
+
+// Bij telling 0 is start de regel vóór het hunk: de eerste echte regel is start + 1.
+function firstOld(hunk: UnifiedHunk): number {
+  return hunk.oldStart + (hunk.oldCount === 0 ? 1 : 0);
+}
+
+function firstNew(hunk: UnifiedHunk): number {
+  return hunk.newStart + (hunk.newCount === 0 ? 1 : 0);
+}
+
+/** Het gat vóór hunk nummer `hunkIndex` (0-based, telt alleen hunk-items). Null als er niets verborgen is. */
+export function hiddenAbove(
+  items: readonly UnifiedItem[],
+  hunkIndex: number,
+): HiddenRange | null {
+  let seen = -1;
+  let nextNew = 1;
+  for (const item of items) {
+    if (item.kind === "row") {
+      if (item.newNo != null) nextNew = item.newNo + 1;
+      continue;
+    }
+    seen++;
+    if (seen !== hunkIndex) {
+      nextNew = firstNew(item);
+      continue;
+    }
+    if (!hasContext(item) || firstNew(item) - 1 < nextNew) return null;
+    return {
+      newFrom: nextNew,
+      newTo: firstNew(item) - 1,
+      oldOffset: firstOld(item) - firstNew(item),
+    };
+  }
+  return null;
+}
+
+/** Het gat na de laatste hunk tot het einde van het bestand. Null als er niets verborgen is of fileLength onbekend (null). */
+export function hiddenBelow(
+  items: readonly UnifiedItem[],
+  fileLength: number | null,
+): HiddenRange | null {
+  if (fileLength == null) return null;
+  let nextOld = 0;
+  let nextNew = 0;
+  let usable = false;
+  for (const item of items) {
+    if (item.kind === "hunk") {
+      usable = hasContext(item);
+      nextOld = firstOld(item);
+      nextNew = firstNew(item);
+    } else {
+      if (item.oldNo != null) nextOld = item.oldNo + 1;
+      if (item.newNo != null) nextNew = item.newNo + 1;
+    }
+  }
+  if (!usable || fileLength < nextNew) return null;
+  return { newFrom: nextNew, newTo: fileLength, oldOffset: nextOld - nextNew };
 }

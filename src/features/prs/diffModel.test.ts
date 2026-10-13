@@ -4,6 +4,8 @@ import {
   countChanges,
   fileStatus,
   groupThreadsByFile,
+  hiddenAbove,
+  hiddenBelow,
   isGeneratedPath,
   type LineNumbers,
   placeThreads,
@@ -302,5 +304,179 @@ describe("fileStatus", () => {
     expect(fileStatus(metaLines("index 1..2 100644"))).toBe(
       "Geen regelwijzigingen",
     );
+  });
+});
+
+describe("hiddenAbove / hiddenBelow", () => {
+  const ctx = (n: number): [DiffLine["kind"], string] => ["context", ` l${n}`];
+
+  it("geeft null boven een hunk die op regel 1 begint", () => {
+    const items = buildUnifiedItems(lines(["hunk", "@@ -1,2 +1,2 @@"], ctx(1)));
+    expect(hiddenAbove(items, 0)).toBeNull();
+  });
+
+  it("geeft regel 1 t/m newStart-1 boven hunk 0 op regel 10", () => {
+    const items = buildUnifiedItems(
+      lines(["hunk", "@@ -10,2 +10,2 @@"], ctx(10)),
+    );
+    expect(hiddenAbove(items, 0)).toEqual({
+      newFrom: 1,
+      newTo: 9,
+      oldOffset: 0,
+    });
+  });
+
+  it("geeft het gat tussen twee hunks", () => {
+    const items = buildUnifiedItems(
+      lines(
+        ["hunk", "@@ -1,2 +1,2 @@"],
+        ctx(1),
+        ctx(2),
+        ["hunk", "@@ -10,1 +10,1 @@"],
+        ctx(10),
+      ),
+    );
+    expect(hiddenAbove(items, 1)).toEqual({
+      newFrom: 3,
+      newTo: 9,
+      oldOffset: 0,
+    });
+  });
+
+  it("geeft null tussen aaneensluitende hunks", () => {
+    const items = buildUnifiedItems(
+      lines(
+        ["hunk", "@@ -1,2 +1,2 @@"],
+        ctx(1),
+        ctx(2),
+        ["hunk", "@@ -3,1 +3,1 @@"],
+        ctx(3),
+      ),
+    );
+    expect(hiddenAbove(items, 1)).toBeNull();
+  });
+
+  it("geeft null voor een onbestaande hunkIndex", () => {
+    const items = buildUnifiedItems(lines(["hunk", "@@ -5,1 +5,1 @@"], ctx(5)));
+    expect(hiddenAbove(items, 3)).toBeNull();
+  });
+
+  it("geeft het gat onder de laatste hunk tot fileLength", () => {
+    const items = buildUnifiedItems(
+      lines(["hunk", "@@ -1,2 +1,2 @@"], ctx(1), ctx(2)),
+    );
+    expect(hiddenBelow(items, 10)).toEqual({
+      newFrom: 3,
+      newTo: 10,
+      oldOffset: 0,
+    });
+  });
+
+  it("geeft null onder zonder fileLength of als de hunk het einde raakt", () => {
+    const items = buildUnifiedItems(
+      lines(["hunk", "@@ -1,2 +1,2 @@"], ctx(1), ctx(2)),
+    );
+    expect(hiddenBelow(items, null)).toBeNull();
+    expect(hiddenBelow(items, 2)).toBeNull();
+  });
+
+  it("rekent de offset door na regels die een eerdere hunk toevoegde", () => {
+    const items = buildUnifiedItems(
+      lines(
+        ["hunk", "@@ -1,2 +1,4 @@"],
+        ["add", "+a"],
+        ["add", "+b"],
+        ctx(1),
+        ctx(2),
+        ["hunk", "@@ -20,1 +22,1 @@"],
+        ctx(20),
+      ),
+    );
+    expect(hiddenAbove(items, 1)).toEqual({
+      newFrom: 5,
+      newTo: 21,
+      oldOffset: -2,
+    });
+    expect(hiddenBelow(items, 30)).toEqual({
+      newFrom: 23,
+      newTo: 30,
+      oldOffset: -2,
+    });
+  });
+
+  it("telt verwijderde regels mee in de offset onder de laatste hunk", () => {
+    const items = buildUnifiedItems(
+      lines(["hunk", "@@ -5,2 +5,1 @@"], ["del", "-x"], ctx(6)),
+    );
+    expect(hiddenBelow(items, 9)).toEqual({
+      newFrom: 6,
+      newTo: 9,
+      oldOffset: 1,
+    });
+  });
+
+  it("leest een kop zonder tellingen als telling 1", () => {
+    const items = buildUnifiedItems(lines(["hunk", "@@ -10 +10 @@"], ctx(10)));
+    expect(hiddenAbove(items, 0)).toEqual({
+      newFrom: 1,
+      newTo: 9,
+      oldOffset: 0,
+    });
+  });
+
+  it("neemt bij +N,0 (pure verwijdering) regel N nog in het gat boven en begint N+1 erna", () => {
+    const items = buildUnifiedItems(
+      lines(
+        ["hunk", "@@ -5,2 +4,0 @@"],
+        ["del", "-a"],
+        ["del", "-b"],
+        ["hunk", "@@ -20,1 +19,1 @@"],
+        ctx(20),
+      ),
+    );
+    expect(hiddenAbove(items, 0)).toEqual({
+      newFrom: 1,
+      newTo: 4,
+      oldOffset: 0,
+    });
+    expect(hiddenAbove(items, 1)).toEqual({
+      newFrom: 5,
+      newTo: 18,
+      oldOffset: 1,
+    });
+    expect(hiddenBelow(items.slice(0, 3), 10)).toEqual({
+      newFrom: 5,
+      newTo: 10,
+      oldOffset: 2,
+    });
+  });
+
+  it("neemt bij -N,0 (pure toevoeging) regel N van het oude bestand mee in de offsets", () => {
+    const items = buildUnifiedItems(
+      lines(["hunk", "@@ -4,0 +5,2 @@"], ["add", "+a"], ["add", "+b"]),
+    );
+    expect(hiddenAbove(items, 0)).toEqual({
+      newFrom: 1,
+      newTo: 4,
+      oldOffset: 0,
+    });
+    expect(hiddenBelow(items, 10)).toEqual({
+      newFrom: 7,
+      newTo: 10,
+      oldOffset: -2,
+    });
+  });
+
+  it("geeft geen gaten bij een nieuw bestand of een volledig verwijderd bestand", () => {
+    const added = buildUnifiedItems(
+      lines(["hunk", "@@ -0,0 +1,2 @@"], ["add", "+a"], ["add", "+b"]),
+    );
+    expect(hiddenAbove(added, 0)).toBeNull();
+    expect(hiddenBelow(added, 2)).toBeNull();
+    const removed = buildUnifiedItems(
+      lines(["hunk", "@@ -1,2 +0,0 @@"], ["del", "-a"], ["del", "-b"]),
+    );
+    expect(hiddenAbove(removed, 0)).toBeNull();
+    expect(hiddenBelow(removed, 0)).toBeNull();
   });
 });

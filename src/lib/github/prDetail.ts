@@ -59,6 +59,8 @@ export interface PrDetail {
   /** PR-beschrijving als ruwe markdown (kan rauwe HTML bevatten). Render
    * alleen via `CommentBody`. */
   body: string;
+  /** Head-commit van de PR (GraphQL headRefOid); "" als onbekend. */
+  headSha: string;
   /** Unified diff als platte tekst; leeg als diffTooLarge. */
   diff: string;
   /** True als GitHub de diff weigerde (406: te groot). */
@@ -72,6 +74,7 @@ query PrDetail($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       body
+      headRefOid
       comments(first: 100) { nodes { author { login } bodyText body createdAt } }
       reviewThreads(first: 100) {
         nodes {
@@ -204,6 +207,7 @@ async function fetchComments(
   fetchImpl: FetchImpl,
 ): Promise<{
   body: string;
+  headSha: string;
   issueComments: PrComment[];
   reviewThreads: ReviewThread[];
 }> {
@@ -243,6 +247,7 @@ async function fetchComments(
       repository?: {
         pullRequest?: {
           body?: string | null;
+          headRefOid?: string | null;
           comments?: { nodes?: unknown };
           reviewThreads?: { nodes?: unknown };
         } | null;
@@ -261,7 +266,12 @@ async function fetchComments(
   );
   const reviewThreads = parseThreads(pullRequest?.reviewThreads?.nodes);
 
-  return { body: pullRequest?.body ?? "", issueComments, reviewThreads };
+  return {
+    body: pullRequest?.body ?? "",
+    headSha: pullRequest?.headRefOid ?? "",
+    issueComments,
+    reviewThreads,
+  };
 }
 
 /** Haalt de diff en comments van één PR parallel op. */
@@ -271,11 +281,13 @@ export async function fetchPrDetail(
   prNumber: PrNumber,
   fetchImpl: FetchImpl,
 ): Promise<PrDetail> {
-  const [{ diff, diffTooLarge }, { body, issueComments, reviewThreads }] =
-    await Promise.all([
-      fetchDiff(token, repoId, prNumber, fetchImpl),
-      fetchComments(token, repoId, prNumber, fetchImpl),
-    ]);
+  const [
+    { diff, diffTooLarge },
+    { body, headSha, issueComments, reviewThreads },
+  ] = await Promise.all([
+    fetchDiff(token, repoId, prNumber, fetchImpl),
+    fetchComments(token, repoId, prNumber, fetchImpl),
+  ]);
 
-  return { body, diff, diffTooLarge, issueComments, reviewThreads };
+  return { body, headSha, diff, diffTooLarge, issueComments, reviewThreads };
 }

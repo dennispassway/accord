@@ -59,6 +59,7 @@ describe("detailFromCache", () => {
 function detail(overrides: Partial<PrDetail> = {}): PrDetail {
   return {
     body: "",
+    headSha: "",
     diff: "",
     diffTooLarge: false,
     issueComments: [],
