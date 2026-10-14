@@ -851,6 +851,93 @@ fn cli_effort(effort: &str) -> &'static str {
     }
 }
 
+/// Codex beschermt de worktree-specifieke metadata ook als de gedeelde .git
+/// schrijfbaar is. Geef beide echte directories expliciet mee, zonder fallback
+/// naar een .git-bestand als de bronrepo zelf een worktree is.
+fn git_writable_roots(worktree: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut roots = Vec::new();
+    for flag in ["--git-common-dir", "--git-dir"] {
+        let dir = run_git(worktree, &["rev-parse", "--path-format=absolute", flag])?;
+        let path = std::fs::canonicalize(dir.trim())
+            .map_err(|e| format!("kon Git-directory {dir} niet bepalen: {e}"))?;
+        if !path.is_dir() {
+            return Err(format!("{} is geen Git-directory", path.display()));
+        }
+        if !roots.contains(&path) {
+            roots.push(path);
+        }
+    }
+    Ok(roots)
+}
+
+/// Gedeeld door exec en de deterministische controle, zodat die niet ongemerkt
+/// een andere sandbox test dan degene waarin de agent werkt.
+/// MCP blijft uit: servers uit de globale ChatGPT-config kunnen een headless
+/// run naar een uitvoerlaag sturen die niet opstart of een andere sandbox heeft.
+fn codex_sandbox_config(command: &mut Command, roots: &[PathBuf]) {
+    command
+        .arg("-c")
+        .arg("sandbox_mode=\"workspace-write\"")
+        .arg("-c")
+        .arg("sandbox_workspace_write.network_access=true")
+        .arg("-c")
+        .arg("mcp_servers={}")
+        .arg("-c")
+        .arg(format!(
+            "sandbox_workspace_write.writable_roots={}",
+            serde_json::to_string(roots).expect("Git paths serialize")
+        ));
+}
+
+fn codex_sandbox_command(
+    binary: &Path,
+    worktree: &Path,
+    roots: &[PathBuf],
+) -> Result<Command, String> {
+    let mut help = Command::new(binary);
+    help.args(["sandbox", "--help"]).current_dir(worktree);
+    let help =
+        run_capture(help, MODEL_TIMEOUT).ok_or("kon Codex sandbox-interface niet bepalen")?;
+    let mut command = Command::new(binary);
+    command.arg("sandbox");
+    // Oudere CLI's eisen een platform-subcommand; nieuwere kiezen zelf het OS.
+    let platform = if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    };
+    if help
+        .lines()
+        .any(|line| line.split_whitespace().next() == Some(platform))
+    {
+        command.arg(platform);
+    }
+    codex_sandbox_config(&mut command, roots);
+    command.current_dir(worktree).env("PATH", child_path());
+    Ok(command)
+}
+
+fn check_codex_git_access(binary: &Path, worktree: &Path, roots: &[PathBuf]) -> Result<(), String> {
+    let mut command = codex_sandbox_command(binary, worktree, roots)?;
+    // mktemp maakt uitsluitend een nieuw bestand; nooit index, FETCH_HEAD of
+    // refs aanraken. De paden zijn losse argv's, geen geïnterpoleerde shellcode.
+    command
+        .args([
+            "--",
+            "/bin/sh",
+            "-eu",
+            "-c",
+            "for dir do probe=$(mktemp \"$dir/accord-write-check.XXXXXX\"); rm -- \"$probe\"; done",
+            "accord-write-check",
+        ])
+        .args(git_writable_roots(worktree)?);
+    run_tool(command, "Codex Git-sandboxcontrole")
+        .map(|_| ())
+        .map_err(|e| {
+            format!("Codex kan niet schrijven naar de Git-metadata; de agent is niet gestart. {e}")
+        })
+}
+
 fn agent_command(
     agent: &str,
     mode: &str,
@@ -858,7 +945,7 @@ fn agent_command(
     binary: &Path,
     model: &str,
     effort: &str,
-    git_common_dir: &Path,
+    git_roots: &[PathBuf],
 ) -> Result<Command, String> {
     let with_fixes = mode != "commentsOnly";
     let mut command = Command::new(binary);
@@ -909,40 +996,14 @@ fn agent_command(
         // omdat die na de run wordt weggegooid.
         "codex" => {
             command.arg("exec");
+            codex_sandbox_config(&mut command, if with_fixes { git_roots } else { &[] });
             command
                 .arg("--sandbox")
                 .arg("workspace-write")
                 .arg("-m")
                 .arg(model)
                 .arg("-c")
-                .arg("sandbox_workspace_write.network_access=true")
-                // Codex leest ~/.codex/config.toml, en de ChatGPT-app schrijft
-                // daar een MCP-server in. Laadt die mee, dan schakelt codex naar
-                // een uitvoerlaag die vanuit een headless run niet opstart: elke
-                // shell-aanroep strandt op "timed out negotiating with the
-                // code-mode host" en de agent wijkt uit naar die MCP-runtime, die
-                // in een eigen sandbox zonder netwerk draait. Hij leest dan geen
-                // diff en plaatst geen comments, maar eindigt wel met exit 0.
-                // Accord heeft hier geen enkele MCP-server nodig, dus die hele
-                // laag gaat uit.
-                .arg("-c")
-                .arg("mcp_servers={}")
-                .arg("-c")
                 .arg(format!("model_reasoning_effort=\"{}\"", cli_effort(effort)));
-            if with_fixes {
-                // De worktree in /tmp is schrijfbaar, maar zijn index, refs en
-                // objects leven in de .git van de hoofdrepo. Zonder deze root
-                // faalt elke `git commit` in de sandbox op index.lock en wijkt
-                // codex uit naar een eigen GIT_DIR met commits die nergens
-                // bestaan.
-                command.arg("-c").arg(format!(
-                    "sandbox_workspace_write.writable_roots=[\"{}\"]",
-                    git_common_dir
-                        .to_string_lossy()
-                        .replace('\\', "\\\\")
-                        .replace('"', "\\\"")
-                ));
-            }
             command.arg(prompt);
         }
         other => return Err(format!("onbekende agent: {other}")),
@@ -1505,23 +1566,38 @@ fn start_review_blocking(
         return Ok(());
     }
 
-    // Absoluut pad, en via rev-parse zodat het ook klopt als de repo zelf een
-    // worktree is (dan is .git een bestand, geen map).
-    let git_common_dir = run_git(
-        &repo_path,
-        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
-    )
-    .map(|dir| PathBuf::from(dir.trim()))
-    .unwrap_or_else(|_| repo_path.join(".git"));
-    let mut command = match agent_command(
-        &agent,
-        &mode,
-        &prompt,
-        &binary,
-        &model,
-        &effort,
-        &git_common_dir,
-    ) {
+    let mut command = match (|| {
+        let git_roots = if agent == "codex" && mode != "commentsOnly" {
+            let roots = git_writable_roots(&worktree)?;
+            let mut version = Command::new(&binary);
+            version.arg("--version").current_dir(&worktree);
+            emit_log(
+                &app,
+                &run_id,
+                vec![
+                    format!(
+                        "Codex: {}",
+                        run_capture(version, MODEL_TIMEOUT)
+                            .unwrap_or_else(|| "versie onbekend".into())
+                    ),
+                    format!(
+                        "Git writable roots: {}",
+                        serde_json::to_string(&roots).expect("Git paths serialize")
+                    ),
+                ],
+            );
+            check_codex_git_access(&binary, &worktree, &roots)?;
+            emit_log(
+                &app,
+                &run_id,
+                vec!["Codex Git-sandboxcontrole geslaagd".into()],
+            );
+            roots
+        } else {
+            Vec::new()
+        };
+        agent_command(&agent, &mode, &prompt, &binary, &model, &effort, &git_roots)
+    })() {
         Ok(command) => command,
         Err(error) => {
             with_runs(&app, |runs| runs.remove(&run_id));
@@ -1536,6 +1612,10 @@ fn start_review_blocking(
             return Err(error);
         }
     };
+    if is_cancelled(&app, &run_id) {
+        abort_prepared_run(&app, &run_id, &repo_path, &worktree);
+        return Ok(());
+    }
     command
         .current_dir(&worktree)
         .env("PATH", child_path())
@@ -1837,6 +1917,133 @@ mod tests {
     use super::*;
 
     const TEST_MARKER: &str = "/tmp/pr-cockpit/run-7.push";
+
+    struct GitSandboxFixture {
+        root: PathBuf,
+        repo: PathBuf,
+        worktree: PathBuf,
+    }
+
+    impl GitSandboxFixture {
+        fn new() -> Self {
+            let nonce = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir()
+                .join(format!("accord git-test-{}-{nonce}", std::process::id()));
+            std::fs::create_dir(&root).unwrap();
+            let root = std::fs::canonicalize(root).unwrap();
+            let fixture = Self {
+                repo: root.join("repo"),
+                worktree: root.join("worktree"),
+                root,
+            };
+            run_git(&fixture.root, &["init", fixture.repo.to_str().unwrap()]).unwrap();
+            run_git(
+                &fixture.repo,
+                &[
+                    "-c",
+                    "user.name=Accord test",
+                    "-c",
+                    "user.email=test@example.com",
+                    "commit",
+                    "--allow-empty",
+                    "-m",
+                    "initial",
+                ],
+            )
+            .unwrap();
+            run_git(
+                &fixture.repo,
+                &[
+                    "worktree",
+                    "add",
+                    "--detach",
+                    fixture.worktree.to_str().unwrap(),
+                ],
+            )
+            .unwrap();
+            fixture
+        }
+    }
+
+    impl Drop for GitSandboxFixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[test]
+    fn git_roots_resolve_linked_worktrees_and_fail_without_metadata() {
+        let fixture = GitSandboxFixture::new();
+        let roots = git_writable_roots(&fixture.worktree).unwrap();
+        assert_eq!(roots[0], fixture.repo.join(".git"));
+        assert_eq!(roots.len(), 2);
+        assert!(roots[1].starts_with(roots[0].join("worktrees")));
+        assert_eq!(
+            git_writable_roots(&fixture.repo).unwrap(),
+            vec![roots[0].clone()]
+        );
+        let nested = fixture.root.join("nested");
+        run_git(
+            &fixture.worktree,
+            &["worktree", "add", "--detach", nested.to_str().unwrap()],
+        )
+        .unwrap();
+        let nested_roots = git_writable_roots(&nested).unwrap();
+        assert_eq!(nested_roots[0], roots[0]);
+        assert_ne!(nested_roots[1], roots[1]);
+        assert!(git_writable_roots(&fixture.root).is_err());
+    }
+
+    /// Geen model, credentials of GitHub nodig. Expliciet opt-in omdat deze
+    /// echte OS-sandbox niet binnen een andere sandbox gestart kan worden.
+    #[test]
+    #[ignore = "vereist geïnstalleerde Codex CLI en toestemming voor een OS-sandbox"]
+    fn codex_git_sandbox_allows_fetch_and_commit_only_with_both_git_roots() {
+        let fixture = GitSandboxFixture::new();
+        let binary = find_binary("codex").expect("Codex CLI");
+        let roots = git_writable_roots(&fixture.worktree).unwrap();
+        assert!(
+            check_codex_git_access(&binary, &fixture.worktree, &roots[..1]).is_err(),
+            "alleen de common directory hoort de worktree-metadata niet vrij te geven"
+        );
+        check_codex_git_access(&binary, &fixture.worktree, &roots).unwrap();
+        let mut command = codex_sandbox_command(&binary, &fixture.worktree, &roots).unwrap();
+        command.args(["--", "/bin/sh", "-eu", "-c",
+            "git -c core.hooksPath=/dev/null fetch \"$1\" HEAD; git -c core.hooksPath=/dev/null -c user.name=Accord -c user.email=test@example.com commit --allow-empty -m sandbox-test",
+            "accord-git-test"]).arg(&fixture.repo);
+        run_tool(command, "sandbox Git-test").unwrap();
+        assert_eq!(
+            run_git(&fixture.worktree, &["log", "-1", "--format=%s"]).unwrap(),
+            "sandbox-test"
+        );
+        assert!(
+            check_codex_git_access(&binary, &fixture.worktree, &[]).is_err(),
+            "commentsOnly hoort geen Git-schrijfrechten te krijgen"
+        );
+
+        // Bewijs dat de extra roots niet de hele hoofdrepo vrijgeven. Sluit de
+        // globale tijdelijke roots voor deze negatieve controle expliciet uit.
+        let mut command = codex_sandbox_command(&binary, &fixture.worktree, &roots).unwrap();
+        command
+            .args([
+                "-c",
+                "sandbox_workspace_write.exclude_slash_tmp=true",
+                "-c",
+                "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+                "--",
+                "/bin/sh",
+                "-eu",
+                "-c",
+                "touch \"$1\"",
+                "accord-boundary-test",
+            ])
+            .arg(fixture.repo.join("must-not-exist"));
+        assert!(run_tool(command, "sandbox boundary-test").is_err());
+        assert!(!fixture.repo.join("must-not-exist").exists());
+    }
 
     /// Schaduwt `super::prompt_for_mode` met een vast marker-pad, zodat de tests
     /// over de prompt-inhoud gaan en niet over het doorgeven van dat pad.
@@ -2232,7 +2439,7 @@ mod tests {
             Path::new("/bin/claude"),
             "m",
             "medium",
-            Path::new("/tmp/x/.git"),
+            &[PathBuf::from("/tmp/x/.git")],
         )
         .expect("command");
         let args: Vec<_> = command
@@ -2263,7 +2470,7 @@ mod tests {
             Path::new("/bin/codex"),
             "m",
             "medium",
-            Path::new("/tmp/x/.git"),
+            &[PathBuf::from("/tmp/x/.git")],
         )
         .expect("command");
         assert!(!command.get_args().any(|a| a == "--settings"));
@@ -2358,7 +2565,10 @@ mod tests {
             Path::new("/usr/bin/claude"),
             "sonnet",
             "midden",
-            Path::new("/repo/.git"),
+            &[
+                PathBuf::from("/repo/.git"),
+                PathBuf::from("/repo/.git/worktrees/run"),
+            ],
         )
         .expect("command");
         let args: Vec<String> = command
@@ -2378,7 +2588,10 @@ mod tests {
             Path::new("/usr/bin/claude"),
             "sonnet",
             "midden",
-            Path::new("/repo/.git"),
+            &[
+                PathBuf::from("/repo/.git"),
+                PathBuf::from("/repo/.git/worktrees/run"),
+            ],
         )
         .expect("command");
         let args: Vec<String> = command
@@ -2401,7 +2614,10 @@ mod tests {
             Path::new("/usr/bin/claude"),
             "sonnet",
             "midden",
-            Path::new("/repo/.git"),
+            &[
+                PathBuf::from("/repo/.git"),
+                PathBuf::from("/repo/.git/worktrees/run"),
+            ],
         )
         .expect("command");
         let args: Vec<String> = command
@@ -2429,7 +2645,10 @@ mod tests {
             Path::new("/usr/bin/codex"),
             "gpt-5",
             "midden",
-            Path::new("/repo/.git"),
+            &[
+                PathBuf::from("/repo/.git"),
+                PathBuf::from("/repo/.git/worktrees/run"),
+            ],
         )
         .expect("command");
         let args: Vec<String> = command
@@ -2452,7 +2671,10 @@ mod tests {
             Path::new("/usr/bin/codex"),
             "gpt-5",
             "midden",
-            Path::new("/repo/.git"),
+            &[
+                PathBuf::from("/repo/.git"),
+                PathBuf::from("/repo/.git/worktrees/run"),
+            ],
         )
         .expect("command");
         let args: Vec<String> = command
@@ -2460,7 +2682,7 @@ mod tests {
             .map(|a| a.to_string_lossy().to_string())
             .collect();
         assert!(
-            args.contains(&r#"sandbox_workspace_write.writable_roots=["/repo/.git"]"#.to_string()),
+            args.contains(&r#"sandbox_workspace_write.writable_roots=["/repo/.git","/repo/.git/worktrees/run"]"#.to_string()),
             "writable_roots ontbreekt in: {args:?}"
         );
     }
@@ -2474,7 +2696,10 @@ mod tests {
             Path::new("/usr/bin/codex"),
             "gpt-5",
             "midden",
-            Path::new("/repo/.git"),
+            &[
+                PathBuf::from("/repo/.git"),
+                PathBuf::from("/repo/.git/worktrees/run"),
+            ],
         )
         .expect("command");
         let args: Vec<String> = command
@@ -2482,7 +2707,7 @@ mod tests {
             .map(|a| a.to_string_lossy().to_string())
             .collect();
         assert!(
-            !args.iter().any(|a| a.contains("writable_roots")),
+            args.contains(&"sandbox_workspace_write.writable_roots=[]".to_string()),
             "commentsOnly hoort geen schrijfrechten op .git te krijgen: {args:?}"
         );
     }
@@ -2501,7 +2726,10 @@ mod tests {
             Path::new("/usr/bin/codex"),
             "gpt-5",
             "midden",
-            Path::new("/repo/.git"),
+            &[
+                PathBuf::from("/repo/.git"),
+                PathBuf::from("/repo/.git/worktrees/run"),
+            ],
         )
         .expect("command");
         let args: Vec<String> = command
@@ -2567,7 +2795,7 @@ mod tests {
             Path::new("/bin/x"),
             "m",
             "midden",
-            Path::new("/repo/.git")
+            &[PathBuf::from("/repo/.git")]
         )
         .is_err());
     }
