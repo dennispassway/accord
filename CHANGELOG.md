@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.12.0](https://github.com/dennispassway/accord/compare/v1.11.1...v1.12.0) (2026-10-15)
+
+
+### Nieuw
+
+* **github:** bestanden van een PR per pagina ophalen als de diff te groot is ([259afc8](https://github.com/dennispassway/accord/commit/259afc8f530de41d36688c02ae34878d8ac562cc))
+* **inspector:** bestand op de head-commit ophalen en verborgen context berekenen ([2ddcff9](https://github.com/dennispassway/accord/commit/2ddcff9d6600093c68866f4fcc8922f666d54a2b))
+* **inspector:** highlighting, woord-diff en context uitklappen in de diff ([bc22276](https://github.com/dennispassway/accord/commit/bc22276e7430041d518bd0cfc9d36e406e1d97fb))
+* **inspector:** opmerking op een regel plaatsen en review afronden in de diff-sheet ([d42d0e2](https://github.com/dennispassway/accord/commit/d42d0e2dcd4f57f2b934576429e8c5ec9911297f))
+* **inspector:** woord-diff en syntax highlighting met highlight.js ([06d583f](https://github.com/dennispassway/accord/commit/06d583fbc01b822871aabd4819dc0c7125bb89c4))
+* **review:** concepten gaan mee met elke review, ook vanuit het detailpaneel ([ef3e028](https://github.com/dennispassway/accord/commit/ef3e0288fcddb1be09f092d570f89d701098d61d))
+* **review:** regelopmerkingen meesturen en concepten per PR bewaren ([4f7b1d4](https://github.com/dennispassway/accord/commit/4f7b1d417e830f3b5b8ff4eb21f3957392bb9cd4))
+
+
+### Opgelost
+
+* **diff:** metaregels alleen vóór de eerste hunk en gequote paden herkennen ([2deee46](https://github.com/dennispassway/accord/commit/2deee469aeae287a961ccab38a3a20c0a7d29a97))
+* **github:** per-bestand-diff uit getypte bestanden met letterlijke paden en eerlijke status ([9b13134](https://github.com/dennispassway/accord/commit/9b13134b1d605f7a62345b052598e35736ddd6b6))
+* **inspector:** concepten, bestandsstatus en threadtellingen na review ([912079b](https://github.com/dennispassway/accord/commit/912079b20d2629cbffe8f99607040b464ff1855a))
+* **inspector:** een lopende bewerking van een concept overleeft de wissel tussen unified en split ([ee11d92](https://github.com/dennispassway/accord/commit/ee11d925ad98cb87809aaed21643007f092a7abd))
+* **inspector:** inklappen van een bestand behoudt open opstelvelden ([64d1fd8](https://github.com/dennispassway/accord/commit/64d1fd8d5d0110a69f276226fb183191ae41e125))
+* **inspector:** opstelveld, afrondpaneel en hints na review van PR 3 ([5427876](https://github.com/dennispassway/accord/commit/5427876a408a26d500f8da9353f9f375aa8481b8))
+* **inspector:** uitklappen in stappen, highlighting per blok en contrast op de echte tinten ([9a931e9](https://github.com/dennispassway/accord/commit/9a931e9f95f7e2d6398c54424af042de4eacfb27))
+* **markdown:** links alleen openen bij http, https of mailto ([fe3108f](https://github.com/dennispassway/accord/commit/fe3108f1f2094daa8407987fc481396042919bee))
+* **review:** concepten verankeren op de commit waarop ze geschreven zijn ([d96c6e7](https://github.com/dennispassway/accord/commit/d96c6e7dc9ad4f3e29a91294256a3a8a2d04b1df))
+* **review:** één lock per PR, één beslisfunctie en alleen ongewijzigde concepten wissen ([0816652](https://github.com/dennispassway/accord/commit/0816652d2ef4fdaa302d8dc80f639fbf8eeec05d))
+
 ## [1.11.1](https://github.com/dennispassway/accord/compare/v1.11.0...v1.11.1) (2026-10-13)
 
 
