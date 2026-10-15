@@ -460,6 +460,7 @@ const UNKNOWN_LENGTH = Number.MAX_SAFE_INTEGER;
 const NO_EXPANSION: Expansion = { above: new Map(), below: 0 };
 
 function FileBody({
+  hidden,
   file,
   mode,
   threads,
@@ -469,6 +470,7 @@ function FileBody({
   fileDrafts,
   ...actions
 }: {
+  hidden: boolean;
   file: DiffFile;
   mode: DiffViewMode;
   threads: ReviewThread[];
@@ -651,7 +653,7 @@ function FileBody({
   const status = fileStatus(file.lines);
 
   return (
-    <div id={id}>
+    <div id={id} hidden={hidden}>
       {status !== null ? (
         <p className="inspector-diff-file-note">{status}</p>
       ) : (
@@ -744,6 +746,10 @@ function FileDiff({
   const unresolved = threads.filter((t) => !t.isResolved).length;
   // Een gegenereerd bestand met een open thread mag niet verborgen blijven.
   const [open, setOpen] = useState(!generated || unresolved > 0);
+  // Eenmaal geopend blijft de body gemount en verbergt inklappen hem alleen:
+  // open opstelvelden, hun tekst en een lopende losse verzending leven in
+  // FileBody en zouden bij een unmount verloren gaan.
+  const [mounted, setMounted] = useState(open);
   const bodyId = useId();
   const { add, del } = countChanges(file.lines);
   const fileDrafts = (review?.drafts ?? []).filter((d) => d.path === file.path);
@@ -759,7 +765,10 @@ function FileDiff({
         className="inspector-diff-file-head"
         aria-expanded={open}
         aria-controls={bodyId}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          setOpen(!open);
+          setMounted(true);
+        }}
       >
         <span
           className={
@@ -794,8 +803,9 @@ function FileDiff({
           <span className="inspector-diff-del">−{del}</span>
         </span>
       </button>
-      {open && (
+      {mounted && (
         <FileBody
+          hidden={!open}
           file={file}
           mode={mode}
           threads={threads}
