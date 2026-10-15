@@ -36,8 +36,8 @@ interface PrInspectorProps {
   onFixComments?: () => void;
   /** Verstuurt een review; de concepten gaan mee (usePrs.submitReview). */
   onSubmitReview: (event: ReviewEvent, body: string) => Promise<void>;
-  /** Verstuurt één opmerking los als eigen review. */
-  onSubmitThread: (thread: DraftThread) => Promise<void>;
+  /** Verstuurt één opmerking los als eigen review, verankerd op `commitOid`. */
+  onSubmitThread: (thread: DraftThread, commitOid: string) => Promise<void>;
 }
 
 /** Zelfde scrim/sheet-patroon als SettingsSheet, maar breder en met eigen
@@ -69,15 +69,28 @@ export function PrInspector({
   } = usePrDetail(pr, onAuthError);
   const prKey = keyOfPr(pr);
   const reviewDrafts = useReviewDrafts(prKey);
+  const headSha = detail?.headSha ?? "";
+  // Een concept van een eerdere commit hoort bij andere regels dan deze diff
+  // toont: niet in de diff plaatsen en niet tegen deze diff toetsen. De review
+  // verankert het op zijn eigen commit (draftsCommit).
+  const { currentDrafts, staleDrafts } = useMemo(
+    () => ({
+      currentDrafts: reviewDrafts.filter((d) => d.commitOid === headSha),
+      staleDrafts: new Set(
+        reviewDrafts.filter((d) => d.commitOid !== headSha).map((d) => d.id),
+      ),
+    }),
+    [reviewDrafts, headSha],
+  );
   // Een regel die in de diff zelf ontbreekt kan GitHub weigeren. Zonder
   // volledige diff (te groot, nog niet per bestand geladen) is er niets om
   // tegen te toetsen: dan geen waarschuwing.
   const outsideDiff = useMemo(
     () =>
       status === "ready" && !diffTooLarge
-        ? draftsOutsideDiff(reviewDrafts, files)
+        ? draftsOutsideDiff(currentDrafts, files)
         : new Set<string>(),
-    [status, diffTooLarge, reviewDrafts, files],
+    [status, diffTooLarge, currentDrafts, files],
   );
 
   const verdict = latestVerdict(pr);
@@ -101,14 +114,14 @@ export function PrInspector({
 
   // Dubbel versturen vangt het slot per PR in submitSingleThread (usePrs.ts).
   async function sendLoose(thread: DraftThread) {
-    await onSubmitThread(thread);
+    await onSubmitThread(thread, headSha);
     void refetch();
   }
 
   const draftActions: DraftActions = {
-    drafts: reviewDrafts,
+    drafts: currentDrafts,
     onAdd: (input) => {
-      reviewDraftStore.add(prKey, input);
+      reviewDraftStore.add(prKey, input, headSha);
     },
     onEdit: (id, body) => reviewDraftStore.edit(prKey, id, body),
     onRemove: (id) => reviewDraftStore.remove(prKey, [id]),
@@ -166,6 +179,7 @@ export function PrInspector({
             key={prKey}
             drafts={reviewDrafts}
             outsideDiff={outsideDiff}
+            staleDrafts={status === "ready" ? staleDrafts : new Set<string>()}
             authoredByMe={pr.authoredByMe}
             onRemoveDraft={draftActions.onRemove}
             onDiscard={() => reviewDraftStore.clear(prKey)}

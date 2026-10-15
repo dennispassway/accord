@@ -148,6 +148,41 @@ describe("submitReview met regelopmerkingen", () => {
     expect(calls[0]?.body.query).toContain("DraftPullRequestReviewThread");
   });
 
+  it("geeft de commit van de threads mee als commitOID", async () => {
+    const { fetchImpl, calls } = ok();
+
+    await submitReview(
+      "token",
+      "PR_1",
+      "COMMENT",
+      "",
+      fetchImpl,
+      [thread],
+      false,
+      "abc123",
+    );
+
+    expect(calls[0]?.body.variables).toMatchObject({ commitOID: "abc123" });
+    expect(calls[0]?.body.query).toContain("commitOID: $commitOID");
+  });
+
+  it("laat commitOID weg zonder threads", async () => {
+    const { fetchImpl, calls } = ok();
+
+    await submitReview(
+      "token",
+      "PR_1",
+      "APPROVE",
+      "",
+      fetchImpl,
+      [],
+      false,
+      "abc123",
+    );
+
+    expect(calls[0]?.body.variables).not.toHaveProperty("commitOID");
+  });
+
   it("laat threads weg bij een lege lijst", async () => {
     const { fetchImpl, calls } = ok();
 

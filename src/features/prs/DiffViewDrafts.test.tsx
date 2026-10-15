@@ -23,6 +23,7 @@ const draft = (over: Partial<ReviewDraft> = {}): ReviewDraft => ({
   side: "RIGHT",
   body: "concept-tekst",
   createdAt: "2026-10-13T09:00:00.000Z",
+  commitOid: "c1",
   ...over,
 });
 

@@ -12,8 +12,8 @@ export interface DraftThread {
 }
 
 const ADD_REVIEW_MUTATION = `
-mutation AddPullRequestReview($pullRequestId: ID!, $event: PullRequestReviewEvent!, $body: String!, $threads: [DraftPullRequestReviewThread!]) {
-  addPullRequestReview(input: { pullRequestId: $pullRequestId, event: $event, body: $body, threads: $threads }) {
+mutation AddPullRequestReview($pullRequestId: ID!, $event: PullRequestReviewEvent!, $body: String!, $threads: [DraftPullRequestReviewThread!], $commitOID: GitObjectID) {
+  addPullRequestReview(input: { pullRequestId: $pullRequestId, event: $event, body: $body, threads: $threads, commitOID: $commitOID }) {
     pullRequestReview { id }
   }
 }
@@ -57,6 +57,8 @@ export async function submitReview(
   fetchImpl: FetchImpl,
   threads: readonly DraftThread[] = [],
   authoredByMe = false,
+  /** Commit waarop de regels van `threads` gelden; "" = de huidige head. */
+  commitOid = "",
 ): Promise<void> {
   if (threads.some((t) => (t.body ?? "").trim() === "")) {
     throw new Error("Een regelopmerking mag niet leeg zijn");
@@ -79,6 +81,9 @@ export async function submitReview(
       // Zonder concepten dezelfde variabelen als vóór regelopmerkingen
       // bestonden: een lege lijst is nooit tegen GitHub zelf getoetst.
       ...(threads.length > 0 && { threads }),
+      // Zonder commit plaatst GitHub de regels op de huidige head: na een
+      // push staat er op dat regelnummer andere code.
+      ...(threads.length > 0 && commitOid !== "" && { commitOID: commitOid }),
     },
     fetchImpl,
     FORBIDDEN_MESSAGE,

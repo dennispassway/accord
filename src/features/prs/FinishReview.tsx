@@ -26,6 +26,8 @@ interface FinishReviewProps {
   drafts: readonly ReviewDraft[];
   /** Ids van concepten waarvan de regel niet in de diff staat. */
   outsideDiff: ReadonlySet<string>;
+  /** Ids van concepten die op een eerdere commit geschreven zijn. */
+  staleDrafts: ReadonlySet<string>;
   /** Op een eigen PR kan alleen gereageerd worden (reviewBlockedReason). */
   authoredByMe: boolean;
   onRemoveDraft: (id: string) => void;
@@ -44,6 +46,7 @@ interface FinishReviewProps {
 export function FinishReview({
   drafts,
   outsideDiff,
+  staleDrafts,
   authoredByMe,
   onRemoveDraft,
   onDiscard,
@@ -170,6 +173,11 @@ export function FinishReview({
                     {outsideDiff.has(draft.id) && (
                       <span className="inspector-finish-draft-warn">
                         regel niet in deze diff
+                      </span>
+                    )}
+                    {staleDrafts.has(draft.id) && (
+                      <span className="inspector-finish-draft-warn">
+                        geschreven op een eerdere commit
                       </span>
                     )}
                   </div>

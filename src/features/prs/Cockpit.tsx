@@ -1348,8 +1348,8 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
               throw error;
             }
           }}
-          onSubmitThread={async (thread) => {
-            await submitThread(selectedPr, thread);
+          onSubmitThread={async (thread, commitOid) => {
+            await submitThread(selectedPr, thread, commitOid);
             showToast(`Opmerking geplaatst op #${selectedPr.number}`, "ok");
           }}
           onFixComments={

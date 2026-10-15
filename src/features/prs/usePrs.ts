@@ -18,6 +18,7 @@ import { withRetry } from "../../lib/retry";
 import { keyOfPr } from "./PrList";
 import {
   type DraftStore,
+  draftsCommit,
   draftsToThreads,
   reviewDraftStore,
 } from "./reviewDrafts";
@@ -99,6 +100,8 @@ type SendReview = (
   event: ReviewEvent,
   body: string,
   threads: DraftThread[],
+  /** Commit waarop de regels van `threads` gelden ("" = onbekend). */
+  commitOid: string,
 ) => Promise<void>;
 
 /** Verstuurt een review met de concepten van de PR als regelopmerkingen.
@@ -123,7 +126,7 @@ export function submitWithDrafts(
       authoredByMe,
     );
     if (reason !== null) throw new Error(reason);
-    await send(event, body, draftsToThreads(drafts));
+    await send(event, body, draftsToThreads(drafts), draftsCommit(drafts));
     store.removeIfUnchanged(prKey, drafts);
   });
 }
@@ -133,9 +136,10 @@ export function submitWithDrafts(
 export function submitSingleThread(
   prKey: string,
   thread: DraftThread,
+  commitOid: string,
   send: SendReview,
 ): Promise<void> {
-  return withReviewLock(prKey, () => send("COMMENT", "", [thread]));
+  return withReviewLock(prKey, () => send("COMMENT", "", [thread], commitOid));
 }
 
 export function nextStateOnLoadError(
@@ -431,6 +435,7 @@ export function usePrs(
       event: ReviewEvent,
       body: string,
       threads: DraftThread[],
+      commitOid: string,
     ) => {
       if (IS_MOCK) {
         // ponytail: vaste vertraging i.p.v. een echte fetch, alleen om de
@@ -465,6 +470,7 @@ export function usePrs(
           tauriFetch,
           threads,
           pr.authoredByMe,
+          commitOid,
         );
       } catch (error) {
         if (error instanceof AuthError) {
@@ -486,15 +492,18 @@ export function usePrs(
         body,
         pr.authoredByMe,
         reviewDraftStore,
-        (e, b, threads) => sendReview(pr, e, b, threads),
+        (e, b, threads, commitOid) => sendReview(pr, e, b, threads, commitOid),
       ),
     [sendReview],
   );
 
   const submitThread = useCallback(
-    (pr: PullRequest, thread: DraftThread) =>
-      submitSingleThread(keyOfPr(pr), thread, (e, b, threads) =>
-        sendReview(pr, e, b, threads),
+    (pr: PullRequest, thread: DraftThread, commitOid: string) =>
+      submitSingleThread(
+        keyOfPr(pr),
+        thread,
+        commitOid,
+        (e, b, threads, commit) => sendReview(pr, e, b, threads, commit),
       ),
     [sendReview],
   );

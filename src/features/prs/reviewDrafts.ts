@@ -7,6 +7,9 @@ import type { DiffFile } from "./diffParse";
 export interface ReviewDraft extends DraftThread {
   id: string;
   createdAt: string;
+  /** Head-commit van de geladen diff toen het concept ontstond; "" als die
+   * onbekend was. `line` en `side` gelden alleen binnen die commit. */
+  commitOid: string;
 }
 
 const DIFF_SIDES: Record<DiffSide, true> = { LEFT: true, RIGHT: true };
@@ -23,7 +26,8 @@ function isDraft(value: unknown): value is ReviewDraft {
     typeof v.side === "string" &&
     Object.keys(DIFF_SIDES).includes(v.side) &&
     typeof v.body === "string" &&
-    typeof v.createdAt === "string"
+    typeof v.createdAt === "string" &&
+    (v.commitOid === undefined || typeof v.commitOid === "string")
   );
 }
 
@@ -33,7 +37,12 @@ export function loadDrafts(prKey: string): ReviewDraft[] {
     const parsed: unknown = JSON.parse(
       localStorage.getItem(storageKey(prKey)) ?? "null",
     );
-    return Array.isArray(parsed) ? parsed.filter(isDraft) : [];
+    // Concepten van vóór `commitOid` houden hun tekst, met een onbekende commit.
+    return Array.isArray(parsed)
+      ? parsed
+          .filter(isDraft)
+          .map((d) => ({ ...d, commitOid: d.commitOid ?? "" }))
+      : [];
   } catch {
     return [];
   }
@@ -47,6 +56,19 @@ export function saveDrafts(
 ): void {
   if (drafts.length === 0) localStorage.removeItem(storageKey(prKey));
   else localStorage.setItem(storageKey(prKey), JSON.stringify(drafts));
+}
+
+/** De ene commit waar alle concepten bij horen, zodat de review hun regels
+ * daarop verankert en niet op wat er na een push op dat regelnummer staat.
+ * Gooit als ze bij verschillende commits horen: één review kent één commit. */
+export function draftsCommit(drafts: readonly ReviewDraft[]): string {
+  const commits = new Set(drafts.map((d) => d.commitOid));
+  if (commits.size > 1) {
+    throw new Error(
+      "De concepten horen bij verschillende versies van de PR. Verwijder de concepten van de oudere versie en plaats ze opnieuw.",
+    );
+  }
+  return drafts[0]?.commitOid ?? "";
 }
 
 export function draftsToThreads(drafts: readonly ReviewDraft[]): DraftThread[] {
@@ -89,8 +111,9 @@ export interface DraftStore {
   /** Stabiele array zolang er niets verandert (voor useSyncExternalStore). */
   get(prKey: string): readonly ReviewDraft[];
   subscribe(prKey: string, listener: () => void): () => void;
-  /** Null bij een lege opmerking. */
-  add(prKey: string, input: DraftThread): ReviewDraft | null;
+  /** Null bij een lege opmerking. `commitOid` is de head-commit van de diff
+   * waarop het concept geschreven is. */
+  add(prKey: string, input: DraftThread, commitOid: string): ReviewDraft | null;
   edit(prKey: string, id: string, body: string): void;
   remove(prKey: string, ids: readonly string[]): void;
   /** De inspector meldt welke concepten buiten de diff vallen, zodat ook het
@@ -154,12 +177,13 @@ export function createDraftStore(
         bucket.delete(listener);
       };
     },
-    add(prKey, input) {
+    add(prKey, input, commitOid) {
       if (input.body.trim() === "") return null;
       const draft: ReviewDraft = {
         id: newId(),
         ...input,
         createdAt: now().toISOString(),
+        commitOid,
       };
       set(prKey, [...get(prKey), draft]);
       return draft;

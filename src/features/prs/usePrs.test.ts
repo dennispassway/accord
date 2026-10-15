@@ -312,19 +312,40 @@ describe("submitWithDrafts", () => {
 
   it("stuurt de concepten van deze PR als threads mee en wist ze na succes", async () => {
     const { store, send } = setup();
-    store.add("a/x#1", input);
-    store.add("b/x#1", { ...input, body: "andere repo" });
+    store.add("a/x#1", input, "c1");
+    store.add("b/x#1", { ...input, body: "andere repo" }, "c1");
     await submitWithDrafts("a/x#1", "APPROVE", "", false, store, send);
-    expect(send).toHaveBeenCalledWith("APPROVE", "", [
-      { path: "a.ts", line: 3, side: "RIGHT", body: "Kijk" },
-    ]);
+    expect(send).toHaveBeenCalledWith(
+      "APPROVE",
+      "",
+      [{ path: "a.ts", line: 3, side: "RIGHT", body: "Kijk" }],
+      "c1",
+    );
     expect(store.get("a/x#1")).toEqual([]);
     expect(store.get("b/x#1")).toHaveLength(1);
   });
 
+  it("verankert de concepten op de commit waarop ze geschreven zijn", async () => {
+    const { store, send } = setup();
+    store.add("a/x#1", input, "oud");
+    await submitWithDrafts("a/x#1", "COMMENT", "", false, store, send);
+    expect(send).toHaveBeenCalledWith("COMMENT", "", [input], "oud");
+  });
+
+  it("weigert concepten van verschillende commits en laat ze staan", async () => {
+    const { store, send } = setup();
+    store.add("a/x#1", input, "oud");
+    store.add("a/x#1", { ...input, line: 9 }, "nieuw");
+    await expect(
+      submitWithDrafts("a/x#1", "COMMENT", "", false, store, send),
+    ).rejects.toThrow("verschillende versies");
+    expect(send).not.toHaveBeenCalled();
+    expect(store.get("a/x#1")).toHaveLength(2);
+  });
+
   it("laat de concepten staan als versturen faalt", async () => {
     const { store } = setup();
-    store.add("a/x#1", input);
+    store.add("a/x#1", input, "c1");
     const send = vi.fn(async () => {
       throw new Error("GitHub zegt nee");
     });
@@ -336,9 +357,9 @@ describe("submitWithDrafts", () => {
 
   it("wist een concept dat tijdens het versturen is bijgekomen niet", async () => {
     const { store } = setup();
-    store.add("a/x#1", input);
+    store.add("a/x#1", input, "c1");
     const send = vi.fn(async () => {
-      store.add("a/x#1", { ...input, line: 9, body: "later" });
+      store.add("a/x#1", { ...input, line: 9, body: "later" }, "c1");
     });
     await submitWithDrafts("a/x#1", "COMMENT", "", false, store, send);
     expect(store.get("a/x#1").map((d) => d.body)).toEqual(["later"]);
@@ -346,7 +367,7 @@ describe("submitWithDrafts", () => {
 
   it("wist een concept dat tijdens het versturen is bewerkt niet", async () => {
     const { store } = setup();
-    store.add("a/x#1", input);
+    store.add("a/x#1", input, "c1");
     const send = vi.fn(async () => {
       store.edit("a/x#1", "id1", "bewerkt na verzenden");
     });
@@ -368,14 +389,14 @@ describe("submitWithDrafts", () => {
 
   it("laat reageren zonder tekst toe met concepten", async () => {
     const { store, send } = setup();
-    store.add("a/x#1", input);
+    store.add("a/x#1", input, "c1");
     await submitWithDrafts("a/x#1", "COMMENT", "", false, store, send);
     expect(send).toHaveBeenCalledTimes(1);
   });
 
   it("weigert changes vragen zonder tekst ook met concepten", async () => {
     const { store, send } = setup();
-    store.add("a/x#1", input);
+    store.add("a/x#1", input, "c1");
     await expect(
       submitWithDrafts("a/x#1", "REQUEST_CHANGES", "", false, store, send),
     ).rejects.toThrow("Een reactie is verplicht bij changes vragen");
@@ -385,7 +406,7 @@ describe("submitWithDrafts", () => {
 
   it("weigert goedkeuren van een eigen PR en laat de concepten staan", async () => {
     const { store, send } = setup();
-    store.add("a/x#1", input);
+    store.add("a/x#1", input, "c1");
     await expect(
       submitWithDrafts("a/x#1", "APPROVE", "", true, store, send),
     ).rejects.toThrow("Je kunt je eigen PR niet goedkeuren");
@@ -395,7 +416,7 @@ describe("submitWithDrafts", () => {
 
   it("weigert een tweede review op dezelfde PR terwijl de eerste loopt", async () => {
     const { store } = setup();
-    store.add("a/x#1", input);
+    store.add("a/x#1", input, "c1");
     let release: () => void = () => {};
     const slow = vi.fn(
       () =>
@@ -447,8 +468,8 @@ describe("submitSingleThread", () => {
 
   it("stuurt één COMMENT-review met alleen deze thread", async () => {
     const send = vi.fn(async () => {});
-    await submitSingleThread("a/x#2", thread, send);
-    expect(send).toHaveBeenCalledWith("COMMENT", "", [thread]);
+    await submitSingleThread("a/x#2", thread, "c9", send);
+    expect(send).toHaveBeenCalledWith("COMMENT", "", [thread], "c9");
   });
 
   it("deelt het slot met de andere reviewroutes van dezelfde PR", async () => {
@@ -464,14 +485,14 @@ describe("submitSingleThread", () => {
           release = resolve;
         }),
     );
-    const loose = submitSingleThread("a/x#3", thread, slow);
+    const loose = submitSingleThread("a/x#3", thread, "c1", slow);
     await expect(
       submitWithDrafts("a/x#3", "APPROVE", "", false, store, async () => {}),
     ).rejects.toThrow("Er wordt al een review verstuurd");
     release();
     await loose;
     await expect(
-      submitSingleThread("a/x#3", thread, async () => {}),
+      submitSingleThread("a/x#3", thread, "c1", async () => {}),
     ).resolves.toBeUndefined();
   });
 });

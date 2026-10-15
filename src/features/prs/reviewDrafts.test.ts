@@ -3,6 +3,7 @@ import { parseDiff } from "./diffParse";
 import {
   createDraftStore,
   type DraftStore,
+  draftsCommit,
   draftsOutsideDiff,
   draftsToThreads,
   loadDrafts,
@@ -47,6 +48,7 @@ const draft = (over: Partial<ReviewDraft> = {}): ReviewDraft => ({
   side: "RIGHT",
   body: "Let hierop",
   createdAt: "2026-10-12T10:00:00.000Z",
+  commitOid: "c1",
   ...over,
 });
 
@@ -112,6 +114,30 @@ describe("loadDrafts / saveDrafts", () => {
     );
     expect(loadDrafts("acme/a#42")).toEqual([draft()]);
   });
+
+  it("houdt een concept zonder commit, met een onbekende commit", () => {
+    const { commitOid: _, ...legacy } = draft();
+    localStorage.setItem(KEY, JSON.stringify([legacy]));
+    expect(loadDrafts("acme/a#42")).toEqual([draft({ commitOid: "" })]);
+  });
+});
+
+describe("draftsCommit", () => {
+  it("geeft de commit die alle concepten delen", () => {
+    expect(draftsCommit([draft(), draft({ id: "d2", commitOid: "c1" })])).toBe(
+      "c1",
+    );
+  });
+
+  it("geeft een lege commit zonder concepten", () => {
+    expect(draftsCommit([])).toBe("");
+  });
+
+  it("gooit als de concepten bij verschillende commits horen", () => {
+    expect(() =>
+      draftsCommit([draft(), draft({ id: "d2", commitOid: "c2" })]),
+    ).toThrow("verschillende versies");
+  });
 });
 
 describe("draftsToThreads", () => {
@@ -137,13 +163,14 @@ describe("createDraftStore", () => {
   };
   const input = { path: "a.ts", line: 3, side: "RIGHT" as const, body: "Kijk" };
 
-  it("voegt toe met id en createdAt en bewaart het", () => {
+  it("voegt toe met id, createdAt en commit en bewaart het", () => {
     const store = make();
-    const added = store.add("r#1", input);
+    const added = store.add("r#1", input, "c1");
     expect(added).toEqual({
       id: "id1",
       ...input,
       createdAt: "2026-10-13T09:00:00.000Z",
+      commitOid: "c1",
     });
     expect(store.get("r#1")).toEqual([added]);
     expect(loadDrafts("r#1")).toEqual([added]);
@@ -151,13 +178,13 @@ describe("createDraftStore", () => {
 
   it("weigert een lege of witruimte-opmerking", () => {
     const store = make();
-    expect(store.add("r#1", { ...input, body: "  " })).toBeNull();
+    expect(store.add("r#1", { ...input, body: "  " }, "c1")).toBeNull();
     expect(store.get("r#1")).toEqual([]);
   });
 
   it("geeft dezelfde array terug zolang er niets verandert", () => {
     const store = make();
-    store.add("r#1", input);
+    store.add("r#1", input, "c1");
     expect(store.get("r#1")).toBe(store.get("r#1"));
     expect(store.get("r#2")).toBe(store.get("r#2"));
   });
@@ -169,15 +196,15 @@ describe("createDraftStore", () => {
 
   it("past de tekst van één concept aan en laat de rest staan", () => {
     const store = make();
-    store.add("r#1", input);
-    store.add("r#1", { ...input, line: 4 });
+    store.add("r#1", input, "c1");
+    store.add("r#1", { ...input, line: 4 }, "c1");
     store.edit("r#1", "id1", "Anders");
     expect(store.get("r#1").map((d) => d.body)).toEqual(["Anders", "Kijk"]);
   });
 
   it("maakt geen nieuw object en meldt niets als de tekst gelijk blijft", () => {
     const store = make();
-    store.add("r#1", input);
+    store.add("r#1", input, "c1");
     const before = store.get("r#1");
     let calls = 0;
     store.subscribe("r#1", () => calls++);
@@ -189,24 +216,24 @@ describe("createDraftStore", () => {
 
   it("negeert een bewerking naar een lege tekst", () => {
     const store = make();
-    store.add("r#1", input);
+    store.add("r#1", input, "c1");
     store.edit("r#1", "id1", " ");
     expect(store.get("r#1")[0]?.body).toBe("Kijk");
   });
 
   it("verwijdert alleen de genoemde ids", () => {
     const store = make();
-    store.add("r#1", input);
-    store.add("r#1", { ...input, line: 4 });
-    store.add("r#1", { ...input, line: 5 });
+    store.add("r#1", input, "c1");
+    store.add("r#1", { ...input, line: 4 }, "c1");
+    store.add("r#1", { ...input, line: 5 }, "c1");
     store.remove("r#1", ["id1", "id3"]);
     expect(store.get("r#1").map((d) => d.id)).toEqual(["id2"]);
   });
 
   it("verwijdert met removeIfUnchanged alleen concepten die nog hetzelfde object zijn", () => {
     const store = make();
-    store.add("r#1", input);
-    store.add("r#1", { ...input, line: 4 });
+    store.add("r#1", input, "c1");
+    store.add("r#1", { ...input, line: 4 }, "c1");
     const sent = store.get("r#1");
     store.edit("r#1", "id1", "bewerkt");
     store.removeIfUnchanged("r#1", sent);
@@ -215,8 +242,8 @@ describe("createDraftStore", () => {
 
   it("telt de concepten buiten de diff die de inspector heeft gemeld", () => {
     const store = make();
-    store.add("r#1", input);
-    store.add("r#1", { ...input, line: 4 });
+    store.add("r#1", input, "c1");
+    store.add("r#1", { ...input, line: 4 }, "c1");
     expect(store.outsideCount("r#1")).toBe(0);
     let calls = 0;
     store.subscribe("r#1", () => calls++);
@@ -230,8 +257,8 @@ describe("createDraftStore", () => {
 
   it("wist alles van één PR en laat een andere PR met hetzelfde nummer staan", () => {
     const store = make();
-    store.add("a/x#1", input);
-    store.add("b/x#1", input);
+    store.add("a/x#1", input, "c1");
+    store.add("b/x#1", input, "c1");
     store.clear("a/x#1");
     expect(store.get("a/x#1")).toEqual([]);
     expect(store.get("b/x#1")).toHaveLength(1);
@@ -244,17 +271,17 @@ describe("createDraftStore", () => {
     const other: string[] = [];
     const off = store.subscribe("r#1", () => mine.push("x"));
     store.subscribe("r#2", () => other.push("x"));
-    store.add("r#1", input);
+    store.add("r#1", input, "c1");
     expect(mine).toHaveLength(1);
     expect(other).toHaveLength(0);
     off();
-    store.add("r#1", { ...input, line: 9 });
+    store.add("r#1", { ...input, line: 9 }, "c1");
     expect(mine).toHaveLength(1);
   });
 
   it("meldt niets bij een verwijdering van een onbekend id", () => {
     const store = make();
-    store.add("r#1", input);
+    store.add("r#1", input, "c1");
     let calls = 0;
     store.subscribe("r#1", () => calls++);
     store.remove("r#1", ["bestaat-niet"]);
@@ -268,7 +295,7 @@ describe("createDraftStore", () => {
         throw new Error("vol");
       },
     });
-    expect(() => store.add("r#1", input)).not.toThrow();
+    expect(() => store.add("r#1", input, "c1")).not.toThrow();
     expect(store.get("r#1")).toHaveLength(1);
   });
 });
