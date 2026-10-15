@@ -58,6 +58,8 @@ describe("detailFromCache", () => {
 
 function detail(overrides: Partial<PrDetail> = {}): PrDetail {
   return {
+    body: "",
+    headSha: "",
     diff: "",
     diffTooLarge: false,
     issueComments: [],
@@ -66,6 +68,7 @@ function detail(overrides: Partial<PrDetail> = {}): PrDetail {
         id: "thread-1",
         path: "src/index.ts",
         line: 3,
+        diffSide: "RIGHT",
         isResolved: false,
         viewerCanReply: true,
         viewerCanResolve: true,
@@ -76,6 +79,7 @@ function detail(overrides: Partial<PrDetail> = {}): PrDetail {
         id: "thread-2",
         path: "src/other.ts",
         line: null,
+        diffSide: "RIGHT",
         isResolved: true,
         viewerCanReply: false,
         viewerCanResolve: false,

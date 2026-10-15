@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildUnifiedItems } from "./diffModel";
 import { parseDiff } from "./diffParse";
 
 const SAMPLE = `diff --git a/src/foo.ts b/src/foo.ts
@@ -85,5 +86,91 @@ Binary files a/img.png and b/img.png differ
 `;
     const [file] = parseDiff(binaryDiff);
     expect(file?.lines.map((l) => l.kind)).toEqual(["meta", "meta"]);
+  });
+
+  it.each([
+    "old mode 100644",
+    "new mode 100755",
+    "copy from a.ts",
+    "copy to b.ts",
+    "dissimilarity index 20%",
+  ])("ziet %s vóór de eerste hunk als meta", (header) => {
+    const [file] = parseDiff(`diff --git a/a.ts b/b.ts\n${header}\n`);
+    expect(file?.lines.map((l) => l.kind)).toEqual(["meta"]);
+  });
+
+  it("laat in een hunk alleen het eerste teken het kind bepalen", () => {
+    const [file] = parseDiff(`diff --git a/a.md b/a.md
+--- a/a.md
++++ b/a.md
+@@ -1,4 +1,4 @@
+--- x
+----
+++i
+ ctx
+\\ No newline at end of file
+`);
+    expect(file?.lines.map((l) => l.kind)).toEqual([
+      "meta",
+      "meta",
+      "hunk",
+      "del",
+      "del",
+      "add",
+      "context",
+      "context",
+    ]);
+  });
+
+  it("houdt regelnummers kloppend na een verwijderde '-- x'-regel", () => {
+    const [file] = parseDiff(`diff --git a/a.sql b/a.sql
+--- a/a.sql
++++ b/a.sql
+@@ -1,3 +1,2 @@
+--- commentaar
+ select 1;
+ select 2;
+`);
+    const rows = buildUnifiedItems(file?.lines ?? []).filter(
+      (item) => item.kind === "row",
+    );
+    expect(rows.map((r) => [r.oldNo, r.newNo])).toEqual([
+      [1, null],
+      [2, 1],
+      [3, 2],
+    ]);
+  });
+
+  it("herkent gequote paden met spaties", () => {
+    const [file] = parseDiff(`diff --git "a/x y.txt" "b/x y.txt"
+--- "a/x y.txt"
++++ "b/x y.txt"
+@@ -1 +1 @@
+-a
++b
+`);
+    expect(file?.path).toBe("x y.txt");
+  });
+
+  it("zet octale escapes om naar UTF-8", () => {
+    const [file] =
+      parseDiff(`diff --git "a/caf\\303\\251.txt" "b/caf\\303\\251.txt"
+new file mode 100644
+`);
+    expect(file?.path).toBe("café.txt");
+  });
+
+  it('verwerkt \\", \\\\, \\t en \\n in een gequote pad', () => {
+    expect(
+      parseDiff(`diff --git "a/q\\"u\\\\o\\tt\\ne" "b/q\\"u\\\\o\\tt\\ne"\n`)[0]
+        ?.path,
+    ).toBe('q"u\\o\tt\ne');
+  });
+
+  it("herkent een rename met één gequote kant", () => {
+    const [file] = parseDiff(
+      `diff --git a/old.txt "b/n\\303\\251w.txt"\nsimilarity index 100%\n`,
+    );
+    expect(file?.path).toBe("néw.txt");
   });
 });

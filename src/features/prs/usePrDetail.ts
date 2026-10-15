@@ -1,9 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import { deriveAuthor } from "../../lib/github/domain";
+import { fetchFileLines } from "../../lib/github/fileContents";
 import type { PrComment, PrDetail } from "../../lib/github/prDetail";
 import { fetchPrDetail } from "../../lib/github/prDetail";
+import { fetchPrFiles } from "../../lib/github/prFiles";
 import { AuthError } from "../../lib/github/queries";
 import { tauriFetch } from "../../lib/github/tauriFetch";
 import { replyToThread, setThreadResolved } from "../../lib/github/threads";
@@ -11,9 +13,12 @@ import {
   MOCK_PR_DETAIL_FALLBACK,
   MOCK_PR_DETAILS,
 } from "../../lib/mock/detailFixtures";
+import { mockFileLines, newSideLines } from "../../lib/mock/fileLines";
 import { MOCK_ME } from "../../lib/mock/fixtures";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
+import { type DiffFile, parseDiff } from "./diffParse";
 import { keyOfPr } from "./PrList";
+import { diffFilesFromPrFiles } from "./prFilesDiff";
 
 const IS_MOCK = isMockApp(mockMode());
 // QA-foutpad voor de inspector: ?mock=app&detailfout dwingt altijd een
@@ -233,23 +238,33 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
     [prKey, pr.repoId, pr.number],
   );
 
-  const withToken = useCallback(
-    async (
-      mutate: (token: string) => Promise<void>,
-      applyLocally: (detail: PrDetail) => PrDetail,
-    ) => {
+  /** Actie met het bewaarde token; een afgewezen token meldt de caller en
+   * gooit door, zodat de aanroeper zijn eigen foutregel toont. */
+  const withReadToken = useCallback(
+    async <T>(run: (token: string) => Promise<T>): Promise<T> => {
       const token = await invoke<string | null>("get_token");
       if (token == null || token === "") {
         throw new Error("Geen GitHub-token gevonden.");
       }
       try {
-        await mutate(token);
+        return await run(token);
       } catch (error) {
-        if (error instanceof AuthError) {
-          onAuthErrorRef.current();
-        }
+        if (error instanceof AuthError) onAuthErrorRef.current();
         throw error;
       }
+    },
+    [],
+  );
+
+  const withToken = useCallback(
+    async (
+      mutate: (token: string) => Promise<void>,
+      applyLocally: (detail: PrDetail) => PrDetail,
+    ) => {
+      const token = await withReadToken(async (t) => {
+        await mutate(t);
+        return t;
+      });
       // De mutatie is al geslaagd; de refetch is best-effort. Faalt hij, dan
       // mag dat niet als mutatiefout naar de gebruiker (zie
       // stateAfterFailedRefetch hierboven).
@@ -264,8 +279,21 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
         );
       }
     },
-    [refetchAfterMutation],
+    [refetchAfterMutation, withReadToken],
   );
+
+  /** Ververst de detail op de achtergrond, zonder laadscherm: voor na een
+   * review die elders (usePrs) is verstuurd. Best-effort: de review is dan al
+   * geslaagd, een mislukte refetch mag geen fout opleveren. */
+  const refetch = useCallback(async () => {
+    if (IS_MOCK) return;
+    const seq = ++mutationSeqRef.current;
+    try {
+      await withReadToken((token) => refetchAfterMutation(token, seq));
+    } catch {
+      // De oude detail blijft staan.
+    }
+  }, [refetchAfterMutation, withReadToken]);
 
   const reply = useCallback(
     async (threadId: string, body: string) => {
@@ -317,12 +345,71 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
     [withToken],
   );
 
+  const fileCacheRef = useRef(new Map<string, Promise<string[]>>());
+  const detail = state.detail;
+  const headSha = detail?.headSha ?? "";
+  const diffText = detail?.diff ?? "";
+  const detailKey = `${prKey}:${headSha}`;
+
+  /** Regels van één bestand op de head-commit, één keer opgehaald per
+   * PR-sleutel, commit en pad. Een mislukte poging blijft niet in de cache. */
+  const loadFileLines = useCallback(
+    (path: string): Promise<string[]> => {
+      if (IS_MOCK) {
+        return Promise.resolve(mockFileLines(newSideLines(diffText, path)));
+      }
+      if (headSha === "") return Promise.reject(new Error("Geen commit."));
+      const cacheKey = `${prKey}:${headSha}:${path}`;
+      const hit = fileCacheRef.current.get(cacheKey);
+      if (hit != null) return hit;
+      const pending = withReadToken((token) =>
+        fetchFileLines(token, pr.repoId, path, headSha, tauriFetch),
+      );
+      fileCacheRef.current.set(cacheKey, pending);
+      pending.catch(() => fileCacheRef.current.delete(cacheKey));
+      return pending;
+    },
+    [prKey, headSha, diffText, pr.repoId, withReadToken],
+  );
+
+  // De bestanden uit /pulls/{n}/files voor een PR waarvan het diff-endpoint
+  // 406 gaf. Ze horen bij PR + commit en gelden alleen zolang de detail
+  // nog te groot is.
+  const [perFile, setPerFile] = useState<{
+    key: string;
+    files: DiffFile[];
+  } | null>(null);
+  const perFileFiles =
+    detail?.diffTooLarge === true && perFile?.key === detailKey
+      ? perFile.files
+      : null;
+  const files = useMemo(
+    () => perFileFiles ?? (detail ? parseDiff(detail.diff) : []),
+    [perFileFiles, detail],
+  );
+
+  const loadPerFile = useCallback(async (): Promise<void> => {
+    if (IS_MOCK) return;
+    const loaded = await withReadToken((token) =>
+      fetchPrFiles(token, pr.repoId, pr.number, tauriFetch),
+    );
+    // Net als refetchAfterMutation: een antwoord dat landt nadat de
+    // gebruiker naar een andere PR ging mag geen state meer zetten.
+    if (currentKeyRef.current !== prKey) return;
+    setPerFile({ key: detailKey, files: diffFilesFromPrFiles(loaded) });
+  }, [prKey, detailKey, pr.repoId, pr.number, withReadToken]);
+
   return {
     status: state.status,
     detail: state.detail,
     error: state.error,
+    files,
+    diffTooLarge: detail?.diffTooLarge === true && perFileFiles === null,
     retry,
+    refetch,
     reply,
     setResolved,
+    loadFileLines,
+    loadPerFile,
   };
 }

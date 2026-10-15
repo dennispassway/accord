@@ -51,7 +51,7 @@ import { isTypingTarget, listKeyToMove } from "./listKeyToMove";
 import { loadMethod } from "./MergeSection";
 import { isAnyMenuOverlayOpen } from "./menuOverlay";
 import { PrContextMenu } from "./PrContextMenu";
-import { PrInspector } from "./PrInspector";
+import { type InspectorSection, PrInspector } from "./PrInspector";
 import { keyOfPr, PrList } from "./PrList";
 import { PANEL_BOUNDS } from "./panelLayout";
 import { ResizeHandle } from "./ResizeHandle";
@@ -162,6 +162,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     refresh,
     mergePr,
     submitReview,
+    submitThread,
     clearRefreshError,
     refreshing,
   } = usePrs(onAuthError, (flippedPrs) => {
@@ -289,7 +290,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [inspector, setInspector] = useState<null | {
-    tab: "diff" | "comments";
+    tab: InspectorSection;
     key: string;
   }>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -1335,9 +1336,22 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       {inspector != null && selectedPr != null && (
         <PrInspector
           pr={selectedPr}
-          initialTab={inspector.tab}
+          initialSection={inspector.tab}
           onClose={() => setInspector(null)}
           onAuthError={onAuthError}
+          onSubmitReview={async (event, body) => {
+            try {
+              await handleSubmitReview(selectedPr, event, body);
+            } catch (error) {
+              // De inspector kan intussen dicht zijn: de fout mag niet stil blijven.
+              showToast(errorMessage(error), "fout");
+              throw error;
+            }
+          }}
+          onSubmitThread={async (thread, commitOid) => {
+            await submitThread(selectedPr, thread, commitOid);
+            showToast(`Opmerking geplaatst op #${selectedPr.number}`, "ok");
+          }}
           onFixComments={
             inspectorFixer == null || runningPrKeys.has(keyOfPr(selectedPr))
               ? undefined

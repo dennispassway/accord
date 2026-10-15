@@ -1,8 +1,15 @@
 /**
- * Bouwt GitHub-achtige split-view items (oud links, nieuw rechts) uit de
- * platte regellijst van parseDiff. Pure functie, geen state.
+ * GitHub-achtige split-view items (oud links, nieuw rechts), opgebouwd uit de
+ * unified items: alleen een del-run met de add-run die direct volgt wordt
+ * naast elkaar gezet.
  */
-import type { DiffLine } from "./diffParse";
+import {
+  lineKey,
+  type UnifiedHunk,
+  type UnifiedItem,
+  type UnifiedRow,
+} from "./diffModel";
+import { type Segment, wordDiff } from "./wordDiff";
 
 interface SplitCell {
   kind: "add" | "del" | "context" | "empty";
@@ -10,79 +17,77 @@ interface SplitCell {
   lineNo: number | null;
 }
 
-export type SplitItem =
-  | { kind: "row"; left: SplitCell; right: SplitCell }
-  | { kind: "hunk"; text: string }
-  | { kind: "meta"; text: string };
+export type SplitRow = { kind: "row"; left: SplitCell; right: SplitCell };
+export type SplitItem = SplitRow | UnifiedHunk;
 
-const HUNK_HEADER = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+const EMPTY: SplitCell = { kind: "empty", text: "", lineNo: null };
 
-export function buildSplitItems(lines: DiffLine[]): SplitItem[] {
+export function splitFromUnified(unified: readonly UnifiedItem[]): SplitItem[] {
   const items: SplitItem[] = [];
-  let oldNo = 0;
-  let newNo = 0;
-  let delBuf: string[] = [];
-  let addBuf: string[] = [];
 
-  function flush() {
-    const len = Math.max(delBuf.length, addBuf.length);
-    for (let i = 0; i < len; i++) {
-      const delText = delBuf[i];
-      const addText = addBuf[i];
-      const left: SplitCell =
-        delText !== undefined
-          ? { kind: "del", text: delText, lineNo: oldNo++ }
-          : { kind: "empty", text: "", lineNo: null };
-      const right: SplitCell =
-        addText !== undefined
-          ? { kind: "add", text: addText, lineNo: newNo++ }
-          : { kind: "empty", text: "", lineNo: null };
-      items.push({ kind: "row", left, right });
+  function run(from: number, type: UnifiedRow["type"]): UnifiedRow[] {
+    const rows: UnifiedRow[] = [];
+    for (let i = from; i < unified.length; i++) {
+      const item = unified[i];
+      if (item?.kind !== "row" || item.type !== type) break;
+      rows.push(item);
     }
-    delBuf = [];
-    addBuf = [];
+    return rows;
   }
 
-  for (const line of lines) {
-    // "\ No newline at end of file" is geen echte regel: overslaan, geen
-    // flush en geen tellerwijziging, anders breekt de del/add-paring.
-    if (line.text.startsWith("\\")) continue;
-    if (line.kind === "hunk") {
-      flush();
-      const match = line.text.match(HUNK_HEADER);
-      if (match) {
-        oldNo = Number(match[1]);
-        newNo = Number(match[2]);
+  let i = 0;
+  while (i < unified.length) {
+    const item = unified[i];
+    if (item === undefined) break;
+    if (item.kind === "hunk") {
+      items.push(item);
+      i++;
+    } else if (item.type === "context") {
+      const cell = { kind: "context", text: item.text } as const;
+      items.push({
+        kind: "row",
+        left: { ...cell, lineNo: item.oldNo },
+        right: { ...cell, lineNo: item.newNo },
+      });
+      i++;
+    } else {
+      const dels = run(i, "del");
+      const adds = run(i + dels.length, "add");
+      for (let n = 0; n < Math.max(dels.length, adds.length); n++) {
+        const del = dels[n];
+        const add = adds[n];
+        items.push({
+          kind: "row",
+          left: del
+            ? { kind: "del", text: del.text, lineNo: del.oldNo }
+            : EMPTY,
+          right: add
+            ? { kind: "add", text: add.text, lineNo: add.newNo }
+            : EMPTY,
+        });
       }
-      items.push({ kind: "hunk", text: line.text });
-      continue;
+      i += dels.length + adds.length;
     }
-    if (line.kind === "meta") {
-      flush();
-      items.push({ kind: "meta", text: line.text });
-      continue;
-    }
-    if (line.kind === "del") {
-      // Twee change-blokken direct na elkaar (zonder context): nieuwe
-      // del-run start, vorige paring afronden.
-      if (addBuf.length > 0) flush();
-      delBuf.push(line.text.slice(1));
-      continue;
-    }
-    if (line.kind === "add") {
-      addBuf.push(line.text.slice(1));
-      continue;
-    }
-    // context
-    flush();
-    const text = line.text.slice(1);
-    items.push({
-      kind: "row",
-      left: { kind: "context", text, lineNo: oldNo++ },
-      right: { kind: "context", text, lineNo: newNo++ },
-    });
   }
-  flush();
 
   return items;
+}
+
+/** Woordmarkering per regel (sleutel: `lineKey`) voor de rijen die split naast
+ * elkaar zet: de i-de verwijderde met de i-de toegevoegde regel van een blok.
+ * Alleen regels met een echt verschil. */
+export function wordSegments(
+  items: readonly UnifiedItem[],
+): Map<string, Segment[]> {
+  const out = new Map<string, Segment[]>();
+  for (const item of splitFromUnified(items)) {
+    if (item.kind !== "row") continue;
+    const { left, right } = item;
+    if (left.kind !== "del" || right.kind !== "add") continue;
+    const diff = wordDiff(left.text, right.text);
+    if (![...diff.old, ...diff.new].some((s) => s.changed)) continue;
+    out.set(lineKey("del", left.lineNo, null), diff.old);
+    out.set(lineKey("add", null, right.lineNo), diff.new);
+  }
+  return out;
 }

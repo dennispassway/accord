@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AuthError, GithubApiError } from "./queries";
-import { submitReview } from "./review";
+import { reviewBlockedReason, submitReview } from "./review";
 
 type Call = { url: string; body: { query: string; variables: unknown } };
 
@@ -117,5 +117,177 @@ describe("submitReview", () => {
     await expect(call).rejects.toThrow(GithubApiError);
     await expect(call).rejects.toThrow(/rate limit/);
     await expect(call).rejects.toThrow(/retry-after: 30s/);
+  });
+});
+
+describe("submitReview met regelopmerkingen", () => {
+  const ok = () =>
+    fakeFetch(
+      json(200, {
+        data: { addPullRequestReview: { pullRequestReview: { id: "PRR_1" } } },
+      }),
+    );
+  const thread = {
+    path: "src/a.ts",
+    line: 12,
+    side: "RIGHT" as const,
+    body: "Waarom hier?",
+  };
+
+  it("stuurt threads mee als variabele en declareert ze in de mutatie", async () => {
+    const { fetchImpl, calls } = ok();
+
+    await submitReview("token", "PR_1", "COMMENT", "", fetchImpl, [thread]);
+
+    expect(calls[0]?.body.variables).toEqual({
+      pullRequestId: "PR_1",
+      event: "COMMENT",
+      body: "",
+      threads: [thread],
+    });
+    expect(calls[0]?.body.query).toContain("DraftPullRequestReviewThread");
+  });
+
+  it("geeft de commit van de threads mee als commitOID", async () => {
+    const { fetchImpl, calls } = ok();
+
+    await submitReview(
+      "token",
+      "PR_1",
+      "COMMENT",
+      "",
+      fetchImpl,
+      [thread],
+      false,
+      "abc123",
+    );
+
+    expect(calls[0]?.body.variables).toMatchObject({ commitOID: "abc123" });
+    expect(calls[0]?.body.query).toContain("commitOID: $commitOID");
+  });
+
+  it("laat commitOID weg zonder threads", async () => {
+    const { fetchImpl, calls } = ok();
+
+    await submitReview(
+      "token",
+      "PR_1",
+      "APPROVE",
+      "",
+      fetchImpl,
+      [],
+      false,
+      "abc123",
+    );
+
+    expect(calls[0]?.body.variables).not.toHaveProperty("commitOID");
+  });
+
+  it("laat threads weg bij een lege lijst", async () => {
+    const { fetchImpl, calls } = ok();
+
+    await submitReview("token", "PR_1", "APPROVE", "", fetchImpl, []);
+
+    expect(calls[0]?.body.variables).not.toHaveProperty("threads");
+  });
+
+  it("weigert goedkeuren van een eigen PR zonder aanvraag", async () => {
+    const { fetchImpl, calls } = ok();
+    await expect(
+      submitReview("token", "PR_1", "APPROVE", "", fetchImpl, [], true),
+    ).rejects.toThrow("Je kunt je eigen PR niet goedkeuren");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("staat reageren op een eigen PR toe", async () => {
+    const { fetchImpl } = ok();
+    await expect(
+      submitReview("token", "PR_1", "COMMENT", "Hoi", fetchImpl, [], true),
+    ).resolves.toBeUndefined();
+  });
+
+  it("staat reageren zonder tekst toe als er een thread is", async () => {
+    const { fetchImpl } = ok();
+    await expect(
+      submitReview("token", "PR_1", "COMMENT", "  ", fetchImpl, [thread]),
+    ).resolves.toBeUndefined();
+  });
+
+  it("weigert changes vragen zonder tekst ook als er een thread is", async () => {
+    const { fetchImpl, calls } = ok();
+    await expect(
+      submitReview("token", "PR_1", "REQUEST_CHANGES", "", fetchImpl, [thread]),
+    ).rejects.toThrow(/verplicht/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("behandelt null en undefined als lege tekst", async () => {
+    const { fetchImpl, calls } = ok();
+    await expect(
+      submitReview(
+        "token",
+        "PR_1",
+        "COMMENT",
+        null as unknown as string,
+        fetchImpl,
+      ),
+    ).rejects.toThrow(/verplicht/);
+    await expect(
+      submitReview(
+        "token",
+        "PR_1",
+        "COMMENT",
+        undefined as unknown as string,
+        fetchImpl,
+      ),
+    ).rejects.toThrow(/verplicht/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each(["", "   ", null, undefined])(
+    "weigert een thread met lege tekst (%s) vóór de aanvraag",
+    async (empty) => {
+      const { fetchImpl, calls } = ok();
+      await expect(
+        submitReview("token", "PR_1", "APPROVE", "", fetchImpl, [
+          { ...thread, body: empty as unknown as string },
+        ]),
+      ).rejects.toThrow(/opmerking/);
+      expect(calls).toHaveLength(0);
+    },
+  );
+});
+
+describe("reviewBlockedReason", () => {
+  it("laat goedkeuren toe zonder tekst en zonder concepten", () => {
+    expect(reviewBlockedReason("APPROVE", "", 0, false)).toBeNull();
+  });
+
+  it("eist tekst bij changes vragen, ook met concepten", () => {
+    expect(reviewBlockedReason("REQUEST_CHANGES", " ", 3, false)).toBe(
+      "Een reactie is verplicht bij changes vragen",
+    );
+    expect(reviewBlockedReason("REQUEST_CHANGES", "Fix", 0, false)).toBeNull();
+  });
+
+  it("eist tekst bij reageren zonder concepten", () => {
+    expect(reviewBlockedReason("COMMENT", "", 0, false)).toBe(
+      "Een reactie is verplicht bij reageren zonder opmerkingen op regels",
+    );
+    expect(reviewBlockedReason("COMMENT", "Hoi", 0, false)).toBeNull();
+  });
+
+  it("laat reageren zonder tekst toe als er concepten zijn", () => {
+    expect(reviewBlockedReason("COMMENT", "", 1, false)).toBeNull();
+  });
+
+  it("staat op een eigen PR alleen reageren toe", () => {
+    expect(reviewBlockedReason("APPROVE", "", 0, true)).toBe(
+      "Je kunt je eigen PR niet goedkeuren",
+    );
+    expect(reviewBlockedReason("REQUEST_CHANGES", "Fix", 0, true)).toBe(
+      "Je kunt geen changes vragen op je eigen PR",
+    );
+    expect(reviewBlockedReason("COMMENT", "Hoi", 0, true)).toBeNull();
   });
 });

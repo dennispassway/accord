@@ -5,13 +5,23 @@ import type { MergeMethod } from "../../lib/github/merge";
 import { mergePullRequest } from "../../lib/github/merge";
 import { isTransientKind, NetworkError } from "../../lib/github/networkError";
 import { AuthError, fetchAllPrs } from "../../lib/github/queries";
-import type { ReviewEvent } from "../../lib/github/review";
-import { submitReview as submitReviewMutation } from "../../lib/github/review";
+import type { DraftThread, ReviewEvent } from "../../lib/github/review";
+import {
+  reviewBlockedReason,
+  submitReview as submitReviewMutation,
+} from "../../lib/github/review";
 import { tauriFetch } from "../../lib/github/tauriFetch";
 import { MOCK_ME, MOCK_PRS } from "../../lib/mock/fixtures";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
 import { loadPrsSnapshot, savePrsSnapshot } from "../../lib/prsSnapshot";
 import { withRetry } from "../../lib/retry";
+import { keyOfPr } from "./PrList";
+import {
+  type DraftStore,
+  draftsCommit,
+  draftsToThreads,
+  reviewDraftStore,
+} from "./reviewDrafts";
 
 const IS_MOCK = isMockApp(mockMode());
 
@@ -63,6 +73,73 @@ export function applyReviewOutcome(
       reviewer.login === meLogin ? { ...reviewer, state: nextState } : reviewer,
     ),
   };
+}
+
+const reviewsInFlight = new Set<string>();
+
+/** Eén review tegelijk per PR, voor alle routes (afrondpaneel, detailpaneel,
+ * sneltoets A, los versturen): twee overlappende verzendingen zouden dezelfde
+ * concepten dubbel plaatsen. Het slot staat vóór het lezen van de concepten en
+ * gaat pas los na de request en de afhandeling van de concepten. */
+async function withReviewLock<T>(
+  prKey: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  if (reviewsInFlight.has(prKey)) {
+    throw new Error("Er wordt al een review verstuurd");
+  }
+  reviewsInFlight.add(prKey);
+  try {
+    return await run();
+  } finally {
+    reviewsInFlight.delete(prKey);
+  }
+}
+
+type SendReview = (
+  event: ReviewEvent,
+  body: string,
+  threads: DraftThread[],
+  /** Commit waarop de regels van `threads` gelden ("" = onbekend). */
+  commitOid: string,
+) => Promise<void>;
+
+/** Verstuurt een review met de concepten van de PR als regelopmerkingen.
+ * De concepten worden hier gelezen, op het moment van versturen, en pas na
+ * succes gewist: alleen de verstuurde objecten, zodat een concept dat intussen
+ * is bijgekomen of bewerkt blijft staan. Bij een fout blijven alle concepten
+ * staan. */
+export function submitWithDrafts(
+  prKey: string,
+  event: ReviewEvent,
+  body: string,
+  authoredByMe: boolean,
+  store: DraftStore,
+  send: SendReview,
+): Promise<void> {
+  return withReviewLock(prKey, async () => {
+    const drafts = store.get(prKey);
+    const reason = reviewBlockedReason(
+      event,
+      body,
+      drafts.length,
+      authoredByMe,
+    );
+    if (reason !== null) throw new Error(reason);
+    await send(event, body, draftsToThreads(drafts), draftsCommit(drafts));
+    store.removeIfUnchanged(prKey, drafts);
+  });
+}
+
+/** Eén opmerking los versturen: een COMMENT-review met alleen deze thread,
+ * zonder de concepten aan te raken. */
+export function submitSingleThread(
+  prKey: string,
+  thread: DraftThread,
+  commitOid: string,
+  send: SendReview,
+): Promise<void> {
+  return withReviewLock(prKey, () => send("COMMENT", "", [thread], commitOid));
 }
 
 export function nextStateOnLoadError(
@@ -352,8 +429,14 @@ export function usePrs(
     [load],
   );
 
-  const submitReview = useCallback(
-    async (pr: PullRequest, event: ReviewEvent, body: string) => {
+  const sendReview = useCallback(
+    async (
+      pr: PullRequest,
+      event: ReviewEvent,
+      body: string,
+      threads: DraftThread[],
+      commitOid: string,
+    ) => {
       if (IS_MOCK) {
         // ponytail: vaste vertraging i.p.v. een echte fetch, alleen om de
         // busy-state van ReviewActions zichtbaar te maken in ?mock=app.
@@ -379,7 +462,16 @@ export function usePrs(
         throw new Error("Niet ingelogd");
       }
       try {
-        await submitReviewMutation(token, pr.id, event, body, tauriFetch);
+        await submitReviewMutation(
+          token,
+          pr.id,
+          event,
+          body,
+          tauriFetch,
+          threads,
+          pr.authoredByMe,
+          commitOid,
+        );
       } catch (error) {
         if (error instanceof AuthError) {
           onAuthErrorRef.current();
@@ -391,11 +483,37 @@ export function usePrs(
     [load],
   );
 
+  /** Goedkeuren, changes vragen of reageren; neemt de concepten mee. */
+  const submitReview = useCallback(
+    (pr: PullRequest, event: ReviewEvent, body: string) =>
+      submitWithDrafts(
+        keyOfPr(pr),
+        event,
+        body,
+        pr.authoredByMe,
+        reviewDraftStore,
+        (e, b, threads, commitOid) => sendReview(pr, e, b, threads, commitOid),
+      ),
+    [sendReview],
+  );
+
+  const submitThread = useCallback(
+    (pr: PullRequest, thread: DraftThread, commitOid: string) =>
+      submitSingleThread(
+        keyOfPr(pr),
+        thread,
+        commitOid,
+        (e, b, threads, commit) => sendReview(pr, e, b, threads, commit),
+      ),
+    [sendReview],
+  );
+
   return {
     state,
     refresh: load,
     mergePr,
     submitReview,
+    submitThread,
     clearRefreshError,
     refreshing,
   };

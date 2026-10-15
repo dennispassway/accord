@@ -63,6 +63,32 @@ const graphqlBody = {
   },
 };
 
+describe("fetchPrDetail headSha", () => {
+  const repoId = toRepoId("owner/repo");
+  const prNumber = toPrNumber(42);
+  const sha = "0123456789abcdef0123456789abcdef01234567";
+
+  async function headShaFor(pullRequest: unknown): Promise<string> {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(textResponse(200, "diff --git a b"))
+      .mockResolvedValueOnce(
+        jsonResponse(200, { data: { repository: { pullRequest } } }),
+      );
+    const detail = await fetchPrDetail("t", repoId, prNumber, fetchImpl);
+    return detail.headSha;
+  }
+
+  it("leest headRefOid als headSha", async () => {
+    expect(await headShaFor({ headRefOid: sha })).toBe(sha);
+  });
+
+  it("valt terug op '' als headRefOid ontbreekt of null is", async () => {
+    expect(await headShaFor({})).toBe("");
+    expect(await headShaFor({ headRefOid: null })).toBe("");
+  });
+});
+
 describe("fetchPrDetail", () => {
   const repoId = toRepoId("owner/repo");
   const prNumber = toPrNumber(42);
@@ -101,6 +127,7 @@ describe("fetchPrDetail", () => {
         id: "PRRT_thread1",
         path: "src/index.ts",
         line: 12,
+        diffSide: "RIGHT",
         isResolved: false,
         viewerCanReply: true,
         viewerCanResolve: true,
@@ -114,6 +141,61 @@ describe("fetchPrDetail", () => {
           },
         ],
       },
+    ]);
+  });
+
+  function detailWith(pullRequest: Record<string, unknown>) {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(textResponse(200, "diff --git a b"))
+      .mockResolvedValueOnce(
+        jsonResponse(200, { data: { repository: { pullRequest } } }),
+      );
+    return fetchPrDetail("token-123", repoId, prNumber, fetchImpl);
+  }
+
+  const threadNode = (extra: Record<string, unknown>) => ({
+    id: "PRRT_x",
+    path: "src/a.ts",
+    line: 3,
+    comments: { nodes: [] },
+    ...extra,
+  });
+
+  it("parset de PR-beschrijving als ruwe markdown", async () => {
+    const detail = await detailWith({
+      body: "## Titel\n\n- punt",
+      comments: {},
+    });
+    expect(detail.body).toBe("## Titel\n\n- punt");
+  });
+
+  it("geeft een lege string als body null is of ontbreekt", async () => {
+    expect((await detailWith({ body: null })).body).toBe("");
+    expect((await detailWith({})).body).toBe("");
+  });
+
+  it("parset diffSide LEFT", async () => {
+    const detail = await detailWith({
+      reviewThreads: { nodes: [threadNode({ diffSide: "LEFT" })] },
+    });
+    expect(detail.reviewThreads[0]?.diffSide).toBe("LEFT");
+  });
+
+  it("valt terug op RIGHT bij een ontbrekende of onbekende diffSide", async () => {
+    const detail = await detailWith({
+      reviewThreads: {
+        nodes: [
+          threadNode({}),
+          threadNode({ diffSide: "SIDEWAYS" }),
+          threadNode({ diffSide: "toString" }),
+        ],
+      },
+    });
+    expect(detail.reviewThreads.map((t) => t.diffSide)).toEqual([
+      "RIGHT",
+      "RIGHT",
+      "RIGHT",
     ]);
   });
 

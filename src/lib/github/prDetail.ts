@@ -27,14 +27,27 @@ export interface PrComment {
   createdAt: string;
 }
 
+export type DiffSide = "LEFT" | "RIGHT";
+
+// Record i.p.v. een losse lijst: een nieuw lid geeft hier een typefout.
+const DIFF_SIDES: Record<DiffSide, true> = { LEFT: true, RIGHT: true };
+
+function parseDiffSide(value: unknown): DiffSide {
+  return typeof value === "string" && Object.keys(DIFF_SIDES).includes(value)
+    ? (value as DiffSide)
+    : "RIGHT";
+}
+
 /** Eén review-thread op een bestand(:regel). line is null bij een thread op
- * een verouderde diff-positie of op bestandsniveau. viewerCanReply/
- * viewerCanResolve/viewerCanUnresolve bepalen welke acties CommentsView
- * toont voor de ingelogde gebruiker. */
+ * een verouderde diff-positie of op bestandsniveau. diffSide zegt of line een
+ * regel van de oude (LEFT) of nieuwe (RIGHT) kant van de diff is.
+ * viewerCanReply/viewerCanResolve/viewerCanUnresolve bepalen welke acties
+ * CommentsView toont voor de ingelogde gebruiker. */
 export interface ReviewThread {
   id: string;
   path: string;
   line: number | null;
+  diffSide: DiffSide;
   isResolved: boolean;
   viewerCanReply: boolean;
   viewerCanResolve: boolean;
@@ -43,6 +56,11 @@ export interface ReviewThread {
 }
 
 export interface PrDetail {
+  /** PR-beschrijving als ruwe markdown (kan rauwe HTML bevatten). Render
+   * alleen via `CommentBody`. */
+  body: string;
+  /** Head-commit van de PR (GraphQL headRefOid); "" als onbekend. */
+  headSha: string;
   /** Unified diff als platte tekst; leeg als diffTooLarge. */
   diff: string;
   /** True als GitHub de diff weigerde (406: te groot). */
@@ -55,12 +73,15 @@ const PR_DETAIL_QUERY = `
 query PrDetail($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
+      body
+      headRefOid
       comments(first: 100) { nodes { author { login } bodyText body createdAt } }
       reviewThreads(first: 100) {
         nodes {
           id
           path
           line
+          diffSide
           isResolved
           viewerCanReply
           viewerCanResolve
@@ -107,6 +128,7 @@ interface RawThreadNode {
   id?: string;
   path?: string;
   line?: number | null;
+  diffSide?: string | null;
   isResolved?: boolean;
   viewerCanReply?: boolean;
   viewerCanResolve?: boolean;
@@ -122,6 +144,7 @@ function parseThread(node: unknown): ReviewThread | null {
     id: raw.id ?? "",
     path: raw.path,
     line: raw.line ?? null,
+    diffSide: parseDiffSide(raw.diffSide),
     isResolved: raw.isResolved ?? false,
     viewerCanReply: raw.viewerCanReply ?? false,
     viewerCanResolve: raw.viewerCanResolve ?? false,
@@ -182,7 +205,12 @@ async function fetchComments(
   repoId: RepoId,
   prNumber: PrNumber,
   fetchImpl: FetchImpl,
-): Promise<{ issueComments: PrComment[]; reviewThreads: ReviewThread[] }> {
+): Promise<{
+  body: string;
+  headSha: string;
+  issueComments: PrComment[];
+  reviewThreads: ReviewThread[];
+}> {
   const [owner, name] = repoId.split("/");
 
   const response = await withNetworkError(() =>
@@ -218,6 +246,8 @@ async function fetchComments(
     data?: {
       repository?: {
         pullRequest?: {
+          body?: string | null;
+          headRefOid?: string | null;
           comments?: { nodes?: unknown };
           reviewThreads?: { nodes?: unknown };
         } | null;
@@ -236,7 +266,12 @@ async function fetchComments(
   );
   const reviewThreads = parseThreads(pullRequest?.reviewThreads?.nodes);
 
-  return { issueComments, reviewThreads };
+  return {
+    body: pullRequest?.body ?? "",
+    headSha: pullRequest?.headRefOid ?? "",
+    issueComments,
+    reviewThreads,
+  };
 }
 
 /** Haalt de diff en comments van één PR parallel op. */
@@ -246,11 +281,13 @@ export async function fetchPrDetail(
   prNumber: PrNumber,
   fetchImpl: FetchImpl,
 ): Promise<PrDetail> {
-  const [{ diff, diffTooLarge }, { issueComments, reviewThreads }] =
-    await Promise.all([
-      fetchDiff(token, repoId, prNumber, fetchImpl),
-      fetchComments(token, repoId, prNumber, fetchImpl),
-    ]);
+  const [
+    { diff, diffTooLarge },
+    { body, headSha, issueComments, reviewThreads },
+  ] = await Promise.all([
+    fetchDiff(token, repoId, prNumber, fetchImpl),
+    fetchComments(token, repoId, prNumber, fetchImpl),
+  ]);
 
-  return { diff, diffTooLarge, issueComments, reviewThreads };
+  return { body, headSha, diff, diffTooLarge, issueComments, reviewThreads };
 }

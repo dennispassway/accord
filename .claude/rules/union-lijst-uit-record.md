@@ -18,6 +18,10 @@ default. De gebruiker merkt het pas na een herstart, als zijn keuze weg is.
 - Nog zo'n lijst, elk met hetzelfde risico: `SORT_MODES` (`cockpitPrefs.ts`), `EFFORTS`
   (`src/lib/settings.ts`), `MERGEABLE_VALUES` (`src/lib/github/parse.ts`), `MENU_METHODS`
   (`MergeSection.tsx`).
+- Toets lidmaatschap met `Object.keys(RECORD).includes(value)`. Niet met `value in RECORD`:
+  daar passeren prototype-sleutels als `"toString"`, en de cast maakt ze tot een geldig lid
+  (zo ging `parseDiffSide` mis). Ook niet met `Object.hasOwn`: de lib-target is ES2020
+  (`tsconfig.json`), dat geeft TS2550.
 - Is de lijst bewust een deelverzameling, schrijf dat er dan bij. `VALID_MODES` in
   `src/lib/mock/mode.ts` laat `"off"` weg en `SHRINK_ORDER` in `columnLayout.ts` laat het
   project weg, allebei met reden.

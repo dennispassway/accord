@@ -26,7 +26,8 @@ const SHORTCUTS: ShortcutEntry[] = [
   { keys: "L", label: "Later: PR snoozen" },
   { keys: mod("⏎"), label: "Mergen" },
   { keys: mod(","), label: "Instellingen" },
-  { keys: "1 / 2", label: "Diff of reacties (in de inspector)" },
+  { keys: mod("⏎"), label: "In de inspector: opmerking aan review toevoegen" },
+  { keys: mod("⏎"), label: "In het afrondpaneel: review versturen" },
 ];
 
 interface ShortcutHelpProps {
@@ -56,7 +57,7 @@ export function ShortcutHelp({ open, onClose }: ShortcutHelpProps) {
         <div className="shortcut-help-title">Sneltoetsen</div>
         <ul className="shortcut-help-list">
           {SHORTCUTS.map((entry) => (
-            <li key={entry.keys}>
+            <li key={`${entry.keys}-${entry.label}`}>
               <span className="shortcut-help-keys mono">{entry.keys}</span>
               <span>{entry.label}</span>
             </li>

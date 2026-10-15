@@ -1,33 +1,62 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
-import type { ReviewEvent } from "../../lib/github/review";
+import { type ReviewEvent, reviewBlockedReason } from "../../lib/github/review";
 import { modKey } from "../../lib/platform";
 import "./detail.css";
 import { CheckIcon } from "./icons";
 import { isAnyMenuOverlayOpen } from "./menuOverlay";
+import { keyOfPr } from "./PrList";
+import { useOutsideDraftCount, useReviewDrafts } from "./reviewDrafts";
 
 export interface ReviewButtonsState {
   approveEnabled: boolean;
   requestChangesEnabled: boolean;
   commentEnabled: boolean;
+  /** Waarom een knop niet mag, los van `busy`; uit `reviewBlockedReason`. */
+  approveReason: string | null;
+  requestChangesReason: string | null;
+  commentReason: string | null;
 }
 
 /**
- * Pure beslissing welke reviewknoppen aan staan: goedkeuren mag zonder
- * tekst, changes vragen en reageren hebben allebei een niet-lege reactie
- * nodig. `busy` zet ze alle drie uit.
+ * Pure beslissing welke reviewknoppen aan staan, uit `reviewBlockedReason`
+ * (dezelfde regel als de verzending). `busy` zet ze alle drie uit.
  */
 export function reviewButtonsState(
   text: string,
   busy: boolean,
+  draftCount: number,
+  authoredByMe: boolean,
 ): ReviewButtonsState {
-  const hasText = text.trim() !== "";
+  const reason = (event: ReviewEvent) =>
+    reviewBlockedReason(event, text, draftCount, authoredByMe);
+  const approveReason = reason("APPROVE");
+  const requestChangesReason = reason("REQUEST_CHANGES");
+  const commentReason = reason("COMMENT");
   return {
-    approveEnabled: !busy,
-    requestChangesEnabled: !busy && hasText,
-    commentEnabled: !busy && hasText,
+    approveEnabled: !busy && approveReason === null,
+    requestChangesEnabled: !busy && requestChangesReason === null,
+    commentEnabled: !busy && commentReason === null,
+    approveReason,
+    requestChangesReason,
+    commentReason,
   };
+}
+
+/** Eén korte hint uit dezelfde beslisser als de knoppen, zichtbaar ook zonder
+ * hover (een title op een uitgeschakelde knop ziet niet iedereen). Pas als
+ * de gebruiker iets heeft getypt of concepten heeft: in ruststand is de
+ * uitleg ruis. */
+export function reviewHint(
+  state: ReviewButtonsState,
+  text: string,
+  draftCount: number,
+): string | null {
+  if (text.trim() === "" && draftCount === 0) return null;
+  return (
+    state.approveReason ?? state.commentReason ?? state.requestChangesReason
+  );
 }
 
 interface ApproveShortcutEvent {
@@ -76,7 +105,11 @@ export function ReviewActions({
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const buttons = reviewButtonsState(body, busy);
+  const prKey = keyOfPr(pr);
+  const draftCount = useReviewDrafts(prKey).length;
+  const outsideCount = useOutsideDraftCount(prKey);
+  const buttons = reviewButtonsState(body, busy, draftCount, pr.authoredByMe);
+  const hint = reviewHint(buttons, body, draftCount);
   /** Synchrone vlag naast `busy`: React rendert `busy` niet meteen, dus een
    * tweede submit binnen dezelfde tik zou anders vóór de re-render nog door
    * de `busy`-check heen glippen. */
@@ -127,7 +160,7 @@ export function ReviewActions({
   function handleTextareaKeyDown(
     event: ReactKeyboardEvent<HTMLTextAreaElement>,
   ) {
-    if (modKey(event) && event.key === "Enter" && body.trim() !== "") {
+    if (modKey(event) && event.key === "Enter" && buttons.commentEnabled) {
       event.preventDefault();
       submit("COMMENT");
     }
@@ -140,7 +173,7 @@ export function ReviewActions({
         value={body}
         onChange={(event) => setBody(event.target.value)}
         onKeyDown={handleTextareaKeyDown}
-        placeholder="Reactie: optioneel bij goedkeuren, verplicht bij changes vragen of reageren"
+        placeholder="Reactie (optioneel bij goedkeuren)"
         disabled={busy}
       />
       <div className="detail-review-row">
@@ -148,6 +181,7 @@ export function ReviewActions({
           type="button"
           className="detail-review-button detail-review-button-primary"
           disabled={!buttons.approveEnabled}
+          title={buttons.approveReason ?? undefined}
           onClick={() => submit("APPROVE")}
         >
           <CheckIcon size={14} />
@@ -158,6 +192,7 @@ export function ReviewActions({
           type="button"
           className="detail-review-button detail-review-button-secondary"
           disabled={!buttons.requestChangesEnabled}
+          title={buttons.requestChangesReason ?? undefined}
           onClick={() => submit("REQUEST_CHANGES")}
         >
           Changes vragen
@@ -166,11 +201,28 @@ export function ReviewActions({
           type="button"
           className="detail-review-button detail-review-button-tertiary"
           disabled={!buttons.commentEnabled}
+          title={buttons.commentReason ?? undefined}
           onClick={() => submit("COMMENT")}
         >
           Reageren
         </button>
       </div>
+      {hint !== null && <p className="detail-review-hint">{hint}</p>}
+      {draftCount > 0 && (
+        <p className="detail-review-drafts">
+          {draftCount === 1
+            ? "1 opmerking in concept gaat mee"
+            : `${draftCount} opmerkingen in concept gaan mee`}
+        </p>
+      )}
+      {outsideCount > 0 && (
+        <p className="detail-review-warn">
+          {outsideCount === 1
+            ? "1 opmerking stond bij de laatst geladen diff niet in de diff"
+            : `${outsideCount} opmerkingen stonden bij de laatst geladen diff niet in de diff`}
+          : GitHub kan ze weigeren.
+        </p>
+      )}
       {error != null && <p className="detail-review-error">{error}</p>}
     </div>
   );

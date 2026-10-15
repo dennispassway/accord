@@ -24,6 +24,7 @@ import {
   StackIcon,
 } from "./icons";
 import { MergeSection } from "./MergeSection";
+import type { InspectorSection } from "./PrInspector";
 import type { PersonEntry } from "./peopleRows";
 import { peopleRows } from "./peopleRows";
 import { ReviewActions } from "./ReviewActions";
@@ -138,7 +139,7 @@ interface DetailPanelProps {
   /** Klikken op een stack-kaart selecteert die PR. Wordt door Cockpit gewired. */
   onSelectPr?: (key: string) => void;
   /** Opent de PR-inspector op de gegeven tab. */
-  onOpenInspector: (tab: "diff" | "comments") => void;
+  onOpenInspector: (tab: InspectorSection) => void;
   /** Uit als een sheet of menu open staat: dan mogen M/R/⌘⏎ niet triggeren. */
   shortcutsEnabled: boolean;
   /** Opent de instellingensheet. Ontbreekt dit, dan is het tandwiel decoratief. */

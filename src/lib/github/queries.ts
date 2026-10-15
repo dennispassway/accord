@@ -150,6 +150,25 @@ export function rateLimitNote(response: Response): string {
   return "";
 }
 
+/** Gooit voor een 401 (AuthError), 403/429 (rate limit) of ander niet-ok
+ * antwoord; doet niets bij een geslaagd antwoord. */
+export async function throwForStatus(response: Response): Promise<void> {
+  if (response.status === 401) throw new AuthError();
+  if (response.status === 403 || response.status === 429) {
+    const detail = await withNetworkError(() => responseErrorDetail(response));
+    throw new GithubApiError(
+      `GitHub rate limit bereikt${rateLimitNote(response)}: ${detail}`,
+    );
+  }
+  if (!response.ok) {
+    const detail = await withNetworkError(() => responseErrorDetail(response));
+    throw new GithubApiError(
+      `GitHub API responded with ${response.status}: ${detail}`,
+      response.status,
+    );
+  }
+}
+
 /** Resultaat van een PR-fetch: de PR's plus de ingelogde gebruiker, in één
  * request opgehaald zodat de app-start niet op een aparte /user-call wacht
  * (U2a). */

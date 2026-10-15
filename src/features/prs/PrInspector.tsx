@@ -1,72 +1,153 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
+import type { DraftThread, ReviewEvent } from "../../lib/github/review";
 import { CommentsView } from "./CommentsView";
+import { type DiffViewMode, loadDiffView, saveDiffView } from "./cockpitPrefs";
 import { DiffView } from "./DiffView";
+import { groupThreadsByFile } from "./diffModel";
+import { FinishReview } from "./FinishReview";
 import { CloseIcon, ExternalLinkIcon } from "./icons";
 import "./inspector.css";
+import type { DraftActions } from "./DraftComposer";
+import { PrDescription } from "./PrDescription";
+import { keyOfPr } from "./PrList";
+import {
+  draftsOutsideDiff,
+  reviewDraftStore,
+  useReviewDrafts,
+} from "./reviewDrafts";
 import { usePrDetail } from "./usePrDetail";
 import { latestVerdict, VerdictBadge } from "./VerdictBadge";
 
-type InspectorTab = "diff" | "comments";
+export type InspectorSection = "diff" | "comments";
+
+const DIFF_VIEW_LABELS: Record<DiffViewMode, string> = {
+  unified: "Unified",
+  split: "Split",
+};
 
 interface PrInspectorProps {
   pr: PullRequest;
-  initialTab: InspectorTab;
+  initialSection: InspectorSection;
   onClose: () => void;
   onAuthError: () => void;
   /** Start een fixComments-run; afwezig als dat nu niet kan (run bezig). */
   onFixComments?: () => void;
+  /** Verstuurt een review; de concepten gaan mee (usePrs.submitReview). */
+  onSubmitReview: (event: ReviewEvent, body: string) => Promise<void>;
+  /** Verstuurt één opmerking los als eigen review, verankerd op `commitOid`. */
+  onSubmitThread: (thread: DraftThread, commitOid: string) => Promise<void>;
 }
 
-/**
- * PR-inspector: diff en reacties on-demand, geopend vanuit het detailpaneel
- * of via toets D. Zelfde scrim/sheet-patroon als SettingsSheet, maar breder
- * en met eigen z-index (32/33) zodat hij boven de settings-sheet kan.
- */
+/** Zelfde scrim/sheet-patroon als SettingsSheet, maar breder en met eigen
+ * z-index (32/33) zodat hij boven de settings-sheet kan. */
 export function PrInspector({
   pr,
-  initialTab,
+  initialSection,
   onClose,
   onAuthError,
   onFixComments,
+  onSubmitReview,
+  onSubmitThread,
 }: PrInspectorProps) {
-  const [tab, setTab] = useState<InspectorTab>(initialTab);
-  const { status, detail, error, retry, reply, setResolved } = usePrDetail(
-    pr,
-    onAuthError,
+  const [mode, setMode] = useState<DiffViewMode>(loadDiffView);
+  const conversationRef = useRef<HTMLElement>(null);
+  const scrolledRef = useRef(false);
+  const {
+    status,
+    detail,
+    error,
+    retry,
+    reply,
+    setResolved,
+    files,
+    diffTooLarge,
+    loadFileLines,
+    loadPerFile,
+    refetch,
+  } = usePrDetail(pr, onAuthError);
+  const prKey = keyOfPr(pr);
+  const reviewDrafts = useReviewDrafts(prKey);
+  const headSha = detail?.headSha ?? "";
+  // Een concept van een eerdere commit hoort bij andere regels dan deze diff
+  // toont: niet in de diff plaatsen en niet tegen deze diff toetsen. De review
+  // verankert het op zijn eigen commit (draftsCommit).
+  const { currentDrafts, staleDrafts } = useMemo(
+    () => ({
+      currentDrafts: reviewDrafts.filter((d) => d.commitOid === headSha),
+      staleDrafts: new Set(
+        reviewDrafts.filter((d) => d.commitOid !== headSha).map((d) => d.id),
+      ),
+    }),
+    [reviewDrafts, headSha],
+  );
+  // Een regel die in de diff zelf ontbreekt kan GitHub weigeren. Zonder
+  // volledige diff (te groot, nog niet per bestand geladen) is er niets om
+  // tegen te toetsen: dan geen waarschuwing.
+  const outsideDiff = useMemo(
+    () =>
+      status === "ready" && !diffTooLarge
+        ? draftsOutsideDiff(currentDrafts, files)
+        : new Set<string>(),
+    [status, diffTooLarge, currentDrafts, files],
   );
 
   const verdict = latestVerdict(pr);
-  const commentCount =
-    detail != null
-      ? detail.issueComments.length + detail.reviewThreads.length
-      : null;
 
-  // U6: 1/2 wisselen van tab zolang de inspector open is, behalve als de
-  // focus in een invoerveld staat (bijvoorbeeld de reply-textarea).
+  const { byPath, elsewhere } = useMemo(
+    () => groupThreadsByFile(files, detail?.reviewThreads ?? []),
+    [files, detail],
+  );
+  // Refs i.p.v. state: een toetsaanslag in een antwoord mag de diff niet
+  // opnieuw renderen.
+  const drafts = useRef(new Map<string, string>());
+  const sending = useRef(new Map<string, Promise<string | null>>());
+
+  // Het detailpaneel kent de diff niet: meld hem wat buiten de diff valt, zodat
+  // ook daar gewaarschuwd kan worden voor een review die GitHub kan weigeren.
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (
-        event.metaKey ||
-        event.ctrlKey ||
-        event.altKey ||
-        (event.target instanceof HTMLElement &&
-          ["INPUT", "TEXTAREA"].includes(event.target.tagName))
-      ) {
-        return;
-      }
-      if (event.key === "1") {
-        event.preventDefault();
-        setTab("diff");
-      } else if (event.key === "2") {
-        event.preventDefault();
-        setTab("comments");
-      }
+    if (status === "ready" && !diffTooLarge) {
+      reviewDraftStore.setOutside(prKey, outsideDiff);
     }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [status, diffTooLarge, prKey, outsideDiff]);
+
+  // Dubbel versturen vangt het slot per PR in submitSingleThread (usePrs.ts).
+  async function sendLoose(thread: DraftThread) {
+    await onSubmitThread(thread, headSha);
+    void refetch();
+  }
+
+  const draftActions: DraftActions = {
+    drafts: currentDrafts,
+    onAdd: (input) => {
+      reviewDraftStore.add(prKey, input, headSha);
+    },
+    onEdit: (id, body) => reviewDraftStore.edit(prKey, id, body),
+    onRemove: (id) => reviewDraftStore.remove(prKey, [id]),
+    onSendLoose: sendLoose,
+  };
+
+  const threadActions = {
+    onReply: reply,
+    onSetResolved: setResolved,
+    drafts: drafts.current,
+    sending: sending.current,
+  };
+
+  // Eenmalig naar het gesprek scrollen als de inspector daarvoor geopend is.
+  // Pas na status "ready": eerder bestaat de sectie niet.
+  useEffect(() => {
+    if (status !== "ready" || initialSection !== "comments") return;
+    if (scrolledRef.current) return;
+    scrolledRef.current = true;
+    conversationRef.current?.scrollIntoView({ block: "start" });
+  }, [status, initialSection]);
+
+  function changeMode(next: DiffViewMode) {
+    setMode(next);
+    saveDiffView(next);
+  }
 
   return (
     <>
@@ -94,6 +175,34 @@ export function PrInspector({
                 Fix nu
               </button>
             )}
+          <FinishReview
+            key={prKey}
+            drafts={reviewDrafts}
+            outsideDiff={outsideDiff}
+            staleDrafts={status === "ready" ? staleDrafts : new Set<string>()}
+            authoredByMe={pr.authoredByMe}
+            onRemoveDraft={draftActions.onRemove}
+            onDiscard={() => reviewDraftStore.clear(prKey)}
+            onSubmit={onSubmitReview}
+            onSubmitted={() => void refetch()}
+          />
+          <fieldset className="inspector-segmented" aria-label="Weergave">
+            {(Object.keys(DIFF_VIEW_LABELS) as DiffViewMode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                aria-pressed={mode === m}
+                className={
+                  mode === m
+                    ? "inspector-segmented-option active"
+                    : "inspector-segmented-option"
+                }
+                onClick={() => changeMode(m)}
+              >
+                {DIFF_VIEW_LABELS[m]}
+              </button>
+            ))}
+          </fieldset>
           <button
             type="button"
             className="icon-button"
@@ -109,30 +218,6 @@ export function PrInspector({
             onClick={onClose}
           >
             <CloseIcon />
-          </button>
-        </div>
-        <div className="inspector-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "diff"}
-            className={
-              tab === "diff" ? "inspector-tab active" : "inspector-tab"
-            }
-            onClick={() => setTab("diff")}
-          >
-            Diff
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "comments"}
-            className={
-              tab === "comments" ? "inspector-tab active" : "inspector-tab"
-            }
-            onClick={() => setTab("comments")}
-          >
-            Reacties{commentCount != null ? ` (${commentCount})` : ""}
           </button>
         </div>
         <div className="inspector-body">
@@ -162,23 +247,44 @@ export function PrInspector({
               </div>
             </div>
           )}
-          {status === "ready" &&
-            detail != null &&
-            (tab === "diff" ? (
+          {status === "ready" && detail != null && (
+            <>
+              <PrDescription
+                body={detail.body}
+                fileCount={diffTooLarge ? undefined : files.length}
+                add={pr.additions}
+                del={pr.deletions}
+              />
+              {/* De key (PR + commit) zet alle lokale uitklap- en laadstaat
+                  terug: een antwoord dat na een wissel landt, belandt dan
+                  op een weggehaald component (async-antwoord-na-wissel.md). */}
               <DiffView
-                diff={detail.diff}
-                tooLarge={detail.diffTooLarge}
+                key={`${keyOfPr(pr)}:${detail.headSha}`}
+                files={files}
+                tooLarge={diffTooLarge}
                 url={pr.url}
+                mode={mode}
+                threadsByPath={byPath}
+                loadFileLines={
+                  detail.headSha === "" ? undefined : loadFileLines
+                }
+                onLoadPerFile={loadPerFile}
+                review={draftActions}
+                {...threadActions}
               />
-            ) : (
-              <CommentsView
-                issueComments={detail.issueComments}
-                reviewThreads={detail.reviewThreads}
-                url={pr.url}
-                onReply={reply}
-                onSetResolved={setResolved}
-              />
-            ))}
+              <section
+                ref={conversationRef}
+                className="inspector-comments-section inspector-conversation"
+              >
+                <h3 className="inspector-comments-heading">Gesprek</h3>
+                <CommentsView
+                  issueComments={detail.issueComments}
+                  elsewhereThreads={elsewhere}
+                  {...threadActions}
+                />
+              </section>
+            </>
+          )}
         </div>
       </div>
     </>
