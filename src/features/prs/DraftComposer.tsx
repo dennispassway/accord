@@ -153,15 +153,26 @@ export function DraftComposer({
 export function DraftItem({
   draft,
   showSide,
+  edits,
   onEdit,
   onRemove,
 }: {
   draft: ReviewDraft;
   showSide: boolean;
+  /** Lopende bewerkingen per concept-id, bij de eigenaar: de rij-key verschilt
+   * tussen unified en split, dus dit item remount bij een weergavewissel. */
+  edits: Map<string, string>;
   onEdit: (id: string, body: string) => void;
   onRemove: (id: string) => void;
 }) {
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditingState] = useState<string | null>(
+    () => edits.get(draft.id) ?? null,
+  );
+  function setEditing(text: string | null) {
+    if (text === null) edits.delete(draft.id);
+    else edits.set(draft.id, text);
+    setEditingState(text);
+  }
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const focusOnEdit = useRef(false);
 

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { DiffView } from "./DiffView";
-import type { DraftActions } from "./DraftComposer";
+import { type DraftActions, DraftItem } from "./DraftComposer";
 import { parseDiff } from "./diffParse";
 import type { ReviewDraft } from "./reviewDrafts";
 
@@ -119,5 +119,21 @@ describe("DiffView opmerkingen op regels", () => {
     expect(
       render("unified", [draft(), draft({ id: "d2", line: 3 })]),
     ).toContain("2 in review");
+  });
+});
+
+describe("DraftItem", () => {
+  it("opent met de lopende bewerking van de eigenaar na een remount", () => {
+    const html = renderToStaticMarkup(
+      <DraftItem
+        draft={draft()}
+        showSide={false}
+        edits={new Map([["d1", "half getypt"]])}
+        onEdit={() => {}}
+        onRemove={() => {}}
+      />,
+    );
+    expect(html).toContain("half getypt");
+    expect(html).toContain("<textarea");
   });
 });

@@ -492,6 +492,7 @@ function FileBody({
     { line: number; diffSide: DiffSide }[]
   >([]);
   const composeText = useRef(new Map<string, string>());
+  const draftEdits = useRef(new Map<string, string>());
   // Verzendstatus per (kant, regel) in state hier, niet in het veld: het veld
   // kan tijdens het versturen remounten of weggaan.
   const [sendState, setSendState] = useState<
@@ -682,6 +683,7 @@ function FileBody({
                             key={draft.id}
                             draft={draft}
                             showSide={mode === "split"}
+                            edits={draftEdits.current}
                             onEdit={review.onEdit}
                             onRemove={review.onRemove}
                           />
