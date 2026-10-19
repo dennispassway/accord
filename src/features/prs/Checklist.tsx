@@ -148,7 +148,7 @@ export function Checklist({
               {detail != null && (
                 <span
                   className={
-                    item.key === "checks" && running == null
+                    item.detailIsCode && running == null
                       ? "detail-checklist-detail mono"
                       : "detail-checklist-detail"
                   }

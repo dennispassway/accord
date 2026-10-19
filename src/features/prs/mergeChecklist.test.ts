@@ -141,6 +141,19 @@ describe("mergeChecklist: checks", () => {
       tone: "err",
       label: "1 check gefaald",
       detail: "build",
+      detailIsCode: true,
+      fix: "fixChecks",
+      blocking: true,
+    });
+  });
+
+  it("failure zonder bekende namen noemt geen aantal en geen detail", () => {
+    expect(
+      item(pr({ ciStatus: { state: "failure", failedChecks: [] } }), "checks"),
+    ).toEqual({
+      key: "checks",
+      tone: "err",
+      label: "Checks gefaald",
       fix: "fixChecks",
       blocking: true,
     });
@@ -162,8 +175,7 @@ describe("mergeChecklist: checks", () => {
       key: "checks",
       tone: "warn",
       label: "Checks niet gestart: budget op",
-      detail:
-        "GitHub startte de jobs niet. Verhoog de spending limit onder Billing & plans en draai ze opnieuw.",
+      detail: "Verhoog de spending limit onder Billing & plans",
       blocking: true,
     });
   });

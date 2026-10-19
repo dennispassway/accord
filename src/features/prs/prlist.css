@@ -386,6 +386,11 @@ li:first-child > .pl-group-header {
   color: var(--err);
 }
 
+/* Een leeg budget is geen codefout: geel, net als de checklistregel. */
+.pl-status-pill-problem-budget {
+  color: var(--warn);
+}
+
 .pl-running-dot {
   width: 5px;
   height: 5px;

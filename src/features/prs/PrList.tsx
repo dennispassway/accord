@@ -282,7 +282,7 @@ export function PrList({
             <span
               className={
                 status.problem != null
-                  ? `pl-status-pill pl-status-pill-${status.key} pl-status-pill-problem`
+                  ? `pl-status-pill pl-status-pill-${status.key} pl-status-pill-problem pl-status-pill-problem-${status.problem}`
                   : `pl-status-pill pl-status-pill-${status.key}`
               }
               title={status.label}

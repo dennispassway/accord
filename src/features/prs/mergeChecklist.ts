@@ -21,6 +21,8 @@ export interface ChecklistItem {
   label: string;
   /** Tweede regel onder het label, bv. de namen van gefaalde checks. */
   detail?: string;
+  /** De detailregel bestaat uit namen uit de code (checks) en staat in monospace. */
+  detailIsCode?: true;
   /** De fixmodus die een agent op dit punt kan draaien; ontbreekt als een agent er niets aan doet. */
   fix?: FixMode;
   /** Houdt dit punt de merge tegen? Gelijk aan of mergeReasons hiervoor een reden geeft. */
@@ -65,6 +67,17 @@ function checksItem(pr: PullRequest): ChecklistItem {
         blocking: false,
       };
     case "failure":
+      // Rood zonder bekende namen: de fout staat buiten de opgehaalde
+      // contexts, of alleen niet-gestarte jobs waren zichtbaar.
+      if (ci.failedChecks.length === 0) {
+        return {
+          key: "checks",
+          tone: "err",
+          label: "Checks gefaald",
+          fix: "fixChecks",
+          blocking: true,
+        };
+      }
       return {
         key: "checks",
         tone: "err",
@@ -73,6 +86,7 @@ function checksItem(pr: PullRequest): ChecklistItem {
             ? "1 check gefaald"
             : `${ci.failedChecks.length} checks gefaald`,
         detail: ci.failedChecks.join(", "),
+        detailIsCode: true,
         fix: "fixChecks",
         blocking: true,
       };
@@ -81,8 +95,7 @@ function checksItem(pr: PullRequest): ChecklistItem {
         key: "checks",
         tone: "warn",
         label: "Checks niet gestart: budget op",
-        detail:
-          "GitHub startte de jobs niet. Verhoog de spending limit onder Billing & plans en draai ze opnieuw.",
+        detail: "Verhoog de spending limit onder Billing & plans",
         blocking: true,
       };
     case "pending":
