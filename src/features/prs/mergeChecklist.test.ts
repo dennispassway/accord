@@ -155,6 +155,19 @@ describe("mergeChecklist: checks", () => {
     expect(c?.detail).toBe("build, lint");
   });
 
+  it("billingBlocked wijst naar het budget en biedt geen agentfix", () => {
+    expect(
+      item(pr({ ciStatus: { state: "billingBlocked" } }), "checks"),
+    ).toEqual({
+      key: "checks",
+      tone: "warn",
+      label: "Checks niet gestart: budget op",
+      detail:
+        "GitHub startte de jobs niet. Verhoog de spending limit onder Billing & plans en draai ze opnieuw.",
+      blocking: true,
+    });
+  });
+
   it("pending is warn en blokkeert", () => {
     expect(item(pr({ ciStatus: { state: "pending" } }), "checks")).toEqual({
       key: "checks",
@@ -355,6 +368,12 @@ describe("mergeChecklist: invariant met mergeReasons", () => {
     ],
     ["draft", pr({ isDraft: true }), undefined, ["draft"]],
     ["rode CI", pr({ ciStatus: failing }), undefined, ["checks"]],
+    [
+      "checks niet gestart door budget",
+      pr({ ciStatus: { state: "billingBlocked" } }),
+      undefined,
+      ["checks"],
+    ],
     [
       "CI draait",
       pr({ ciStatus: { state: "pending" } }),

@@ -62,6 +62,15 @@ describe("mergeReasons", () => {
     ).toContain("CI is rood");
   });
 
+  it("flags checks GitHub did not start for budget, not as red CI", () => {
+    const reasons = mergeReasons(
+      pr({ ciStatus: { state: "billingBlocked" } }),
+      stackInfo(),
+    );
+    expect(reasons).toContain("checks niet gestart: budget op");
+    expect(reasons).not.toContain("CI is rood");
+  });
+
   it("flags merge conflicts", () => {
     expect(
       mergeReasons(pr({ mergeable: "CONFLICTING" }), stackInfo()),

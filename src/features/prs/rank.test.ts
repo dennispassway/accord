@@ -127,6 +127,17 @@ describe("prStatus: eigen PR", () => {
     });
   });
 
+  it("checks niet gestart door budget: actie, geen checks-probleem", () => {
+    const pr = makePr({ ciStatus: { state: "billingBlocked" } });
+    expect(prStatus(pr, idleCtx)).toEqual({
+      rank: 4,
+      key: "actie",
+      label: "budget op, checks niet gestart",
+      short: "budget",
+      problem: "budget",
+    });
+  });
+
   it("changes requested: actie", () => {
     const pr = makePr({ reviewState: { state: "changesRequested" } });
     expect(prStatus(pr, idleCtx)).toEqual({
@@ -261,6 +272,17 @@ describe("prStatus: jouw review gevraagd", () => {
       label: "jouw review nodig · checks rood",
       short: "checks",
       problem: "checks",
+    });
+  });
+
+  it("met checks die niet startten: blijft review, toont het budget", () => {
+    const pr = reviewPr({ ciStatus: { state: "billingBlocked" } });
+    expect(prStatus(pr, idleCtx)).toEqual({
+      rank: 3,
+      key: "review",
+      label: "jouw review nodig · budget op",
+      short: "budget",
+      problem: "budget",
     });
   });
 

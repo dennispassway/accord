@@ -76,6 +76,15 @@ function checksItem(pr: PullRequest): ChecklistItem {
         fix: "fixChecks",
         blocking: true,
       };
+    case "billingBlocked":
+      return {
+        key: "checks",
+        tone: "warn",
+        label: "Checks niet gestart: budget op",
+        detail:
+          "GitHub startte de jobs niet. Verhoog de spending limit onder Billing & plans en draai ze opnieuw.",
+        blocking: true,
+      };
     case "pending":
       return {
         key: "checks",

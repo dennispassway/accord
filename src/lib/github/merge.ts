@@ -45,6 +45,9 @@ export function mergeReasons(
   if (pr.mergeable === "UNKNOWN") reasons.push("mergebaarheid onbekend");
   if (pr.isDraft) reasons.push("draft");
   if (pr.ciStatus.state === "failure") reasons.push("CI is rood");
+  if (pr.ciStatus.state === "billingBlocked") {
+    reasons.push("checks niet gestart: budget op");
+  }
   if (pr.ciStatus.state === "pending") reasons.push("CI draait nog");
   if (pr.reviewState.state === "changesRequested") {
     reasons.push("changes requested");
