@@ -39,13 +39,12 @@ function daysAgo(days: number, hour: number, minute: number): string {
   return d.toISOString();
 }
 
-function ci(
-  state: "rood" | "groen" | "geen" | "bezig",
-  failed: string[],
-): CiStatus {
+function ci(state: RawPr["ci"], failed: string[]): CiStatus {
   switch (state) {
     case "rood":
       return { state: "failure", failedChecks: failed };
+    case "budget":
+      return { state: "billingBlocked" };
     case "groen":
       return { state: "success" };
     case "bezig":
@@ -130,7 +129,7 @@ interface RawPr {
   head: string;
   base: string;
   author: string;
-  ci: "rood" | "groen" | "geen" | "bezig";
+  ci: "rood" | "budget" | "groen" | "geen" | "bezig";
   failed: string[];
   review: "gevraagd" | "geen" | "goedgekeurd" | "changes";
   draft: boolean;
@@ -427,8 +426,8 @@ const RAW_PRS: RawPr[] = [
     head: "fix/web-14-sanity-retry",
     base: "main",
     author: "hubot",
-    ci: "rood",
-    failed: ["build / next", "types / tsc"],
+    ci: "budget",
+    failed: [],
     review: "gevraagd",
     draft: false,
     mergeable: "kan",

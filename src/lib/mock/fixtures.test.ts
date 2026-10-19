@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { prStatus } from "../../features/prs/rank";
 import { buildSections, type SortCtx } from "../../features/prs/sort";
 import { computeStackInfo } from "../github/stacks";
 import { MOCK_PRS } from "./fixtures";
@@ -25,7 +26,14 @@ describe("mockdata toont rol eerst", () => {
     const conflictIndex = review.indexOf("hoc49");
     const clean = MOCK_PRS.filter(
       (pr) => review.includes(pr.id) && pr.mergeable === "MERGEABLE",
-    ).filter((pr) => pr.ciStatus.state !== "failure");
+    ).filter(
+      (pr) =>
+        prStatus(pr, {
+          agentBezig: false,
+          stackBlocked: ctx.isStackBlocked(pr),
+        }).problem == null,
+    );
+    expect(clean.length).toBeGreaterThan(0);
     for (const pr of clean) {
       expect(review.indexOf(pr.id)).toBeLessThan(conflictIndex);
     }
