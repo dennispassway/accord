@@ -1,4 +1,4 @@
-import type { PullRequest } from "../../lib/github/domain";
+import type { CiStatus, PullRequest } from "../../lib/github/domain";
 
 export type PrStatusKey =
   | "review"
@@ -11,7 +11,7 @@ export type PrStatusKey =
   | "concept";
 
 /** Wat een PR tegenhoudt, los van de sectie waarin hij staat. */
-type PrProblem = "conflict" | "checks" | "changes" | "achter";
+type PrProblem = "conflict" | "checks" | "budget" | "changes" | "achter";
 
 export interface PrStatus {
   rank: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
@@ -29,17 +29,31 @@ export interface PrStatus {
   problem: PrProblem | null;
 }
 
-/** Conflict, rode checks of changes requested, in die volgorde. */
+/** Het probleem dat de CI meldt; pending is wachten, geen probleem. */
+const CI_PROBLEM: Record<
+  CiStatus["state"],
+  Extract<PrProblem, "checks" | "budget"> | null
+> = {
+  success: null,
+  none: null,
+  pending: null,
+  failure: "checks",
+  billingBlocked: "budget",
+};
+
+/** Conflict, de CI of changes requested, in die volgorde. */
 function blockingProblem(pr: PullRequest): Exclude<PrProblem, "achter"> | null {
   if (pr.mergeable === "CONFLICTING") return "conflict";
-  if (pr.ciStatus.state === "failure") return "checks";
-  if (pr.reviewState.state === "changesRequested") return "changes";
-  return null;
+  return (
+    CI_PROBLEM[pr.ciStatus.state] ??
+    (pr.reviewState.state === "changesRequested" ? "changes" : null)
+  );
 }
 
 const ACTIE_LABEL: Record<PrProblem, string> = {
   conflict: "conflicten oplossen",
   checks: "checks repareren",
+  budget: "budget op, checks niet gestart",
   changes: "changes requested",
   achter: "branch loopt achter",
 };
@@ -47,6 +61,7 @@ const ACTIE_LABEL: Record<PrProblem, string> = {
 const REVIEW_PROBLEM_LABEL: Record<Exclude<PrProblem, "achter">, string> = {
   conflict: "conflicten",
   checks: "checks rood",
+  budget: "budget op",
   changes: "changes requested",
 };
 

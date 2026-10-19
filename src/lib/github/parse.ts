@@ -64,6 +64,40 @@ function parseReviewState(reviewDecision: unknown): ReviewState {
   }
 }
 
+/** De CheckRun-conclusies waarmee GitHub de rollup op rood zet. */
+const FAILED_CONCLUSIONS: ReadonlySet<unknown> = new Set([
+  "FAILURE",
+  "TIMED_OUT",
+  "STARTUP_FAILURE",
+  "CANCELLED",
+  "ACTION_REQUIRED",
+]);
+
+function isFailedContext(context: Record<string, unknown>): boolean {
+  return (
+    FAILED_CONCLUSIONS.has(context.conclusion) ||
+    context.state === "FAILURE" ||
+    context.state === "ERROR"
+  );
+}
+
+/**
+ * GitHub zet een job die het niet startte (spending limit bereikt, betaling
+ * mislukt, account op slot door een billingprobleem) op FAILURE; alleen de
+ * annotatie onderscheidt hem van een echte fout. Het prefix vangt al die
+ * varianten.
+ */
+const BILLING_NOT_STARTED = "The job was not started because";
+
+function isNotStartedForBilling(context: Record<string, unknown>): boolean {
+  return nodesOf(context.annotations).some(
+    (annotation) =>
+      isRecord(annotation) &&
+      typeof annotation.message === "string" &&
+      annotation.message.startsWith(BILLING_NOT_STARTED),
+  );
+}
+
 function parseCiStatus(node: Record<string, unknown>): CiStatus {
   const commits =
     isRecord(node.commits) && Array.isArray(node.commits.nodes)
@@ -88,23 +122,26 @@ function parseCiStatus(node: Record<string, unknown>): CiStatus {
       return { state: "pending" };
     case "FAILURE":
     case "ERROR": {
-      const contextNodes =
-        isRecord(rollup.contexts) && Array.isArray(rollup.contexts.nodes)
-          ? rollup.contexts.nodes
-          : [];
-      const failedChecks: string[] = [];
-      for (const context of contextNodes) {
-        if (!isRecord(context)) continue;
-        const isFailed =
-          context.conclusion === "FAILURE" ||
-          context.conclusion === "ERROR" ||
-          context.state === "FAILURE" ||
-          context.state === "ERROR";
-        if (!isFailed) continue;
-        const name = context.name ?? context.context;
-        if (isNonEmptyString(name)) failedChecks.push(name);
+      const contexts = nodesOf(rollup.contexts);
+      const failed = contexts.filter(isRecord).filter(isFailedContext);
+      // Alleen checks die echt draaiden: een niet-gestarte job is geen fout
+      // die een fix-agent kan oplossen.
+      const ran = failed.filter((context) => !isNotStartedForBilling(context));
+      // Een echte fout kan voorbij de opgehaalde pagina staan; dan is "alles
+      // niet gestart" niet te bewijzen en blijft het rood.
+      // shortcut: de query haalt contexts(first: 20) op, dus een repo met meer dan 20 checks wordt nooit billingBlocked; ophogen of pagineren als zo'n repo erbij komt.
+      const complete =
+        isRecord(rollup.contexts) &&
+        rollup.contexts.totalCount === contexts.length;
+      if (complete && failed.length > 0 && ran.length === 0) {
+        return { state: "billingBlocked" };
       }
-      return { state: "failure", failedChecks };
+      return {
+        state: "failure",
+        failedChecks: ran
+          .map((context) => context.name ?? context.context)
+          .filter(isNonEmptyString),
+      };
     }
     default:
       return { state: "none" };
