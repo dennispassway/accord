@@ -88,7 +88,11 @@ fragment PrFields on PullRequest {
           state
           contexts(first: 20) {
             nodes {
-              ... on CheckRun { name conclusion }
+              ... on CheckRun {
+                name
+                conclusion
+                annotations(first: 3) { nodes { message } }
+              }
               ... on StatusContext { context state }
             }
           }

@@ -27,6 +27,8 @@ export function toPrNumber(number: number): PrNumber {
 export type CiStatus =
   | { state: "success" }
   | { state: "failure"; failedChecks: string[] }
+  /** Rood zonder dat er iets draaide: GitHub startte de jobs niet omdat het budget op is. */
+  | { state: "billingBlocked" }
   | { state: "pending" }
   | { state: "none" };
 

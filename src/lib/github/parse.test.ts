@@ -48,6 +48,64 @@ describe("parseSearchResponse", () => {
     );
   });
 
+  describe("checks die GitHub niet startte omdat het budget op is", () => {
+    const BILLING =
+      "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings";
+    const withContexts = (nodes: unknown[]) => ({
+      ...validPrNode,
+      commits: {
+        nodes: [
+          {
+            commit: {
+              statusCheckRollup: { state: "FAILURE", contexts: { nodes } },
+            },
+          },
+        ],
+      },
+    });
+    const notStarted = (name: string) => ({
+      name,
+      conclusion: "FAILURE",
+      annotations: { nodes: [{ message: BILLING }] },
+    });
+
+    it("geeft billingBlocked als elke gefaalde check niet startte", () => {
+      const [pr] = parseSearchResponse({
+        nodes: [
+          withContexts([
+            notStarted("Lint"),
+            notStarted("Detect changes"),
+            { context: "deploy", state: "SUCCESS" },
+          ]),
+        ],
+      });
+
+      expect(pr?.ciStatus).toEqual({ state: "billingBlocked" });
+    });
+
+    it("blijft failure zodra één check echt draaide en faalde", () => {
+      const [pr] = parseSearchResponse({
+        nodes: [
+          withContexts([
+            notStarted("Lint"),
+            {
+              name: "test",
+              conclusion: "FAILURE",
+              annotations: {
+                nodes: [{ message: "Process completed with exit code 1." }],
+              },
+            },
+          ]),
+        ],
+      });
+
+      expect(pr?.ciStatus).toEqual({
+        state: "failure",
+        failedChecks: ["Lint", "test"],
+      });
+    });
+  });
+
   it("defaults ciStatus to none when absent", () => {
     const [pr] = parseSearchResponse({ nodes: [draftPrNodeNoCi] });
 

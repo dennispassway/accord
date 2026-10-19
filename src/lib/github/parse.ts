@@ -64,6 +64,19 @@ function parseReviewState(reviewDecision: unknown): ReviewState {
   }
 }
 
+/**
+ * GitHub zet een job die het niet startte (spending limit bereikt, betaling
+ * mislukt) op FAILURE; alleen deze annotatie onderscheidt hem van een echte fout.
+ */
+function isNotStartedForBilling(context: Record<string, unknown>): boolean {
+  return nodesOf(context.annotations).some(
+    (annotation) =>
+      isRecord(annotation) &&
+      typeof annotation.message === "string" &&
+      annotation.message.includes("The job was not started because"),
+  );
+}
+
 function parseCiStatus(node: Record<string, unknown>): CiStatus {
   const commits =
     isRecord(node.commits) && Array.isArray(node.commits.nodes)
@@ -93,6 +106,7 @@ function parseCiStatus(node: Record<string, unknown>): CiStatus {
           ? rollup.contexts.nodes
           : [];
       const failedChecks: string[] = [];
+      let allNotStarted = true;
       for (const context of contextNodes) {
         if (!isRecord(context)) continue;
         const isFailed =
@@ -101,8 +115,12 @@ function parseCiStatus(node: Record<string, unknown>): CiStatus {
           context.state === "FAILURE" ||
           context.state === "ERROR";
         if (!isFailed) continue;
+        if (!isNotStartedForBilling(context)) allNotStarted = false;
         const name = context.name ?? context.context;
         if (isNonEmptyString(name)) failedChecks.push(name);
+      }
+      if (failedChecks.length > 0 && allNotStarted) {
+        return { state: "billingBlocked" };
       }
       return { state: "failure", failedChecks };
     }
