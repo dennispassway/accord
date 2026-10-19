@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.13.0](https://github.com/dennispassway/accord/compare/v1.12.0...v1.13.0) (2026-10-19)
+
+
+### Nieuw
+
+* **github:** herken checks die GitHub niet startte omdat het budget op is ([046b61d](https://github.com/dennispassway/accord/commit/046b61d228398e55b96320da75f5f1b401587da8))
+* **prs:** toon 'budget op' in plaats van rode checks als de jobs niet startten ([41a1bfc](https://github.com/dennispassway/accord/commit/41a1bfc08ede5ab3b6f6101ac476c2c69ae76934))
+
+
+### Opgelost
+
+* **github:** budgetstatus alleen bij een volledige contextlijst en elke rode conclusie ([da80bd1](https://github.com/dennispassway/accord/commit/da80bd12a2c9482638c16ef6b26c78b9eb954558))
+* **prs:** budget-pill geel, korte uitleg en geen '0 checks gefaald' ([e0183d6](https://github.com/dennispassway/accord/commit/e0183d6da600b19e57902ec9b8dbc888a60d4dbe))
+* **prs:** geen branch-protection-melding als niet-gestarte checks BLOCKED verklaren ([80a602e](https://github.com/dennispassway/accord/commit/80a602ef039d57e619e8d313b7784361d2dc341b))
+
 ## [1.12.0](https://github.com/dennispassway/accord/compare/v1.11.1...v1.12.0) (2026-10-15)
 
 
