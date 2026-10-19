@@ -87,6 +87,7 @@ fragment PrFields on PullRequest {
         statusCheckRollup {
           state
           contexts(first: 20) {
+            totalCount
             nodes {
               ... on CheckRun {
                 name
