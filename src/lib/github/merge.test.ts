@@ -144,6 +144,18 @@ describe("mergeReasons", () => {
     ).toEqual(["goedkeuring ontbreekt"]);
   });
 
+  it("does not add branch protection when unstarted checks explain BLOCKED", () => {
+    expect(
+      mergeReasons(
+        pr({
+          mergeStateStatus: "BLOCKED",
+          ciStatus: { state: "billingBlocked" },
+        }),
+        stackInfo(),
+      ),
+    ).toEqual(["checks niet gestart: budget op"]);
+  });
+
   it("does not add branch protection when CI explains BLOCKED", () => {
     expect(
       mergeReasons(

@@ -1,4 +1,4 @@
-import type { PullRequest } from "../../lib/github/domain";
+import type { CiStatus, PullRequest } from "../../lib/github/domain";
 
 export type PrStatusKey =
   | "review"
@@ -29,13 +29,25 @@ export interface PrStatus {
   problem: PrProblem | null;
 }
 
-/** Conflict, rode checks, niet gestarte checks of changes requested, in die volgorde. */
+/** Het probleem dat de CI meldt; pending is wachten, geen probleem. */
+const CI_PROBLEM: Record<
+  CiStatus["state"],
+  Extract<PrProblem, "checks" | "budget"> | null
+> = {
+  success: null,
+  none: null,
+  pending: null,
+  failure: "checks",
+  billingBlocked: "budget",
+};
+
+/** Conflict, de CI of changes requested, in die volgorde. */
 function blockingProblem(pr: PullRequest): Exclude<PrProblem, "achter"> | null {
   if (pr.mergeable === "CONFLICTING") return "conflict";
-  if (pr.ciStatus.state === "failure") return "checks";
-  if (pr.ciStatus.state === "billingBlocked") return "budget";
-  if (pr.reviewState.state === "changesRequested") return "changes";
-  return null;
+  return (
+    CI_PROBLEM[pr.ciStatus.state] ??
+    (pr.reviewState.state === "changesRequested" ? "changes" : null)
+  );
 }
 
 const ACTIE_LABEL: Record<PrProblem, string> = {

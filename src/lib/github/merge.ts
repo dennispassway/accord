@@ -1,4 +1,4 @@
-import type { PullRequest } from "./domain";
+import type { CiStatus, PullRequest } from "./domain";
 import {
   AuthError,
   type FetchImpl,
@@ -18,6 +18,15 @@ mutation MergePr($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
 }
 `;
 
+/** Waarom de CI mergen tegenhoudt; null als hij dat niet doet. */
+const CI_MERGE_REASON: Record<CiStatus["state"], string | null> = {
+  success: null,
+  none: null,
+  failure: "CI is rood",
+  billingBlocked: "checks niet gestart: budget op",
+  pending: "CI draait nog",
+};
+
 /**
  * BLOCKED is GitHubs verzamelwoord; alleen melden als geen andere reden de
  * blokkade al verklaart.
@@ -27,8 +36,7 @@ export function isBlockedByProtection(pr: PullRequest): boolean {
     pr.mergeStateStatus === "BLOCKED" &&
     pr.reviewState.state !== "reviewRequested" &&
     pr.reviewState.state !== "changesRequested" &&
-    pr.ciStatus.state !== "failure" &&
-    pr.ciStatus.state !== "pending" &&
+    CI_MERGE_REASON[pr.ciStatus.state] == null &&
     pr.mergeable !== "CONFLICTING"
   );
 }
@@ -44,11 +52,8 @@ export function mergeReasons(
   if (pr.mergeable === "CONFLICTING") reasons.push("merge-conflicten");
   if (pr.mergeable === "UNKNOWN") reasons.push("mergebaarheid onbekend");
   if (pr.isDraft) reasons.push("draft");
-  if (pr.ciStatus.state === "failure") reasons.push("CI is rood");
-  if (pr.ciStatus.state === "billingBlocked") {
-    reasons.push("checks niet gestart: budget op");
-  }
-  if (pr.ciStatus.state === "pending") reasons.push("CI draait nog");
+  const ciReason = CI_MERGE_REASON[pr.ciStatus.state];
+  if (ciReason != null) reasons.push(ciReason);
   if (pr.reviewState.state === "changesRequested") {
     reasons.push("changes requested");
   }
