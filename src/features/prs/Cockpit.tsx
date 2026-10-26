@@ -306,20 +306,13 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
 
   const prs = state.status === "ready" ? state.prs : [];
   const groups = useMemo(() => groupByRepo(prs), [prs]);
-  const [dismissedRunIds, setDismissedRunIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
   // Zonder geladen lijst lijkt elke run losgekoppeld; wacht dus op "ready".
   const runsWithoutPr = useMemo(
     () =>
       state.status === "ready"
-        ? detachedRuns(
-            runs.values(),
-            new Set(prs.map(keyOfPr)),
-            dismissedRunIds,
-          )
+        ? detachedRuns(runs.values(), new Set(prs.map(keyOfPr)))
         : [],
-    [state.status, runs, prs, dismissedRunIds],
+    [state.status, runs, prs],
   );
   // U2a: de app-start hoeft niet meer op een aparte /user-call te wachten
   // (useAuth kent de login-naam dan nog niet); zodra de PR-fetch of de
@@ -1210,12 +1203,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                         type="button"
                         className="cockpit-banner-dismiss"
                         aria-label="Sluiten"
-                        onClick={() => {
-                          setDismissedRunIds(
-                            (current) => new Set([...current, run.runId]),
-                          );
-                          dismissRun(run.runId);
-                        }}
+                        onClick={() => dismissRun(run.runId)}
                       >
                         <CloseIcon />
                       </button>

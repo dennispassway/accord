@@ -56,6 +56,9 @@ export interface AgentRun {
   keptWorktree?: string;
   /** Een commentsOnly-run die netjes stopte maar geen review achterliet. */
   reviewMissing?: boolean;
+  /** De gebruiker sloot zijn blok boven de lijst. De run blijft in de map
+   * staan, want hasDistillRun leest hem. */
+  dismissed?: true;
 }
 
 export interface AgentClis {
@@ -502,9 +505,15 @@ export function useAgentRuns(
     [clearTimeoutTimer, appendLines],
   );
 
-  // Laat Rust een gesloten run vergeten, anders zet list_runs hem na een
-  // reload terug. Uit `runs` blijft hij staan: hasDistillRun leest die.
+  // Rust vergeet de run ook, anders zet list_runs hem na een reload terug.
   const dismissRun = useCallback((runId: string) => {
+    setRuns((current) => {
+      const run = current.get(runId);
+      if (!run) return current;
+      const next = new Map(current);
+      next.set(runId, { ...run, dismissed: true });
+      return next;
+    });
     if (IS_MOCK) return;
     void invoke("dismiss_run", { runId }).catch((error) => {
       console.error("kon run niet vergeten", error);

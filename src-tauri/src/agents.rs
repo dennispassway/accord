@@ -236,6 +236,10 @@ pub struct RunInfo {
     /// wait-thread kunnen anders gelijktijdig dezelfde worktree opruimen. Wie
     /// hem als eerste op `true` zet, mag `cleanup_run` draaien.
     cleaned: bool,
+    /// De gebruiker sloot het blok terwijl de run hier nog liep (een time-out
+    /// meldt de frontend al als gestopt); `prune_finished_runs` ruimt hem op
+    /// zodra hij afgerond is.
+    dismissed: bool,
     repo_path: PathBuf,
     worktree: PathBuf,
     repo_id: String,
@@ -622,9 +626,10 @@ fn emit_log(app: &AppHandle, run_id: &str, lines: Vec<String>) {
     );
 }
 
-/// Snoeit afgeronde runs boven `MAX_FINISHED_RUNS`, oudste eerst; lopende
-/// runs worden nooit gesnoeid.
+/// Snoeit gesloten afgeronde runs en afgeronde runs boven
+/// `MAX_FINISHED_RUNS`, oudste eerst; lopende runs worden nooit gesnoeid.
 fn prune_finished_runs(runs: &mut HashMap<String, RunInfo>) {
+    runs.retain(|_, run| !(run.dismissed && run.status != RunStatus::Running));
     let mut finished: Vec<(String, u64)> = runs
         .iter()
         .filter(|(_, run)| run.status != RunStatus::Running)
@@ -675,22 +680,28 @@ pub async fn list_runs(app: AppHandle) -> Vec<RunSnapshot> {
     .unwrap_or_default()
 }
 
-/// Vergeet een afgeronde run, zodat `list_runs` hem na een reload niet terug
-/// laat komen. Een lopende run blijft staan: wie hem uit de state haalt, laat
-/// hem als afgebroken gelden (`is_cancelled`).
-fn forget_finished_run(runs: &mut HashMap<String, RunInfo>, run_id: &str) {
-    if runs
-        .get(run_id)
-        .is_some_and(|run| run.status != RunStatus::Running)
-    {
+/// Vergeet een gesloten run, zodat `list_runs` hem na een reload niet terug
+/// laat komen. Een lopende run blijft tot hij afgerond is: wie hem uit de
+/// state haalt, laat hem als afgebroken gelden (`is_cancelled`).
+fn dismiss_run_entry(runs: &mut HashMap<String, RunInfo>, run_id: &str) {
+    let Some(run) = runs.get_mut(run_id) else {
+        return;
+    };
+    if run.status == RunStatus::Running {
+        run.dismissed = true;
+    } else {
         runs.remove(run_id);
     }
 }
 
-/// De gebruiker sloot het blok van een afgeronde run.
+/// De gebruiker sloot het blok van een afgeronde run. Buiten de main thread:
+/// de mutex mag de UI niet ophouden.
 #[tauri::command]
-pub fn dismiss_run(app: AppHandle, run_id: String) {
-    with_runs(&app, |runs| forget_finished_run(runs, &run_id));
+pub async fn dismiss_run(app: AppHandle, run_id: String) {
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        with_runs(&app, |runs| dismiss_run_entry(runs, &run_id));
+    })
+    .await;
 }
 
 /// Is de run weg uit de state, dan is er niemand meer die hem verwacht: dat
@@ -1537,6 +1548,7 @@ fn start_review_blocking(
                 pid: None,
                 cancelled: false,
                 cleaned: false,
+                dismissed: false,
                 repo_path: repo_path.clone(),
                 worktree: worktree.clone(),
                 repo_id: repo_id.clone(),
@@ -3124,6 +3136,7 @@ mod tests {
             pid: None,
             cancelled: false,
             cleaned: false,
+            dismissed: false,
             repo_path: PathBuf::from("/tmp/repo"),
             worktree: PathBuf::from("/tmp/worktree"),
             repo_id: "linku/webshop".to_string(),
@@ -3190,18 +3203,30 @@ mod tests {
     }
 
     #[test]
-    fn forget_finished_run_removes_only_finished_runs() {
+    fn dismiss_removes_a_finished_run_right_away() {
         let mut runs: HashMap<String, RunInfo> = HashMap::new();
         runs.insert("done".to_string(), test_run_info(RunStatus::Done, 0));
-        runs.insert("running".to_string(), test_run_info(RunStatus::Running, 1));
 
-        forget_finished_run(&mut runs, "done");
-        forget_finished_run(&mut runs, "running");
-        forget_finished_run(&mut runs, "unknown");
+        dismiss_run_entry(&mut runs, "done");
+        dismiss_run_entry(&mut runs, "unknown");
 
-        assert!(!runs.contains_key("done"));
-        // Een lopende run vergeten zou hem als afgebroken laten gelden.
-        assert!(runs.contains_key("running"));
+        assert!(runs.is_empty());
+    }
+
+    #[test]
+    fn dismiss_of_a_running_run_waits_until_it_finishes() {
+        // Een time-out toont de run in de frontend al als gestopt terwijl hij
+        // hier nog loopt. Meteen weghalen zou hem als afgebroken laten gelden.
+        let mut runs: HashMap<String, RunInfo> = HashMap::new();
+        runs.insert("run".to_string(), test_run_info(RunStatus::Running, 0));
+
+        dismiss_run_entry(&mut runs, "run");
+        prune_finished_runs(&mut runs);
+        assert!(runs.contains_key("run"));
+
+        runs.get_mut("run").unwrap().status = RunStatus::Cancelled;
+        prune_finished_runs(&mut runs);
+        assert!(!runs.contains_key("run"));
     }
 
     #[test]
