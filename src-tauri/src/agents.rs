@@ -675,6 +675,24 @@ pub async fn list_runs(app: AppHandle) -> Vec<RunSnapshot> {
     .unwrap_or_default()
 }
 
+/// Vergeet een afgeronde run, zodat `list_runs` hem na een reload niet terug
+/// laat komen. Een lopende run blijft staan: wie hem uit de state haalt, laat
+/// hem als afgebroken gelden (`is_cancelled`).
+fn forget_finished_run(runs: &mut HashMap<String, RunInfo>, run_id: &str) {
+    if runs
+        .get(run_id)
+        .is_some_and(|run| run.status != RunStatus::Running)
+    {
+        runs.remove(run_id);
+    }
+}
+
+/// De gebruiker sloot het blok van een afgeronde run.
+#[tauri::command]
+pub fn dismiss_run(app: AppHandle, run_id: String) {
+    with_runs(&app, |runs| forget_finished_run(runs, &run_id));
+}
+
 /// Is de run weg uit de state, dan is er niemand meer die hem verwacht: dat
 /// telt als afgebroken.
 fn is_cancelled(app: &AppHandle, run_id: &str) -> bool {
@@ -3169,6 +3187,21 @@ mod tests {
         }
         prune_finished_runs(&mut runs);
         assert_eq!(runs.len(), 5);
+    }
+
+    #[test]
+    fn forget_finished_run_removes_only_finished_runs() {
+        let mut runs: HashMap<String, RunInfo> = HashMap::new();
+        runs.insert("done".to_string(), test_run_info(RunStatus::Done, 0));
+        runs.insert("running".to_string(), test_run_info(RunStatus::Running, 1));
+
+        forget_finished_run(&mut runs, "done");
+        forget_finished_run(&mut runs, "running");
+        forget_finished_run(&mut runs, "unknown");
+
+        assert!(!runs.contains_key("done"));
+        // Een lopende run vergeten zou hem als afgebroken laten gelden.
+        assert!(runs.contains_key("running"));
     }
 
     #[test]

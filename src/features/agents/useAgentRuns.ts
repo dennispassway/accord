@@ -502,6 +502,15 @@ export function useAgentRuns(
     [clearTimeoutTimer, appendLines],
   );
 
+  // Laat Rust een gesloten run vergeten, anders zet list_runs hem na een
+  // reload terug. Uit `runs` blijft hij staan: hasDistillRun leest die.
+  const dismissRun = useCallback((runId: string) => {
+    if (IS_MOCK) return;
+    void invoke("dismiss_run", { runId }).catch((error) => {
+      console.error("kon run niet vergeten", error);
+    });
+  }, []);
+
   const runForPr = useCallback(
     (prKey: string): AgentRun | undefined => {
       let latest: AgentRun | undefined;
@@ -546,6 +555,7 @@ export function useAgentRuns(
     refreshRepoPaths,
     startRun,
     cancelRun,
+    dismissRun,
     runForPr,
     runningPrKeys,
     hasDistillRun,

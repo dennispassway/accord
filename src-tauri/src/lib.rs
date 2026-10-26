@@ -37,6 +37,7 @@ pub fn run() {
             agents::start_agent_review,
             agents::cancel_agent_review,
             agents::list_runs,
+            agents::dismiss_run,
             agents::read_run_log,
             tray::update_tray,
             stacks::resolve_branch_shas,

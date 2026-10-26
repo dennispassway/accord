@@ -210,6 +210,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     refreshRepoPaths,
     startRun,
     cancelRun,
+    dismissRun,
     runForPr,
     runningPrKeys,
     hasDistillRun,
@@ -1209,11 +1210,12 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                         type="button"
                         className="cockpit-banner-dismiss"
                         aria-label="Sluiten"
-                        onClick={() =>
+                        onClick={() => {
                           setDismissedRunIds(
                             (current) => new Set([...current, run.runId]),
-                          )
-                        }
+                          );
+                          dismissRun(run.runId);
+                        }}
                       >
                         <CloseIcon />
                       </button>
