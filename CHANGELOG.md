@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.14.0](https://github.com/dennispassway/accord/compare/v1.13.0...v1.14.0) (2026-10-26)
+
+
+### Nieuw
+
+* **icon:** app-icoon opnieuw getekend als SVG in macOS-vorm ([3f91d27](https://github.com/dennispassway/accord/commit/3f91d27a7cefeadbedcc540792c17fe4e16242d7))
+* nieuw app-icoon dat in het dock past, ook linksboven in de app ([09908c5](https://github.com/dennispassway/accord/commit/09908c5d232a9708cea93f98fa1fafb89fd79e90))
+* **prs:** filter de lijst op auteur, assignee of reviewer ([6e62572](https://github.com/dennispassway/accord/commit/6e62572051e005c53bcc6cf4920a2fac8a22dae3))
+* **prs:** filterlogica op auteur, assignee of reviewer ([ee08039](https://github.com/dennispassway/accord/commit/ee0803929388c047142d87c7277f07f0e4260868))
+* **prs:** persoonfilter in de toolbar ([f41d772](https://github.com/dennispassway/accord/commit/f41d772061fbbdf40250f36773c9e38daba886e6))
+* **sidebar:** app-icoon linksboven in plaats van het merge-blokje ([f0dea76](https://github.com/dennispassway/accord/commit/f0dea76bc81c668237b279feb1c5013d830bc8dc))
+
+
+### Opgelost
+
+* **agents:** afgeronde runs duiken niet meer op boven de lijst ([f77cbb1](https://github.com/dennispassway/accord/commit/f77cbb1d5d785d28a37710cc4144c04c713d6e18))
+* **agents:** een gesloten run komt na een reload niet terug ([39dfcee](https://github.com/dennispassway/accord/commit/39dfcee9d57764482f4c931e5ddfc43d7d4bf57d))
+* **agents:** sluiten van een run houdt ook stand na een time-out ([aeec0c6](https://github.com/dennispassway/accord/commit/aeec0c6da821a640c6ba3e129ee13fd10dc1d5e8))
+* **agents:** toon een losgekoppelde run alleen als er nog iets te doen is ([4f9e080](https://github.com/dennispassway/accord/commit/4f9e0806400bbb50acb67216d8c15411bd2ecfd2))
+* **notify:** lees prKey uit het ActionPerformed-event van plugin-notification 2.6+ ([ceb33c4](https://github.com/dennispassway/accord/commit/ceb33c46894e5f923668fcbc42b4491494f0c3a1))
+
 ## [1.13.0](https://github.com/dennispassway/accord/compare/v1.12.0...v1.13.0) (2026-10-19)
 
 
