@@ -1,9 +1,10 @@
 import { useState } from "react";
+import appIconUrl from "../../../src-tauri/icons/icon.svg?no-inline";
 import type { RepoId } from "../../lib/github/domain";
 import type { RepoGroup } from "../../lib/github/organize";
 import { repoDotBg } from "./Avatar";
 import { loadFavorites, saveFavorites } from "./cockpitPrefs";
-import { GithubIcon, InboxIcon, MergeIcon } from "./icons";
+import { GithubIcon, InboxIcon } from "./icons";
 import "./sidebar.css";
 
 interface SidebarProps {
@@ -89,9 +90,16 @@ export function Sidebar({
           vrij en lijnt de eerste rij uit met de onderkant van de toolbar. */}
       <div className="sidebar-top" data-tauri-drag-region />
       <div className="sidebar-head" data-tauri-drag-region>
-        <span className="sidebar-logo">
-          <MergeIcon size={14} />
-        </span>
+        {/* no-inline: het #tile-fragment hoort achter een bestands-URL, niet
+            achter een ingelijnde data-URI. */}
+        <img
+          className="sidebar-logo"
+          src={`${appIconUrl}#tile`}
+          width={24}
+          height={24}
+          alt=""
+          draggable={false}
+        />
         Accord
       </div>
       <div className="sidebar-rows">

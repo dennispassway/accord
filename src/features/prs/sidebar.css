@@ -40,14 +40,13 @@
 }
 
 .sidebar-logo {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-  background: var(--grad-accent);
-  box-shadow: var(--btn-highlight), var(--btn-shadow);
-  color: #fff;
+  flex: none;
+  /* rx 185 op de tegel van 824 in icon.svg */
+  border-radius: 22.45%;
+  /* De ring houdt de donkere tegel zichtbaar op de donkere sidebar. */
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.08),
+    var(--btn-shadow);
 }
 
 .sidebar-heading {
