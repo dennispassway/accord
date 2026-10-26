@@ -99,6 +99,13 @@ const SORT_LABELS: Record<SortMode, string> = {
   project: "Project",
 };
 
+const REVIEW_TOAST: Record<ReviewEvent, (n: PullRequest["number"]) => string> =
+  {
+    APPROVE: (n) => `#${n} goedgekeurd`,
+    REQUEST_CHANGES: (n) => `Changes gevraagd op #${n}`,
+    COMMENT: (n) => `Reactie geplaatst op #${n}`,
+  };
+
 /**
  * B5: met welk menu dan ook open (settings-sheet, sortmenu, contextmenu, of
  * het merge-methode-/agent-modusmenu via de DOM-overlay-check) mogen
@@ -1017,15 +1024,6 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   function handleMergePr(pr: PullRequest, method: MergeMethod) {
     return mergeWithAutoRebase(pr, method);
   }
-
-  const REVIEW_TOAST: Record<
-    ReviewEvent,
-    (n: PullRequest["number"]) => string
-  > = {
-    APPROVE: (n) => `#${n} goedgekeurd`,
-    REQUEST_CHANGES: (n) => `Changes gevraagd op #${n}`,
-    COMMENT: (n) => `Reactie geplaatst op #${n}`,
-  };
 
   async function handleSubmitReview(
     pr: PullRequest,

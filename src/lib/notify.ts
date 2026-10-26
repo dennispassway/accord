@@ -85,11 +85,12 @@ export function listenForNotificationClicks(
   if (IS_MOCK) return () => {};
   let listener: { unregister: () => void } | undefined;
   let cancelled = false;
-  void onAction((notification) => {
+  void onAction((event) => {
     const window = getCurrentWindow();
     void window.show().then(() => window.setFocus());
-    const prKey = (notification.extra as { prKey?: string } | undefined)?.prKey;
-    if (prKey != null) onSelectPr(prKey);
+    // `notification` is null als het platform de melding niet kon teruglezen.
+    const prKey = event.notification?.extra.prKey;
+    if (typeof prKey === "string") onSelectPr(prKey);
   }).then((registered) => {
     if (cancelled) {
       registered.unregister();
