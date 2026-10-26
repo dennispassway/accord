@@ -29,11 +29,10 @@ export function useTraySync(
     update: (current: RepoId | "all") => RepoId | "all",
   ) => void,
   setSelectedKey: (key: string) => void,
-  /** Klapt de "Later"-sectie uit als de PR die de tray selecteert gesnoozed
-   * is: anders selecteert usePrSelection stilzwijgend een andere PR, want
-   * een ingeklapte "Later" telt niet mee voor de zichtbare/navigeerbare
-   * lijst. */
-  expandLaterIfSnoozed: (pr: PullRequest) => void,
+  /** Maakt de PR die de tray selecteert zichtbaar in de lijst (ingeklapte
+   * "Later", persoonfilter): anders selecteert usePrSelection stilzwijgend
+   * een andere PR. */
+  revealPr: (pr: PullRequest) => void,
 ) {
   useEffect(() => {
     const items = allPrsSorted.slice(0, TRAY_ITEM_LIMIT).map((pr) => ({
@@ -49,8 +48,8 @@ export function useTraySync(
   allPrsSortedRef.current = allPrsSorted;
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
-  const expandLaterIfSnoozedRef = useRef(expandLaterIfSnoozed);
-  expandLaterIfSnoozedRef.current = expandLaterIfSnoozed;
+  const revealPrRef = useRef(revealPr);
+  revealPrRef.current = revealPr;
   // usePrSelection geeft elke render een nieuwe setSelectedKey: als dep zou
   // die de listeners bij elke render opnieuw laten registreren.
   const setSelectedKeyRef = useRef(setSelectedKey);
@@ -64,7 +63,7 @@ export function useTraySync(
       const key = event.payload;
       const target = allPrsSortedRef.current.find((pr) => keyOfPr(pr) === key);
       if (!target) return;
-      expandLaterIfSnoozedRef.current(target);
+      revealPrRef.current(target);
       setSelectedRepoId((current) =>
         current === "all" || current === target.repoId ? current : "all",
       );

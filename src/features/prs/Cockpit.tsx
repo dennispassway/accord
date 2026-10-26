@@ -73,6 +73,7 @@ import { buildSections } from "./sort";
 import { Toast, useToast } from "./Toast";
 import { Toolbar } from "./Toolbar";
 import { usePanelWidths } from "./usePanelWidths";
+import { usePersonFilter } from "./usePersonFilter";
 import { usePrSelection } from "./usePrSelection";
 import { shouldRefreshOnVisible, usePrs } from "./usePrs";
 import { useTraySync } from "./useTraySync";
@@ -82,6 +83,8 @@ const MERGE_METHOD_LABEL: Record<MergeMethod, string> = {
   SQUASH: "squash",
   MERGE: "merge commit",
 };
+
+type ToolbarMenu = "sort" | "person" | null;
 
 const SORT_MODES_BY_DIGIT: Record<string, SortMode> = {
   "1": "triage",
@@ -106,14 +109,14 @@ const SORT_LABELS: Record<SortMode, string> = {
  */
 export function computeShortcutsEnabled(state: {
   settingsOpen: boolean;
-  sortOpen: boolean;
+  toolbarMenuOpen: boolean;
   contextMenuOpen: boolean;
   menuOverlayOpen: boolean;
   inspectorOpen: boolean;
 }): boolean {
   return (
     !state.settingsOpen &&
-    !state.sortOpen &&
+    !state.toolbarMenuOpen &&
     !state.contextMenuOpen &&
     !state.menuOverlayOpen &&
     !state.inspectorOpen
@@ -267,7 +270,10 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     setSortModeState(mode);
     saveSortMode(mode);
   }, []);
-  const [sortOpen, setSortOpen] = useState(false);
+  // Eén state: de twee toolbarmenu's sluiten elkaar uit.
+  const [toolbarMenu, setToolbarMenu] = useState<ToolbarMenu>(null);
+  const toggleToolbarMenu = (menu: Exclude<ToolbarMenu, null>) =>
+    setToolbarMenu((open) => (open === menu ? null : menu));
   const [laterCollapsed, setLaterCollapsed] = useState(true);
   const [snoozeStoreState, setSnoozeStoreState] =
     useState<SnoozeStore>(loadSnoozes);
@@ -341,8 +347,8 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     if (!settingsOpen) cockpitRef.current?.focus();
   }, [settingsOpen]);
   useEffect(() => {
-    if (!sortOpen) cockpitRef.current?.focus();
-  }, [sortOpen]);
+    if (toolbarMenu == null) cockpitRef.current?.focus();
+  }, [toolbarMenu]);
   // U6: focus keert na het sluiten van het contextmenu terug naar de
   // cockpit-container, die de lijst-shortcuts al vangt.
   useEffect(() => {
@@ -362,6 +368,13 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         : prs.filter((pr) => pr.repoId === selectedRepoId),
     [prs, selectedRepoId],
   );
+  const {
+    filter: personFilter,
+    setFilter: setPersonFilter,
+    filteredPrs: personScopedPrs,
+    people,
+    reveal: revealPerson,
+  } = usePersonFilter(scopedPrs, meLogin);
   const sortCtx = useMemo<SortCtx>(() => {
     const stackInfoByKeyForSort = new Map(
       computeStackInfo(prs).map((info) => [
@@ -452,8 +465,8 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     [setSnoozeStore, showToast],
   );
   const sections = useMemo(
-    () => buildSections(scopedPrs, sortMode, sortCtx, snoozeUntilOf),
-    [scopedPrs, sortMode, sortCtx, snoozeUntilOf],
+    () => buildSections(personScopedPrs, sortMode, sortCtx, snoozeUntilOf),
+    [personScopedPrs, sortMode, sortCtx, snoozeUntilOf],
   );
   // Kop tonen: in triage-modus altijd, in project-modus alleen als alle
   // repo's zichtbaar zijn (bij één geselecteerd project vervalt de kop).
@@ -495,18 +508,25 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   // Eenmalige registratie via een ref, want setSelectedKey/setSearch/
   // setSelectedRepoId zijn geen memoized functies en zouden anders elke
   // render opnieuw registreren.
+  // F5: een PR die van buitenaf (notificatie, tray) geselecteerd wordt moet
+  // in de lijst staan, anders valt usePrSelection stilzwijgend terug op een
+  // andere PR. Een ingeklapte "Later" en het persoonfilter kunnen hem allebei
+  // verbergen.
+  const revealPr = (pr: PullRequest) => {
+    if (snoozeUntilOf(pr) != null) setLaterCollapsed(false);
+    revealPerson(pr);
+  };
+  /** Voor een selectie buiten de lijst om: notificatie, stapelketen, merge. */
+  const selectAndReveal = (prKey: string) => {
+    const target = prs.find((pr) => keyOfPr(pr) === prKey);
+    if (target != null) revealPr(target);
+    setSelectedKey(prKey);
+  };
   const selectFromNotificationRef = useRef((_prKey: string) => {});
   selectFromNotificationRef.current = (prKey: string) => {
     setSelectedRepoId("all");
     setSearch("");
-    // F5: staat de doel-PR gesnoozed en "Later" ingeklapt, dan telt hij niet
-    // mee voor visiblePrs en valt usePrSelection stilzwijgend terug op een
-    // andere PR; klap "Later" dus eerst uit.
-    const target = prs.find((pr) => keyOfPr(pr) === prKey);
-    if (target != null && snoozeUntilOf(target) != null) {
-      setLaterCollapsed(false);
-    }
-    setSelectedKey(prKey);
+    selectAndReveal(prKey);
   };
   useEffect(() => {
     return listenForNotificationClicks((prKey) =>
@@ -560,11 +580,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     refresh,
     setSelectedRepoId,
     setSelectedKey,
-    // F5: zelfde reden als selectFromNotificationRef hierboven, maar dan
-    // voor een selectie vanuit het tray-menu.
-    (pr) => {
-      if (snoozeUntilOf(pr) != null) setLaterCollapsed(false);
-    },
+    revealPr,
   );
 
   // B5: sheet, sortmenu, contextmenu of de sneltoetsen-hulp open: dan mogen
@@ -577,7 +593,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   const shortcutsEnabled =
     computeShortcutsEnabled({
       settingsOpen,
-      sortOpen,
+      toolbarMenuOpen: toolbarMenu != null,
       contextMenuOpen: contextMenu != null,
       menuOverlayOpen: false,
       inspectorOpen,
@@ -616,8 +632,8 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           setSettingsOpen(false);
           return;
         }
-        if (sortOpen) {
-          setSortOpen(false);
+        if (toolbarMenu != null) {
+          setToolbarMenu(null);
           return;
         }
         if (selectedKeys.size > 1) {
@@ -630,7 +646,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         event.key === "?" &&
         computeShortcutsEnabled({
           settingsOpen,
-          sortOpen,
+          toolbarMenuOpen: toolbarMenu != null,
           contextMenuOpen: contextMenu != null,
           menuOverlayOpen: isAnyMenuOverlayOpen(document),
           inspectorOpen,
@@ -656,7 +672,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       } else if (modKey(event) && event.key in SORT_MODES_BY_DIGIT) {
         event.preventDefault();
         setSortMode(SORT_MODES_BY_DIGIT[event.key] as SortMode);
-        setSortOpen(false);
+        setToolbarMenu(null);
       } else if (
         !event.metaKey &&
         !event.ctrlKey &&
@@ -750,7 +766,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   }, [
     refresh,
     settingsOpen,
-    sortOpen,
+    toolbarMenu,
     helpOpen,
     inspectorOpen,
     contextMenu,
@@ -934,7 +950,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     ) {
       const firstStep = steps[0];
       if (firstStep != null)
-        setSelectedKey(`${pr.repoId}#${firstStep.prNumber}`);
+        selectAndReveal(`${pr.repoId}#${firstStep.prNumber}`);
     }
 
     // Lessen pas na de merge, en alleen als er iets te leren valt. `pr` is hier
@@ -1061,7 +1077,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         // DOM-check.)
         if (
           settingsOpen ||
-          sortOpen ||
+          toolbarMenu != null ||
           contextMenu != null ||
           helpOpen ||
           inspectorOpen
@@ -1145,11 +1161,18 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                 : undefined
             }
             sortLabel={SORT_LABELS[sortMode]}
-            onSortClick={() => setSortOpen((open) => !open)}
+            onSortClick={() => toggleToolbarMenu("sort")}
             sortMode={sortMode}
-            sortOpen={sortOpen}
+            sortOpen={toolbarMenu === "sort"}
             onSelectSort={setSortMode}
-            onCloseSort={() => setSortOpen(false)}
+            onCloseSort={() => setToolbarMenu(null)}
+            personFilter={personFilter}
+            people={people}
+            me={meLogin}
+            personOpen={toolbarMenu === "person"}
+            onPersonClick={() => toggleToolbarMenu("person")}
+            onChangePerson={setPersonFilter}
+            onClosePerson={() => setToolbarMenu(null)}
             onOpenSettings={() => setSettingsOpen(true)}
           />
           <div className="cockpit-panes">
@@ -1237,7 +1260,9 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
                 }}
                 showRepoMeta={selectedRepoId === "all"}
                 runningPrKeys={runningPrKeys}
-                hasActiveSearch={search.trim() !== ""}
+                hasActiveFilter={
+                  search.trim() !== "" || personFilter.login != null
+                }
                 snoozeUntilOf={snoozeUntilOf}
                 laterCollapsed={laterCollapsed}
                 onToggleLater={() =>
@@ -1260,7 +1285,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
               stackInfo={stackInfo}
               stackChain={stackChain}
               meLogin={meLogin}
-              onSelectPr={setSelectedKey}
+              onSelectPr={selectAndReveal}
               onOpenInspector={(tab) => {
                 if (selectedPr == null) return;
                 setInspector({ tab, key: keyOfPr(selectedPr) });

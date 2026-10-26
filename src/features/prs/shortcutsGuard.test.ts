@@ -3,7 +3,7 @@ import { computeShortcutsEnabled } from "./Cockpit";
 
 const base = {
   settingsOpen: false,
-  sortOpen: false,
+  toolbarMenuOpen: false,
   contextMenuOpen: false,
   menuOverlayOpen: false,
   inspectorOpen: false,
@@ -20,8 +20,10 @@ describe("computeShortcutsEnabled", () => {
     );
   });
 
-  it("blokkeert bij een open sortmenu", () => {
-    expect(computeShortcutsEnabled({ ...base, sortOpen: true })).toBe(false);
+  it("blokkeert bij een open toolbarmenu (sorteren of persoonfilter)", () => {
+    expect(computeShortcutsEnabled({ ...base, toolbarMenuOpen: true })).toBe(
+      false,
+    );
   });
 
   it("blokkeert bij een open contextmenu", () => {
