@@ -36,8 +36,28 @@ describe("detachedRuns", () => {
 
   it("laat een afgeronde run weg die de gebruiker sloot", () => {
     expect(
-      detachedRuns([run({ status: "done" })], new Set(), new Set(["r1"])),
+      detachedRuns([run({ status: "failed" })], new Set(), new Set(["r1"])),
     ).toEqual([]);
+  });
+
+  it("laat een afgeronde run zonder openstaand werk weg", () => {
+    // Een review-run op een PR die later gemerged werd: niets meer te doen.
+    for (const status of ["done", "cancelled"] as const) {
+      expect(detachedRuns([run({ status })], new Set(), new Set())).toEqual([]);
+    }
+  });
+
+  it("houdt een afgeronde run met openstaand werk zichtbaar", () => {
+    const actionable = [
+      run({ status: "failed" }),
+      run({ status: "done", keptWorktree: "/tmp/wt", unpushedCommits: 2 }),
+      run({ status: "done", reviewMissing: true }),
+    ];
+    for (const finished of actionable) {
+      expect(detachedRuns([finished], new Set(), new Set())).toEqual([
+        finished,
+      ]);
+    }
   });
 
   it("houdt een lopende run zichtbaar, ook als hij gesloten zou zijn", () => {
