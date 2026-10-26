@@ -3,11 +3,18 @@ import { mod } from "../../lib/platform";
 import {
   ChevronIcon,
   CloseIcon,
+  PersonIcon,
   RefreshIcon,
   SearchIcon,
   SettingsIcon,
   SortIcon,
 } from "./icons";
+import { PersonMenu } from "./PersonMenu";
+import {
+  type PersonFilter,
+  type PersonOption,
+  personFilterLabel,
+} from "./personFilter";
 import { SortMenu } from "./SortMenu";
 import type { SortMode } from "./sort";
 import "./toolbar.css";
@@ -28,6 +35,13 @@ interface ToolbarProps {
   sortOpen?: boolean;
   onSelectSort?: (mode: SortMode) => void;
   onCloseSort?: () => void;
+  personFilter: PersonFilter;
+  people: PersonOption[];
+  me: string;
+  personOpen: boolean;
+  onPersonClick: () => void;
+  onChangePerson: (filter: PersonFilter) => void;
+  onClosePerson: () => void;
 }
 
 /**
@@ -51,6 +65,13 @@ export function Toolbar({
   sortOpen = false,
   onSelectSort = () => {},
   onCloseSort = () => {},
+  personFilter,
+  people,
+  me,
+  personOpen,
+  onPersonClick,
+  onChangePerson,
+  onClosePerson,
 }: ToolbarProps) {
   return (
     <div className="toolbar" data-tauri-drag-region>
@@ -95,6 +116,44 @@ export function Toolbar({
       >
         <SettingsIcon />
       </button>
+      <div className="toolbar-sort-wrap">
+        <button
+          type="button"
+          className={
+            personFilter.login == null
+              ? "toolbar-sort"
+              : "toolbar-sort toolbar-filter-active"
+          }
+          title={`Filter op persoon: ${personFilterLabel(personFilter, me)}`}
+          aria-haspopup="menu"
+          aria-expanded={personOpen}
+          onClick={onPersonClick}
+        >
+          <PersonIcon className="toolbar-sort-icon" />
+          <span className="toolbar-filter-label">
+            {personFilterLabel(personFilter, me)}
+          </span>
+          <ChevronIcon className="toolbar-sort-chevron" />
+        </button>
+        {personOpen && (
+          <PersonMenu
+            // useRovingMenu onthoudt alleen een index: verdwijnt de gefocuste
+            // persoon bij een refresh, dan valt de focus uit het menu.
+            // Hermounten zet hem terug op de gekozen keuze. De rol hoort erin
+            // zodat een rolwissel altijd naar de personenlijst springt, ook
+            // als twee rollen dezelfde logins hebben.
+            key={[
+              personFilter.role,
+              ...people.map((person) => person.login),
+            ].join("\n")}
+            filter={personFilter}
+            people={people}
+            me={me}
+            onChange={onChangePerson}
+            onClose={onClosePerson}
+          />
+        )}
+      </div>
       <div className="toolbar-sort-wrap">
         <button
           type="button"

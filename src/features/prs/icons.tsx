@@ -131,6 +131,25 @@ export function SortIcon({ className }: IconProps) {
   );
 }
 
+export function PersonIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={SIZE}
+      height={SIZE}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 19.5c1.2-3.3 3.8-5 7-5s5.8 1.7 7 5" />
+    </svg>
+  );
+}
+
 export function ChevronIcon({ className }: IconProps) {
   return (
     <svg

@@ -65,8 +65,8 @@ interface PrListProps {
   showRepoMeta: boolean;
   /** Keys of PRs with a review-agent run in progress. */
   runningPrKeys: Set<string>;
-  /** Er staat een zoekopdracht in het toolbar-veld: andere lege staat. */
-  hasActiveSearch: boolean;
+  /** Een zoekopdracht of persoonfilter beperkt de lijst: andere lege staat. */
+  hasActiveFilter: boolean;
   /** Until-instant (ISO) van een gesnoozede PR; alleen relevant voor rijen in
    * de sectie "later". */
   snoozeUntilOf?: (pr: PullRequest) => string | undefined;
@@ -120,7 +120,7 @@ export function PrList({
   onContextMenu,
   showRepoMeta,
   runningPrKeys,
-  hasActiveSearch,
+  hasActiveFilter,
   snoozeUntilOf,
   laterCollapsed,
   onToggleLater,
@@ -178,8 +178,8 @@ export function PrList({
   if (isEmpty) {
     return (
       <div className="empty-state">
-        {hasActiveSearch
-          ? "Geen PR's voor deze zoekopdracht"
+        {hasActiveFilter
+          ? "Geen PR's voor deze zoekopdracht of dit filter"
           : "Niets te reviewen"}
       </div>
     );

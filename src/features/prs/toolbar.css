@@ -167,6 +167,20 @@
   border-color: transparent;
 }
 
+/* Een actief persoonfilter verbergt PR's: laat de knop dat zien. */
+.toolbar-filter-active {
+  color: var(--accent);
+}
+
+/* Een GitHub-login is tot 39 tekens: de knop mag het zoekveld niet wegdrukken.
+   De volledige naam staat in het menu. */
+.toolbar-filter-label {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .toolbar-sort-icon {
   color: var(--accent);
 }
