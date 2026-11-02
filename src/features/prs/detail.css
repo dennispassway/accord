@@ -1051,3 +1051,24 @@
   line-height: 13px;
   color: var(--text-3);
 }
+
+/* Agent-bevindingen */
+.detail-noise {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.detail-noise p {
+  margin: 0;
+}
+
+.detail-noise-repo {
+  color: var(--text-2);
+}
+
+.detail-noise-note {
+  font-size: 11px;
+  color: var(--text-3);
+}

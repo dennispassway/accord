@@ -215,7 +215,7 @@ function parseReviewers(node: Record<string, unknown>): Reviewer[] {
  * bv. `<!-- accord:claude:commentsOnly fixes=nodig verificatie=lokaal -->`;
  * zie parseVerdict.
  */
-const AGENT_MARKER =
+export const AGENT_MARKER =
   /<!--\s*accord:(claude|codex)(?::(commentsOnly|withFixes))?(?:\s+(.*?))?\s*-->/;
 
 /**

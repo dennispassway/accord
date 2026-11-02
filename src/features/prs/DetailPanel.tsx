@@ -29,6 +29,7 @@ import type { PersonEntry } from "./peopleRows";
 import { peopleRows } from "./peopleRows";
 import { ReviewActions } from "./ReviewActions";
 import { ReviewHistory } from "./ReviewHistory";
+import { ReviewNoise } from "./ReviewNoise";
 import { sizeWord } from "./RowMetrics";
 import type { PrStatusKey } from "./rank";
 import { prStatus } from "./rank";
@@ -285,6 +286,8 @@ export function DetailPanel({
           disabledReason={disabledReason}
           onStartRun={onStartRun}
         />
+
+        <ReviewNoise pr={pr} />
 
         <StackRail
           pr={pr}

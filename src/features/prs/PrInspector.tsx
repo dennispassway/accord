@@ -2,6 +2,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import type { DraftThread, ReviewEvent } from "../../lib/github/review";
+import { countNoise, recordNoise } from "../../lib/reviewNoise";
 import { CommentsView } from "./CommentsView";
 import { type DiffViewMode, loadDiffView, saveDiffView } from "./cockpitPrefs";
 import { DiffView } from "./DiffView";
@@ -92,6 +93,16 @@ export function PrInspector({
         : new Set<string>(),
     [status, diffTooLarge, currentDrafts, files],
   );
+
+  // Voedt de "Agent-bevindingen"-sectie in het detailpaneel (ReviewNoise).
+  const threads = detail?.reviewThreads;
+  const lastRecorded = useRef<typeof threads>(undefined);
+  useEffect(() => {
+    // Na een PR-wissel is het eerste render nog de detail van de vorige PR.
+    if (threads == null || threads === lastRecorded.current) return;
+    lastRecorded.current = threads;
+    recordNoise(pr.repoId, pr.number, countNoise(threads));
+  }, [pr.repoId, pr.number, threads]);
 
   const verdict = latestVerdict(pr);
 

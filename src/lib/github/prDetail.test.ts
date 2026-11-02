@@ -129,6 +129,8 @@ describe("fetchPrDetail", () => {
         line: 12,
         diffSide: "RIGHT",
         isResolved: false,
+        isOutdated: false,
+        agentReview: null,
         viewerCanReply: true,
         viewerCanResolve: true,
         viewerCanUnresolve: false,
@@ -160,6 +162,88 @@ describe("fetchPrDetail", () => {
     line: 3,
     comments: { nodes: [] },
     ...extra,
+  });
+
+  describe("agent-review per thread", () => {
+    const review = (id: string, body: string) => ({ id, body });
+    const commentIn = (reviewId: string | null) => ({
+      author: { login: "me" },
+      bodyText: "x",
+      body: "x",
+      createdAt: "2026-08-01T12:00:00Z",
+      pullRequestReview: reviewId == null ? null : { id: reviewId },
+    });
+    const withComment = (reviewId: string | null, extra = {}) =>
+      threadNode({ comments: { nodes: [commentIn(reviewId)] }, ...extra });
+
+    it("leidt agentReview af uit de marker van de review van het eerste comment", async () => {
+      const detail = await detailWith({
+        reviews: {
+          nodes: [
+            review("R1", "<!-- accord:claude:commentsOnly -->\nNit"),
+            review("R2", "<!-- accord:codex -->\nNit"),
+            review("R3", "Gewone review"),
+          ],
+        },
+        reviewThreads: {
+          nodes: [withComment("R1"), withComment("R2"), withComment("R3")],
+        },
+      });
+      expect(detail.reviewThreads.map((t) => t.agentReview)).toEqual([
+        "claude",
+        "codex",
+        null,
+      ]);
+    });
+
+    it("gebruikt alleen het eerste comment van de thread", async () => {
+      const detail = await detailWith({
+        reviews: {
+          nodes: [review("R1", "<!-- accord:claude -->"), review("R2", "x")],
+        },
+        reviewThreads: {
+          nodes: [
+            threadNode({
+              comments: { nodes: [commentIn("R2"), commentIn("R1")] },
+            }),
+          ],
+        },
+      });
+      expect(detail.reviewThreads[0]?.agentReview).toBeNull();
+    });
+
+    it("geeft null bij een onbekende review of een comment zonder review", async () => {
+      const detail = await detailWith({
+        reviews: { nodes: [review("R1", "<!-- accord:claude -->")] },
+        reviewThreads: {
+          nodes: [withComment("R-onbekend"), withComment(null), threadNode({})],
+        },
+      });
+      expect(detail.reviewThreads.map((t) => t.agentReview)).toEqual([
+        null,
+        null,
+        null,
+      ]);
+    });
+
+    it("geeft null als reviews ontbreken", async () => {
+      const detail = await detailWith({
+        reviewThreads: { nodes: [withComment("R1")] },
+      });
+      expect(detail.reviewThreads[0]?.agentReview).toBeNull();
+    });
+
+    it("parset isOutdated, met false als default", async () => {
+      const detail = await detailWith({
+        reviewThreads: {
+          nodes: [threadNode({ isOutdated: true }), threadNode({})],
+        },
+      });
+      expect(detail.reviewThreads.map((t) => t.isOutdated)).toEqual([
+        true,
+        false,
+      ]);
+    });
   });
 
   it("parset de PR-beschrijving als ruwe markdown", async () => {

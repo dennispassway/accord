@@ -7,6 +7,7 @@
 import type { Author, PrNumber, RepoId } from "./domain";
 import { deriveAuthor } from "./domain";
 import { withNetworkError } from "./networkError";
+import { AGENT_MARKER } from "./parse";
 import {
   AuthError,
   type FetchImpl,
@@ -49,6 +50,11 @@ export interface ReviewThread {
   line: number | null;
   diffSide: DiffSide;
   isResolved: boolean;
+  /** GitHub markeert een thread als outdated zodra de regel is veranderd. */
+  isOutdated: boolean;
+  /** Agent uit de marker van de review waar het eerste comment bij hoort;
+   * null bij een gewone of onbekende review. */
+  agentReview: "claude" | "codex" | null;
   viewerCanReply: boolean;
   viewerCanResolve: boolean;
   viewerCanUnresolve: boolean;
@@ -75,6 +81,7 @@ query PrDetail($owner: String!, $name: String!, $number: Int!) {
     pullRequest(number: $number) {
       body
       headRefOid
+      reviews(last: 50) { nodes { id body } }
       comments(first: 100) { nodes { author { login } bodyText body createdAt } }
       reviewThreads(first: 100) {
         nodes {
@@ -83,10 +90,11 @@ query PrDetail($owner: String!, $name: String!, $number: Int!) {
           line
           diffSide
           isResolved
+          isOutdated
           viewerCanReply
           viewerCanResolve
           viewerCanUnresolve
-          comments(first: 50) { nodes { author { login } bodyText body createdAt } }
+          comments(first: 50) { nodes { author { login } bodyText body createdAt pullRequestReview { id } } }
         }
       }
     }
@@ -130,22 +138,47 @@ interface RawThreadNode {
   line?: number | null;
   diffSide?: string | null;
   isResolved?: boolean;
+  isOutdated?: boolean;
   viewerCanReply?: boolean;
   viewerCanResolve?: boolean;
   viewerCanUnresolve?: boolean;
   comments?: { nodes?: unknown };
 }
 
-function parseThread(node: unknown): ReviewThread | null {
+/** review-id -> agent, voor reviews met een Accord-marker. */
+function parseAgentReviews(nodes: unknown): Map<string, "claude" | "codex"> {
+  const agents = new Map<string, "claude" | "codex">();
+  if (!Array.isArray(nodes)) return agents;
+  for (const node of nodes) {
+    const { id, body } = (node ?? {}) as { id?: unknown; body?: unknown };
+    if (typeof id !== "string" || typeof body !== "string") continue;
+    const agent = AGENT_MARKER.exec(body)?.[1];
+    if (agent === "claude" || agent === "codex") agents.set(id, agent);
+  }
+  return agents;
+}
+
+function parseThread(
+  node: unknown,
+  agentReviews: Map<string, "claude" | "codex">,
+): ReviewThread | null {
   if (node == null || typeof node !== "object") return null;
   const raw = node as RawThreadNode;
   if (raw.path == null) return null;
+  const firstComment = Array.isArray(raw.comments?.nodes)
+    ? (raw.comments.nodes[0] as
+        | { pullRequestReview?: { id?: string } | null }
+        | undefined)
+    : undefined;
+  const reviewId = firstComment?.pullRequestReview?.id;
   return {
     id: raw.id ?? "",
     path: raw.path,
     line: raw.line ?? null,
     diffSide: parseDiffSide(raw.diffSide),
     isResolved: raw.isResolved ?? false,
+    isOutdated: raw.isOutdated ?? false,
+    agentReview: (reviewId != null && agentReviews.get(reviewId)) || null,
     viewerCanReply: raw.viewerCanReply ?? false,
     viewerCanResolve: raw.viewerCanResolve ?? false,
     viewerCanUnresolve: raw.viewerCanUnresolve ?? false,
@@ -153,10 +186,13 @@ function parseThread(node: unknown): ReviewThread | null {
   };
 }
 
-function parseThreads(nodes: unknown): ReviewThread[] {
+function parseThreads(
+  nodes: unknown,
+  agentReviews: Map<string, "claude" | "codex">,
+): ReviewThread[] {
   if (!Array.isArray(nodes)) return [];
   return nodes
-    .map(parseThread)
+    .map((node) => parseThread(node, agentReviews))
     .filter((thread): thread is ReviewThread => thread != null);
 }
 
@@ -249,6 +285,7 @@ async function fetchComments(
           body?: string | null;
           headRefOid?: string | null;
           comments?: { nodes?: unknown };
+          reviews?: { nodes?: unknown };
           reviewThreads?: { nodes?: unknown };
         } | null;
       } | null;
@@ -264,7 +301,10 @@ async function fetchComments(
   const issueComments = parseComments(pullRequest?.comments?.nodes).sort(
     (a, b) => a.createdAt.localeCompare(b.createdAt),
   );
-  const reviewThreads = parseThreads(pullRequest?.reviewThreads?.nodes);
+  const reviewThreads = parseThreads(
+    pullRequest?.reviewThreads?.nodes,
+    parseAgentReviews(pullRequest?.reviews?.nodes),
+  );
 
   return {
     body: pullRequest?.body ?? "",

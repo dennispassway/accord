@@ -56,6 +56,7 @@ function thread(
   isResolved: boolean,
   comments: PrComment[],
   diffSide: DiffSide = "RIGHT",
+  extra: Pick<Partial<ReviewThread>, "isOutdated" | "agentReview"> = {},
 ): ReviewThread {
   threadCounter += 1;
   return {
@@ -64,10 +65,13 @@ function thread(
     line,
     diffSide,
     isResolved,
+    isOutdated: false,
+    agentReview: null,
     viewerCanReply: !isResolved,
     viewerCanResolve: !isResolved,
     viewerCanUnresolve: isResolved,
     comments,
+    ...extra,
   };
 }
 
@@ -195,14 +199,21 @@ Draai \`deploy.sh\` op staging en controleer dat \`current\` naar de nieuwste ma
       ),
     ],
     reviewThreads: [
-      thread("deploy/prune-releases.sh", 8, false, [
-        comment(
-          "octocat",
-          "xargs -r rm -rf op basis van ls -1t voelt kwetsbaar als een releasemap een spatie in de naam heeft. Onze releasemappen zijn timestamps, dus prima, maar leg dat aan als comment vast.",
-          "2026-07-28T10:05:00Z",
-          MARKDOWN_DEMO_BODY,
-        ),
-      ]),
+      thread(
+        "deploy/prune-releases.sh",
+        8,
+        false,
+        [
+          comment(
+            "octocat",
+            "xargs -r rm -rf op basis van ls -1t voelt kwetsbaar als een releasemap een spatie in de naam heeft. Onze releasemappen zijn timestamps, dus prima, maar leg dat aan als comment vast.",
+            "2026-07-28T10:05:00Z",
+            MARKDOWN_DEMO_BODY,
+          ),
+        ],
+        "RIGHT",
+        { agentReview: "claude" },
+      ),
       // Oude kant: regel 15 is de verwijderde `rsync -az --delete` in de hunk.
       thread(
         "deploy/deploy.sh",
@@ -217,18 +228,40 @@ Draai \`deploy.sh\` op staging en controleer dat \`current\` naar de nieuwste ma
         ],
         "LEFT",
       ),
-      thread("deploy/deploy.sh", 15, true, [
-        comment(
-          "monalisa",
-          "RELEASE_DIR gebruikt nu date +%Y%m%d%H%M%S, dat kan botsen bij twee deploys binnen dezelfde seconde. Voeg ik een korte random suffix aan toe.",
-          "2026-07-28T09:40:00Z",
-        ),
-        comment(
-          "monalisa",
-          "Toegevoegd in de laatste commit, seconde-botsing kan nu niet meer.",
-          "2026-07-28T09:55:00Z",
-        ),
-      ]),
+      thread(
+        "deploy/deploy.sh",
+        15,
+        true,
+        [
+          comment(
+            "monalisa",
+            "RELEASE_DIR gebruikt nu date +%Y%m%d%H%M%S, dat kan botsen bij twee deploys binnen dezelfde seconde. Voeg ik een korte random suffix aan toe.",
+            "2026-07-28T09:40:00Z",
+          ),
+          comment(
+            "monalisa",
+            "Toegevoegd in de laatste commit, seconde-botsing kan nu niet meer.",
+            "2026-07-28T09:55:00Z",
+          ),
+        ],
+        "RIGHT",
+        { agentReview: "claude" },
+      ),
+      // Resolved en verouderd: de regel veranderde, dus telt als gefixt.
+      thread(
+        "deploy/deploy.sh",
+        null,
+        true,
+        [
+          comment(
+            "octocat",
+            "Geen set -u bovenaan, een ontbrekende variabele geeft stil een lege string.",
+            "2026-07-28T09:35:00Z",
+          ),
+        ],
+        "RIGHT",
+        { agentReview: "codex", isOutdated: true },
+      ),
     ],
   },
   "acme/storefront#49": {
