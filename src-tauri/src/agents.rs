@@ -309,6 +309,8 @@ struct LogEvent {
 struct DoneEvent {
     run_id: String,
     exit_code: i32,
+    /// Zelfde eindstatus als list_runs, inclusief falende controles na exit 0.
+    status: RunStatus,
     /// Een commentsOnly-run die netjes stopte maar geen review achterliet. De
     /// exitcode is dan 0 en zegt dus niets; zonder dit veld zou de UI hem als
     /// geslaagd tonen.
@@ -2009,7 +2011,7 @@ fn start_review_blocking(
         };
         // Blijft in de state staan (met eindstatus en log) zodat `list_runs`
         // een afgeronde run nog kan tonen na een (her)mount van de frontend.
-        with_runs(&app_for_wait, |runs| {
+        let status = with_runs(&app_for_wait, |runs| {
             if let Some(run) = runs.get_mut(&run_id) {
                 run.status = if run.cancelled {
                     RunStatus::Cancelled
@@ -2025,13 +2027,18 @@ fn start_review_blocking(
                 run.kept_worktree = kept_worktree
                     .as_ref()
                     .map(|p| p.to_string_lossy().into_owned());
+                run.status
+            } else {
+                RunStatus::Cancelled
             }
-        });
+        })
+        .unwrap_or(RunStatus::Failed);
         let _ = app_for_wait.emit(
             "agent-done",
             DoneEvent {
                 run_id,
                 exit_code,
+                status,
                 review_missing: !review_ok,
                 pushed_commits,
                 unpushed_commits: unpushed_commit_count,
@@ -2101,6 +2108,7 @@ fn abort_prepared_run(app: &AppHandle, run_id: &str, repo_path: &Path, worktree:
         DoneEvent {
             run_id: run_id.to_string(),
             exit_code: -1,
+            status: RunStatus::Cancelled,
             review_missing: false,
             pushed_commits: 0,
             unpushed_commits: 0,
@@ -2436,6 +2444,23 @@ mod tests {
             0
         ));
         assert!(!approved_since("", "dennis", 0));
+    }
+
+    #[test]
+    fn approval_failure_is_serialized_in_done_event_even_after_exit_zero() {
+        let event = DoneEvent {
+            run_id: "approval-run".into(),
+            exit_code: 0,
+            status: RunStatus::Failed,
+            review_missing: false,
+            pushed_commits: 0,
+            unpushed_commits: 0,
+            kept_worktree: None,
+        };
+        let json = serde_json::to_value(event).expect("serialize");
+        assert_eq!(json["status"], "failed");
+        assert_eq!(json["exitCode"], 0);
+        assert_eq!(json["reviewMissing"], false);
     }
 
     #[test]

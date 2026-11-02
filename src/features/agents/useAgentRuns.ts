@@ -282,6 +282,7 @@ export function useAgentRuns(
       listen<{
         runId: string;
         exitCode: number;
+        status: "done" | "failed" | "cancelled";
         reviewMissing: boolean;
         pushedCommits: number;
         unpushedCommits: number;
@@ -290,6 +291,7 @@ export function useAgentRuns(
         const {
           runId,
           exitCode,
+          status,
           reviewMissing,
           pushedCommits,
           unpushedCommits,
@@ -309,14 +311,8 @@ export function useAgentRuns(
           // "cancelled" is terminaal: het afloop-event van een gestopte
           // agent mag hem niet alsnog op done of failed zetten.
           if (!run || run.status === "cancelled") return current;
-          // `reviewMissing` staat los van de exitcode: een commentsOnly-agent
-          // kan netjes afsluiten terwijl er geen review op de PR staat, en dan
-          // is er niets gebeurd waar de gebruiker iets aan heeft.
-          const nextStatus = wasCancelled
-            ? "cancelled"
-            : exitCode === 0 && !reviewMissing
-              ? "done"
-              : "failed";
+          // Rust controleert ook de review en verboden approvals na exit 0.
+          const nextStatus = wasCancelled ? "cancelled" : status;
           const next = new Map(current);
           next.set(runId, {
             ...run,
