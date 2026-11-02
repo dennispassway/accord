@@ -61,16 +61,21 @@ beforeEach(() => {
   ]);
 });
 
+function Harness({
+  finished,
+}: {
+  finished: Parameters<typeof useAgentRuns>[1];
+}) {
+  useAgentRuns(DEFAULT_SETTINGS, finished);
+  return null;
+}
+
 describe("agent-done", () => {
   it.each(["failed", "done", "cancelled"] as const)(
     "neemt backendstatus %s over, ook na exit 0 met een geplaatste review",
     (status) => {
       const finished = vi.fn();
-      function Harness() {
-        useAgentRuns(DEFAULT_SETTINGS, finished);
-        return null;
-      }
-      renderToStaticMarkup(<Harness />);
+      renderToStaticMarkup(<Harness finished={finished} />);
       for (const effect of harness.effects) effect();
 
       harness.listeners.get("agent-done")?.({
