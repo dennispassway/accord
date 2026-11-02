@@ -67,6 +67,9 @@ fragment PrFields on PullRequest {
   reviewDecision
   additions
   deletions
+  headRefOid
+  changedFiles
+  files(first: 100) { nodes { path } }
   createdAt
   updatedAt
   comments { totalCount }
@@ -77,6 +80,9 @@ fragment PrFields on PullRequest {
   }
   latestOpinionatedReviews(first: 20) {
     nodes { author { login } state }
+  }
+  riskApprovals: latestOpinionatedReviews(first: 20, writersOnly: true) {
+    nodes { state body author { __typename login } commit { oid } }
   }
   reviews(last: 50) {
     nodes { author { login } submittedAt comments { totalCount } body }

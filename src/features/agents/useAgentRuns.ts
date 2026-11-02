@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
+import { patternsForRepo, riskTier } from "../../lib/risk";
 import { modelForMode, type Settings } from "../../lib/settings";
 import type { AgentMode, ReviewAgent } from "./crossReview";
 
@@ -461,6 +462,11 @@ export function useAgentRuns(
           sinceSha: pr.lastAgentReviewSha ?? null,
           round: pr.agentReviewRounds + 1,
           forceRound,
+          highRisk:
+            riskTier(
+              pr,
+              patternsForRepo(pr.repoId, settingsRef.current.riskPatterns),
+            ).tier === "hoog",
         });
       } catch (error) {
         clearTimeoutTimer(runId);

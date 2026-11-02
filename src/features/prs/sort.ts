@@ -1,4 +1,5 @@
 import type { PullRequest } from "../../lib/github/domain";
+import type { RiskGate } from "../../lib/risk";
 import { type PrStatus, type PrStatusKey, prStatus } from "./rank";
 
 export type SortMode =
@@ -13,6 +14,7 @@ export interface SortCtx {
   isAgentBezig: (pr: PullRequest) => boolean;
   /** Zit deze PR vast achter een andere PR in de stack? */
   isStackBlocked: (pr: PullRequest) => boolean;
+  riskOf: (pr: PullRequest) => RiskGate;
 }
 
 export interface PrSection {
@@ -46,6 +48,7 @@ function statusOf(pr: PullRequest, ctx: SortCtx): PrStatus {
   return prStatus(pr, {
     agentBezig: ctx.isAgentBezig(pr),
     stackBlocked: ctx.isStackBlocked(pr),
+    risk: ctx.riskOf(pr),
   });
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentReview, PullRequest } from "../../lib/github/domain";
 import { toPrNumber, toRepoId } from "../../lib/github/domain";
+import { NORMAL_GATE, type RiskGate } from "../../lib/risk";
 import { type PrStatusKey, prStatus } from "./rank";
 
 const AGENT_REVIEW: AgentReview = {
@@ -42,6 +43,10 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     reviewRequestedFromMe: false,
     assignedToMe: false,
     authoredByMe: true,
+    headOid: "",
+    changedPaths: [],
+    changedFileCount: 0,
+    humanApprovedHead: false,
     ...overrides,
   };
 }
@@ -56,7 +61,11 @@ function reviewPr(overrides: Partial<PullRequest> = {}): PullRequest {
   });
 }
 
-const idleCtx = { agentBezig: false, stackBlocked: false };
+const idleCtx = {
+  agentBezig: false,
+  stackBlocked: false,
+  risk: NORMAL_GATE,
+};
 
 describe("prStatus: eigen PR", () => {
   it("klaar om te mergen als niets in de weg staat", () => {
@@ -92,9 +101,10 @@ describe("prStatus: eigen PR", () => {
 
   it("zonder agent-review wint een lopende agent-run", () => {
     const pr = makePr({ agentReviews: [] });
-    expect(prStatus(pr, { agentBezig: true, stackBlocked: false }).key).toBe(
-      "agent",
-    );
+    expect(
+      prStatus(pr, { agentBezig: true, stackBlocked: false, risk: NORMAL_GATE })
+        .key,
+    ).toBe("agent");
   });
 
   it("zonder agent-review blijft een PR die op review wacht in wachtReview", () => {
@@ -174,7 +184,11 @@ describe("prStatus: eigen PR", () => {
 
   it("stapel geblokkeerd: wachten op de stapel", () => {
     expect(
-      prStatus(makePr(), { agentBezig: false, stackBlocked: true }),
+      prStatus(makePr(), {
+        agentBezig: false,
+        stackBlocked: true,
+        risk: NORMAL_GATE,
+      }),
     ).toEqual({
       rank: 7,
       key: "wachten",
@@ -312,16 +326,21 @@ describe("prStatus: jouw review gevraagd", () => {
       reviewState: { state: "reviewRequested" },
       mergeStateStatus: "BLOCKED",
     });
-    expect(prStatus(pr, { agentBezig: false, stackBlocked: true }).key).toBe(
-      "review",
-    );
+    expect(
+      prStatus(pr, { agentBezig: false, stackBlocked: true, risk: NORMAL_GATE })
+        .key,
+    ).toBe("review");
   });
 });
 
 describe("prStatus: agent en concept gaan voor de rol", () => {
   it("agent bezig wint zelfs van een reviewverzoek", () => {
     expect(
-      prStatus(reviewPr(), { agentBezig: true, stackBlocked: false }),
+      prStatus(reviewPr(), {
+        agentBezig: true,
+        stackBlocked: false,
+        risk: NORMAL_GATE,
+      }),
     ).toEqual({
       rank: 6,
       key: "agent",
@@ -333,9 +352,10 @@ describe("prStatus: agent en concept gaan voor de rol", () => {
 
   it("agent bezig wint van concept", () => {
     const pr = makePr({ isDraft: true });
-    expect(prStatus(pr, { agentBezig: true, stackBlocked: false }).key).toBe(
-      "agent",
-    );
+    expect(
+      prStatus(pr, { agentBezig: true, stackBlocked: false, risk: NORMAL_GATE })
+        .key,
+    ).toBe("agent");
   });
 
   it("concept wint van conflicten en van een reviewverzoek", () => {
@@ -356,7 +376,10 @@ describe("prStatus: agent en concept gaan voor de rol", () => {
  */
 const EEN_PER_KEY: Record<
   PrStatusKey,
-  [PullRequest, { agentBezig: boolean; stackBlocked: boolean }][]
+  [
+    PullRequest,
+    { agentBezig: boolean; stackBlocked: boolean; risk: RiskGate },
+  ][]
 > = {
   review: [
     [reviewPr(), idleCtx],
@@ -382,10 +405,12 @@ const EEN_PER_KEY: Record<
     [makePr({ reviewState: { state: "reviewRequested" } }), idleCtx],
     [makePr({ mergeStateStatus: "BLOCKED" }), idleCtx],
   ],
-  agent: [[makePr(), { agentBezig: true, stackBlocked: false }]],
+  agent: [
+    [makePr(), { agentBezig: true, stackBlocked: false, risk: NORMAL_GATE }],
+  ],
   wachten: [
     [makePr({ ciStatus: { state: "pending" } }), idleCtx],
-    [makePr(), { agentBezig: false, stackBlocked: true }],
+    [makePr(), { agentBezig: false, stackBlocked: true, risk: NORMAL_GATE }],
     [makePr({ mergeable: "UNKNOWN" }), idleCtx],
   ],
   concept: [[makePr({ isDraft: true }), idleCtx]],

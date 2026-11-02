@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { prStatus } from "../../features/prs/rank";
 import { buildSections, type SortCtx } from "../../features/prs/sort";
 import { computeStackInfo } from "../github/stacks";
+import { DEFAULT_HIGH_RISK_PATTERNS, NORMAL_GATE, riskGate } from "../risk";
 import { MOCK_PRS } from "./fixtures";
 
 const blocked = new Set(
@@ -12,6 +13,7 @@ const blocked = new Set(
 const ctx: SortCtx = {
   isAgentBezig: () => false,
   isStackBlocked: (pr) => blocked.has(`${pr.repoId}#${pr.number}`),
+  riskOf: () => NORMAL_GATE,
 };
 const sections = buildSections(MOCK_PRS, "triage", ctx);
 
@@ -31,6 +33,7 @@ describe("mockdata toont rol eerst", () => {
         prStatus(pr, {
           agentBezig: false,
           stackBlocked: ctx.isStackBlocked(pr),
+          risk: NORMAL_GATE,
         }).problem == null,
     );
     expect(clean.length).toBeGreaterThan(0);
@@ -45,5 +48,35 @@ describe("mockdata toont rol eerst", () => {
 
   it("eigen PR die achterloopt staat in actie nodig", () => {
     expect(idsIn("actie")).toContain("mee61");
+  });
+});
+
+describe("mockdata toont risiconiveaus", () => {
+  const gate = (id: string) => {
+    const pr = MOCK_PRS.find((p) => p.id === id);
+    if (!pr) throw new Error(`geen mock-PR ${id}`);
+    return { pr, gate: riskGate(pr, DEFAULT_HIGH_RISK_PATTERNS, new Set()) };
+  };
+
+  it("hoog risico van een ander zonder approval blokkeert", () => {
+    const { pr, gate: g } = gate("pay88");
+    expect(pr.authoredByMe).toBe(false);
+    expect(g.needsHumanReview).toBe(true);
+    expect(g.reasons).toEqual([
+      "src/payments/mollie.ts",
+      "src/checkout/refund.ts",
+    ]);
+  });
+
+  it("een eigen hoog-risico-PR blokkeert en kan een override krijgen", () => {
+    const { pr, gate: g } = gate("mig91");
+    expect(pr.authoredByMe).toBe(true);
+    expect(g.needsHumanReview).toBe(true);
+  });
+
+  it("hoog risico met menselijke approval op de head blokkeert niet", () => {
+    const { gate: g } = gate("wfl93");
+    expect(g.tier).toBe("hoog");
+    expect(g.needsHumanReview).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
 import type { CiStatus, PullRequest } from "../../lib/github/domain";
+import type { RiskGate } from "../../lib/risk";
 
 export type PrStatusKey =
   | "review"
@@ -75,7 +76,7 @@ const REVIEW_PROBLEM_LABEL: Record<Exclude<PrProblem, "achter">, string> = {
  */
 export function prStatus(
   pr: PullRequest,
-  ctx: { agentBezig: boolean; stackBlocked: boolean },
+  ctx: { agentBezig: boolean; stackBlocked: boolean; risk: RiskGate },
 ): PrStatus {
   if (ctx.agentBezig) {
     return {
@@ -152,6 +153,15 @@ export function prStatus(
       key: "agentReview",
       label: "nog een Accord agent review",
       short: "accord",
+      problem: null,
+    };
+  }
+  if (ctx.risk.needsHumanReview) {
+    return {
+      rank: 5,
+      key: "wachtReview",
+      label: "menselijke review nodig",
+      short: "mens",
       problem: null,
     };
   }

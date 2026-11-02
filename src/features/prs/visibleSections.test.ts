@@ -33,6 +33,10 @@ function pr(overrides: Partial<PullRequest> = {}): PullRequest {
     reviewRequestedFromMe: false,
     assignedToMe: false,
     authoredByMe: true,
+    headOid: "",
+    changedPaths: [],
+    changedFileCount: 0,
+    humanApprovedHead: false,
     ...overrides,
   };
 }

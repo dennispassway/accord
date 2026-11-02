@@ -3,6 +3,7 @@ import type { PullRequest } from "../../lib/github/domain";
 import { toPrNumber, toRepoId } from "../../lib/github/domain";
 import { mergeReasons } from "../../lib/github/merge";
 import type { PrStackInfo } from "../../lib/github/stacks";
+import { NORMAL_GATE } from "../../lib/risk";
 import { type ChecklistKey, mergeChecklist } from "./mergeChecklist";
 
 function pr(overrides: Partial<PullRequest> = {}): PullRequest {
@@ -34,6 +35,10 @@ function pr(overrides: Partial<PullRequest> = {}): PullRequest {
     reviewRequestedFromMe: false,
     assignedToMe: false,
     authoredByMe: true,
+    headOid: "",
+    changedPaths: [],
+    changedFileCount: 0,
+    humanApprovedHead: false,
     ...overrides,
   };
 }
@@ -54,16 +59,14 @@ function item(
   key: ChecklistKey,
   info: PrStackInfo | undefined = undefined,
 ) {
-  return mergeChecklist(p, info).find((i) => i.key === key);
+  return mergeChecklist(p, info, NORMAL_GATE).find((i) => i.key === key);
 }
 
 describe("mergeChecklist: volgorde en altijd-aanwezige regels", () => {
   it("toont bij een groene PR alleen conflict, checks en review", () => {
-    expect(mergeChecklist(pr(), undefined).map((i) => i.key)).toEqual([
-      "conflict",
-      "checks",
-      "review",
-    ]);
+    expect(
+      mergeChecklist(pr(), undefined, NORMAL_GATE).map((i) => i.key),
+    ).toEqual(["conflict", "checks", "review"]);
   });
 
   it("houdt de volgorde aan als alles speelt", () => {
@@ -78,6 +81,7 @@ describe("mergeChecklist: volgorde en altijd-aanwezige regels", () => {
     const keys = mergeChecklist(
       all,
       stackInfo({ blockedByPrNumbers: [toPrNumber(1)] }),
+      NORMAL_GATE,
     ).map((i) => i.key);
     expect(keys).toEqual([
       "conflict",
@@ -471,8 +475,10 @@ describe("mergeChecklist: invariant met mergeReasons", () => {
   ];
 
   it.each(cases)("%s", (_naam, p, info, expectedKeys) => {
-    const blocking = mergeChecklist(p, info).filter((i) => i.blocking);
-    expect(blocking).toHaveLength(mergeReasons(p, info).length);
+    const blocking = mergeChecklist(p, info, NORMAL_GATE).filter(
+      (i) => i.blocking,
+    );
+    expect(blocking).toHaveLength(mergeReasons(p, info, NORMAL_GATE).length);
     expect(blocking.map((i) => i.key).sort()).toEqual([...expectedKeys].sort());
   });
 });

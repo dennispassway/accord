@@ -1,3 +1,4 @@
+import { MAX_FILES } from "../risk";
 import {
   type AgentReview,
   type AgentVerdict,
@@ -376,6 +377,32 @@ function parseAgentReviews(node: Record<string, unknown>): AgentReview[] {
   );
 }
 
+/**
+ * Een menselijke approval op exact de huidige head. Agent-reviews posten onder
+ * het account van de gebruiker, dus naast de login-check sluit ook de marker
+ * in de body een review uit.
+ */
+function parseHumanApprovedHead(
+  node: Record<string, unknown>,
+  headOid: string,
+): boolean {
+  if (headOid === "") return false;
+  return nodesOf(node.riskApprovals).some((review) => {
+    if (!isRecord(review) || review.state !== "APPROVED") return false;
+    const author = isRecord(review.author) ? review.author : undefined;
+    const login = author?.login;
+    // Een Bot heeft niet altijd "[bot]" in zijn login; alleen een User telt.
+    if (author?.__typename !== "User") return false;
+    if (!isNonEmptyString(login) || deriveAuthor(login).kind === "agent") {
+      return false;
+    }
+    if (typeof review.body === "string" && AGENT_MARKER.test(review.body)) {
+      return false;
+    }
+    return isRecord(review.commit) && review.commit.oid === headOid;
+  });
+}
+
 function parseNode(
   node: unknown,
   viewerLogin: string | null | undefined,
@@ -410,6 +437,12 @@ function parseNode(
     return undefined;
   }
 
+  const headOid = isNonEmptyString(node.headRefOid) ? node.headRefOid : "";
+  const changedPaths = nodesOf(node.files)
+    .filter(isRecord)
+    .map((file) => file.path)
+    .filter(isNonEmptyString);
+
   return {
     id: node.id,
     repoId,
@@ -441,6 +474,12 @@ function parseNode(
     reviewRequestedFromMe: false,
     assignedToMe: false,
     authoredByMe: false,
+    headOid,
+    changedPaths,
+    changedFileCount: isFiniteNumber(node.changedFiles)
+      ? node.changedFiles
+      : MAX_FILES + 1,
+    humanApprovedHead: parseHumanApprovedHead(node, headOid),
   };
 }
 

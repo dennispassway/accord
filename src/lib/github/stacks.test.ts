@@ -35,6 +35,10 @@ function pr(
     reviewRequestedFromMe: false,
     assignedToMe: false,
     authoredByMe: false,
+    headOid: "",
+    changedPaths: [],
+    changedFileCount: 0,
+    humanApprovedHead: false,
     ...overrides,
     number: toPrNumber(overrides.number),
   };
