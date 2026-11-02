@@ -37,6 +37,10 @@ your menu bar and keeps the count in front of you.
   comments only or comments plus pushed fixes. The agent runs in a throwaway git
   worktree of your local clone, so your own working tree is never touched. The
   other agent is preselected by default: if Claude wrote the PR, Codex reviews it.
+  Before a review starts, [deepsec](https://deepsec.sh) scans the changed files
+  for security issues through your Claude login, and the reviewer checks each
+  finding against the code before it becomes a comment. An installed `deepsec`
+  is used when present; otherwise a pinned version runs through `npx`.
   Next to a review, the same menu offers the fix actions that apply to this PR:
   resolve the open comments, fix the failing checks, fix a merge conflict, or
   distil the lessons from the review into the repository's own instructions.
