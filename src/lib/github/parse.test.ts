@@ -614,22 +614,25 @@ describe("parseSearchResponse - review-rondes", () => {
     return pr;
   }
 
-  it("negeert markers van een vreemde login, voor telling en sha", () => {
-    const pr = prWithReviews([
-      {
-        submittedAt: "2026-07-01T08:00:00Z",
-        body: "<!-- accord:claude:withFixes sha=aaaaaaa ronde=1 -->",
-      },
-      {
-        submittedAt: "2026-07-02T08:00:00Z",
-        login: "mallory",
-        body: "<!-- accord:claude:withFixes sha=bbbbbbb ronde=2 -->",
-      },
-    ]);
+  it.each(["mallory", "mallory-codex", "claude-reviewer"])(
+    "negeert markers van een vreemde login (%s), voor telling en sha",
+    (login) => {
+      const pr = prWithReviews([
+        {
+          submittedAt: "2026-07-01T08:00:00Z",
+          body: "<!-- accord:claude:withFixes sha=aaaaaaa ronde=1 -->",
+        },
+        {
+          submittedAt: "2026-07-02T08:00:00Z",
+          login,
+          body: "<!-- accord:claude:withFixes sha=bbbbbbb ronde=2 -->",
+        },
+      ]);
 
-    expect(pr?.agentReviewRounds).toBe(1);
-    expect(pr?.lastAgentReviewSha).toBe("aaaaaaa");
-  });
+      expect(pr?.agentReviewRounds).toBe(1);
+      expect(pr?.lastAgentReviewSha).toBe("aaaaaaa");
+    },
+  );
 
   it("telt een marker van een agent-login ook zonder viewer", () => {
     const [pr] = parseSearchResponse({

@@ -235,7 +235,7 @@ const SHA_PATTERN = /^[0-9a-f]{7,40}$/;
 /**
  * Telt de reviews met een Accord-marker (elke agent en mode) en leest de sha
  * uit de nieuwste ervan. Alleen reviews van de ingelogde gebruiker of van een
- * agent-login tellen: de body van een vreemde review kan een marker nabootsen.
+ * botlogin tellen: de body van een vreemde review kan een marker nabootsen.
  * Heeft de nieuwste geen geldige sha, dan is het resultaat undefined en valt
  * het bewust niet terug op een oudere: die kan van vóór een force-push zijn.
  */
@@ -252,7 +252,9 @@ function parseReviewRounds(
     if (!isRecord(review) || !isNonEmptyString(review.body)) continue;
     const login = isRecord(review.author) ? review.author.login : undefined;
     if (!isNonEmptyString(login)) continue;
-    if (login !== viewerLogin && deriveAuthor(login).kind !== "agent") continue;
+    // deriveAuthor herkent ook mensen met "claude"/"codex" in hun naam.
+    // Dat is bruikbaar voor weergave, maar bewijst geen botidentiteit.
+    if (login !== viewerLogin && !login.endsWith("[bot]")) continue;
     const match = review.body.match(AGENT_MARKER);
     if (!match) continue;
     rounds += 1;
