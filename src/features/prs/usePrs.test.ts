@@ -39,12 +39,17 @@ function pr(overrides: Partial<PullRequest> = {}): PullRequest {
     comments: 0,
     openThreads: 0,
     reviewers: [],
+    agentReviewRounds: 0,
     agentReviews: [],
     agentCommitCount: 0,
     assignees: [],
     reviewRequestedFromMe: false,
     assignedToMe: false,
     authoredByMe: true,
+    headOid: "",
+    changedPaths: [],
+    changedFileCount: 0,
+    humanApprovedHead: false,
     ...overrides,
   };
 }

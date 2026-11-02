@@ -149,6 +149,13 @@ interface RawPr {
   mergeState?: MergeStateStatus;
   /** ARUNS uit de designspec: reviewhistorie van agents op deze PR. */
   aRuns?: RawARun[];
+  /** Aantal Accord-reviews; standaard het aantal aRuns. Eén agent kan er meer dan één hebben. */
+  rounds?: number;
+  /** Sha uit de marker van de nieuwste Accord-review. */
+  lastSha?: string;
+  /** Gewijzigde paden; standaard geen, dus normaal risico. */
+  paths?: string[];
+  humanApproved?: boolean;
 }
 
 // Geporteerd uit PRS + PEOPLE + COMMENTS + MOM in de designspec.
@@ -275,6 +282,9 @@ const RAW_PRS: RawPr[] = [
     comments: 9,
     openThreads: 2,
     aRuns: [["claude", "fixes", 5, 1, 180]],
+    // Twee eerdere Accord-reviews: de volgende run is ronde 3 (alleen advies).
+    rounds: 2,
+    lastSha: "a1b2c3d",
   },
   {
     id: "ken188",
@@ -527,6 +537,76 @@ const RAW_PRS: RawPr[] = [
     comments: 2,
     mergeState: "BEHIND",
   },
+  {
+    id: "pay88",
+    repo: "acme/storefront",
+    nr: 88,
+    title: "feat(checkout): Mollie-betaling met terugbetalingen",
+    head: "feat/mollie-betaling",
+    base: "main",
+    author: "hubot",
+    ci: "groen",
+    failed: [],
+    review: "geen",
+    draft: false,
+    mergeable: "kan",
+    add: 240,
+    del: 31,
+    created: [1, 9, 40],
+    updatedMin: 55,
+    assignees: ["octocat"],
+    reviewers: [],
+    comments: 1,
+    aRuns: [["claude", "comments", 2, 0, 50]],
+    paths: ["src/payments/mollie.ts", "src/checkout/refund.ts", "README.md"],
+  },
+  {
+    id: "mig91",
+    repo: "acme/storefront",
+    nr: 91,
+    title: "fix(db): index op ophaaldagen en sessie-verloop",
+    head: "fix/ophaaldagen-index",
+    base: "main",
+    author: "octocat",
+    ci: "groen",
+    failed: [],
+    review: "geen",
+    draft: false,
+    mergeable: "kan",
+    add: 38,
+    del: 4,
+    created: [0, 14, 2],
+    updatedMin: 90,
+    assignees: ["octocat"],
+    reviewers: [],
+    comments: 0,
+    aRuns: [["codex", "comments", 1, 0, 80]],
+    paths: ["db/migrations/014_ophaaldagen_index.sql", "src/lib/auth.ts"],
+  },
+  {
+    id: "wfl93",
+    repo: "acme/storefront",
+    nr: 93,
+    title: "chore(ci): deploy-workflow met environment-approval",
+    head: "chore/deploy-workflow",
+    base: "main",
+    author: "hubot",
+    ci: "groen",
+    failed: [],
+    review: "goedgekeurd",
+    draft: false,
+    mergeable: "kan",
+    add: 22,
+    del: 6,
+    created: [2, 11, 15],
+    updatedMin: 200,
+    assignees: ["octocat"],
+    reviewers: [["monalisa", "goedgekeurd"]],
+    comments: 3,
+    aRuns: [["claude", "comments", 1, 0, 190]],
+    paths: [".github/workflows/deploy.yml"],
+    humanApproved: true,
+  },
 ];
 
 /**
@@ -570,6 +650,8 @@ function toPullRequest(raw: RawPr): PullRequest {
     openThreads: raw.openThreads ?? 0,
     reviewers,
     agentReviews: (raw.aRuns ?? []).map(agentRun),
+    agentReviewRounds: raw.rounds ?? raw.aRuns?.length ?? 0,
+    ...(raw.lastSha && { lastAgentReviewSha: raw.lastSha }),
     agentCommitCount: (raw.aRuns ?? []).reduce(
       (sum, run) => sum + agentRun(run).commitCount,
       0,
@@ -580,6 +662,10 @@ function toPullRequest(raw: RawPr): PullRequest {
     ),
     assignedToMe: raw.assignees.includes(MOCK_ME),
     authoredByMe: raw.author === MOCK_ME,
+    headOid: `${raw.id}${"0".repeat(40)}`.slice(0, 40),
+    changedPaths: raw.paths ?? [],
+    changedFileCount: raw.paths?.length ?? 0,
+    humanApprovedHead: raw.humanApproved === true,
   };
 }
 

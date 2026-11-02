@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAX_FILES } from "../risk";
 import type { MergeStateStatus } from "./domain";
 import {
   draftPrNodeNoCi,
@@ -585,5 +586,283 @@ describe("isSearchTruncated", () => {
 
   it("is false als issueCount ontbreekt (oude fixtures)", () => {
     expect(isSearchTruncated({ nodes: [validPrNode] })).toBe(false);
+  });
+});
+
+describe("parseSearchResponse - review-rondes", () => {
+  function prWithReviews(
+    reviews: { submittedAt: string; body: string; login?: string }[],
+  ) {
+    const [pr] = parseSearchResponse(
+      {
+        nodes: [
+          {
+            ...validPrNode,
+            reviews: {
+              nodes: reviews.map((review) => ({
+                author: { login: review.login ?? "dennis" },
+                submittedAt: review.submittedAt,
+                comments: { totalCount: 1 },
+                body: review.body,
+              })),
+            },
+            agentCommits: { nodes: [] },
+          },
+        ],
+      },
+      "dennis",
+    );
+    return pr;
+  }
+
+  it.each(["mallory", "mallory-codex", "claude-reviewer"])(
+    "negeert markers van een vreemde login (%s), voor telling en sha",
+    (login) => {
+      const pr = prWithReviews([
+        {
+          submittedAt: "2026-07-01T08:00:00Z",
+          body: "<!-- accord:claude:withFixes sha=aaaaaaa ronde=1 -->",
+        },
+        {
+          submittedAt: "2026-07-02T08:00:00Z",
+          login,
+          body: "<!-- accord:claude:withFixes sha=bbbbbbb ronde=2 -->",
+        },
+      ]);
+
+      expect(pr?.agentReviewRounds).toBe(1);
+      expect(pr?.lastAgentReviewSha).toBe("aaaaaaa");
+    },
+  );
+
+  it("telt een marker van een agent-login ook zonder viewer", () => {
+    const [pr] = parseSearchResponse({
+      nodes: [
+        {
+          ...validPrNode,
+          reviews: {
+            nodes: [
+              {
+                author: { login: "claude[bot]" },
+                submittedAt: "2026-07-02T08:00:00Z",
+                comments: { totalCount: 1 },
+                body: "<!-- accord:claude:commentsOnly sha=ccccccc ronde=1 -->",
+              },
+            ],
+          },
+          agentCommits: { nodes: [] },
+        },
+      ],
+    });
+
+    expect(pr?.agentReviewRounds).toBe(1);
+    expect(pr?.lastAgentReviewSha).toBe("ccccccc");
+  });
+
+  it("telt markers van beide agents en modes, en negeert menselijke reviews", () => {
+    const pr = prWithReviews([
+      {
+        submittedAt: "2026-07-01T08:00:00Z",
+        body: "<!-- accord:claude:commentsOnly fixes=geen verificatie=ci -->",
+      },
+      {
+        submittedAt: "2026-07-02T08:00:00Z",
+        body: "<!-- accord:codex:withFixes sha=abc1234 ronde=2 -->",
+      },
+      { submittedAt: "2026-07-03T08:00:00Z", body: "Gewoon een opmerking." },
+    ]);
+
+    expect(pr?.agentReviewRounds).toBe(2);
+  });
+
+  it("geeft 0 rondes zonder marker", () => {
+    const pr = prWithReviews([
+      { submittedAt: "2026-07-03T08:00:00Z", body: "Geen marker." },
+    ]);
+
+    expect(pr?.agentReviewRounds).toBe(0);
+    expect(pr?.lastAgentReviewSha).toBeUndefined();
+  });
+
+  it("leest sha uit de nieuwste review, ongeacht volgorde", () => {
+    const pr = prWithReviews([
+      {
+        submittedAt: "2026-07-03T08:00:00Z",
+        body: "<!-- accord:claude:withFixes sha=bbbbbbb ronde=2 -->",
+      },
+      {
+        submittedAt: "2026-07-02T08:00:00Z",
+        body: "<!-- accord:claude:commentsOnly fixes=geen verificatie=ci sha=aaaaaaa ronde=1 -->",
+      },
+    ]);
+
+    expect(pr?.lastAgentReviewSha).toBe("bbbbbbb");
+  });
+
+  it("valt niet terug op een oudere sha als de nieuwste er geen heeft", () => {
+    const pr = prWithReviews([
+      {
+        submittedAt: "2026-07-02T08:00:00Z",
+        body: "<!-- accord:claude:withFixes sha=aaaaaaa ronde=1 -->",
+      },
+      {
+        submittedAt: "2026-07-03T08:00:00Z",
+        body: "<!-- accord:claude:commentsOnly -->",
+      },
+    ]);
+
+    expect(pr?.agentReviewRounds).toBe(2);
+    expect(pr?.lastAgentReviewSha).toBeUndefined();
+  });
+
+  it.each([
+    "<sha>",
+    "abc; rm -rf /",
+    "abc123",
+    "ABCDEF1",
+    "g".repeat(40),
+    "a".repeat(41),
+  ])("negeert een ongeldige sha (%s)", (sha) => {
+    const pr = prWithReviews([
+      {
+        submittedAt: "2026-07-03T08:00:00Z",
+        body: `<!-- accord:claude:withFixes sha=${sha} ronde=1 -->`,
+      },
+    ]);
+
+    expect(pr?.lastAgentReviewSha).toBeUndefined();
+    expect(pr?.agentReviewRounds).toBe(1);
+  });
+
+  it("accepteert een volle 40-tekens sha naast verdict-velden", () => {
+    const sha = "0123456789abcdef0123456789abcdef01234567";
+    const pr = prWithReviews([
+      {
+        submittedAt: "2026-07-03T08:00:00Z",
+        body: `<!-- accord:claude:commentsOnly fixes=nodig verificatie=ci sha=${sha} ronde=3 -->`,
+      },
+    ]);
+
+    expect(pr?.lastAgentReviewSha).toBe(sha);
+    expect(pr?.agentReviews[0]?.verdict).toEqual({
+      fixes: "nodig",
+      verificatie: "ci",
+    });
+  });
+});
+
+describe("risico-velden", () => {
+  const HEAD = "a".repeat(40);
+  const approval = (overrides: Record<string, unknown> = {}) => ({
+    author: { __typename: "User", login: "alice" },
+    state: "APPROVED",
+    body: "Ziet er goed uit",
+    commit: { oid: HEAD },
+    ...overrides,
+  });
+  const parse = (extra: Record<string, unknown>) =>
+    parseSearchResponse({
+      nodes: [{ ...validPrNode, headRefOid: HEAD, ...extra }],
+    })[0];
+  const withReviews = (...nodes: unknown[]) =>
+    parse({ riskApprovals: { nodes } });
+
+  it("leest headOid, changedPaths en changedFileCount", () => {
+    const pr = parse({
+      changedFiles: 2,
+      files: { nodes: [{ path: "src/a.ts" }, { path: "b/auth.rs" }] },
+    });
+    expect(pr?.headOid).toBe(HEAD);
+    expect(pr?.changedPaths).toEqual(["src/a.ts", "b/auth.rs"]);
+    expect(pr?.changedFileCount).toBe(2);
+  });
+
+  it("is fail-closed als changedFiles ontbreekt", () => {
+    const pr = parse({ files: { nodes: [{ path: "a.ts" }] } });
+    expect(pr?.changedFileCount).toBe(MAX_FILES + 1);
+  });
+
+  it("valt terug op lege waarden als de velden ontbreken", () => {
+    const [pr] = parseSearchResponse({ nodes: [validPrNode] });
+    expect(pr?.headOid).toBe("");
+    expect(pr?.changedPaths).toEqual([]);
+    expect(pr?.changedFileCount).toBe(MAX_FILES + 1);
+    expect(pr?.humanApprovedHead).toBe(false);
+  });
+
+  it("telt een menselijke approval op de head-sha", () => {
+    expect(withReviews(approval())?.humanApprovedHead).toBe(true);
+  });
+
+  it("telt een approval van een agent-login niet", () => {
+    expect(
+      withReviews(approval({ author: { login: "claude-bot" } }))
+        ?.humanApprovedHead,
+    ).toBe(false);
+    expect(
+      withReviews(approval({ author: { login: "ci[bot]" } }))
+        ?.humanApprovedHead,
+    ).toBe(false);
+  });
+
+  it("telt een approval van een Bot zonder [bot] in de login niet", () => {
+    expect(
+      withReviews(
+        approval({ author: { __typename: "Bot", login: "github-actions" } }),
+      )?.humanApprovedHead,
+    ).toBe(false);
+  });
+
+  it("telt een approval zonder __typename niet", () => {
+    expect(
+      withReviews(approval({ author: { login: "alice" } }))?.humanApprovedHead,
+    ).toBe(false);
+  });
+
+  it("leest approvals niet uit latestOpinionatedReviews", () => {
+    const pr = parse({
+      latestOpinionatedReviews: { nodes: [approval()] },
+    });
+    expect(pr?.humanApprovedHead).toBe(false);
+  });
+
+  it("telt een approval met de Accord-marker in de body niet", () => {
+    const body =
+      "<!-- accord:claude:commentsOnly fixes=geen verificatie=ci -->\nOK";
+    expect(withReviews(approval({ body }))?.humanApprovedHead).toBe(false);
+  });
+
+  it("telt een approval op een andere sha niet", () => {
+    expect(
+      withReviews(approval({ commit: { oid: "b".repeat(40) } }))
+        ?.humanApprovedHead,
+    ).toBe(false);
+  });
+
+  it("telt CHANGES_REQUESTED op de head niet", () => {
+    expect(
+      withReviews(approval({ state: "CHANGES_REQUESTED" }))?.humanApprovedHead,
+    ).toBe(false);
+  });
+
+  it("telt niets als de headOid onbekend is", () => {
+    const pr = parseSearchResponse({
+      nodes: [
+        {
+          ...validPrNode,
+          riskApprovals: {
+            nodes: [approval({ commit: { oid: "" } })],
+          },
+        },
+      ],
+    })[0];
+    expect(pr?.humanApprovedHead).toBe(false);
+  });
+
+  it("telt een menselijke approval ook naast een agent-approval", () => {
+    expect(
+      withReviews(approval({ author: { login: "codex" } }), approval())
+        ?.humanApprovedHead,
+    ).toBe(true);
   });
 });

@@ -10,7 +10,7 @@ import {
 } from "../../lib/github/autoRebase";
 import type { PullRequest, RepoId } from "../../lib/github/domain";
 import type { MergeMethod } from "../../lib/github/merge";
-import { mergeReasons } from "../../lib/github/merge";
+import { assertCanMerge, mergeReasons } from "../../lib/github/merge";
 import { groupByRepo } from "../../lib/github/organize";
 import type { ReviewEvent } from "../../lib/github/review";
 import { computeStackInfo } from "../../lib/github/stacks";
@@ -57,6 +57,7 @@ import { PANEL_BOUNDS } from "./panelLayout";
 import { ResizeHandle } from "./ResizeHandle";
 import { prStatus } from "./rank";
 import { refreshIntervalMs } from "./refreshPolicy";
+import { RiskProvider, useRiskApi } from "./riskContext";
 import { ShortcutHelp } from "./ShortcutHelp";
 import { Sidebar } from "./Sidebar";
 import type { StackRebaseStatus } from "./StackRail";
@@ -152,6 +153,7 @@ interface CockpitProps {
 export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   const { toasts, showToast } = useToast();
   const { settings, update: updateSettings } = useSettings();
+  const risk = useRiskApi(settings.riskPatterns);
   const windowFocused = useWindowFocused();
   // SHOULD-fix: de decideNotification-check bij een merge draait pas ná de
   // merge-call, dus ruim na de render waarop de knop geklikt
@@ -394,15 +396,17 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       isStackBlocked: (pr) =>
         (stackInfoByKeyForSort.get(keyOfPr(pr))?.blockedByPrNumbers.length ??
           0) > 0,
+      riskOf: risk.gateOf,
     };
-  }, [prs, runningPrKeys]);
+  }, [prs, runningPrKeys, risk.gateOf]);
   const sectionKeyOf = useCallback(
     (pr: PullRequest) =>
       prStatus(pr, {
         agentBezig: sortCtx.isAgentBezig(pr),
         stackBlocked: sortCtx.isStackBlocked(pr),
+        risk: risk.gateOf(pr),
       }).key,
-    [sortCtx],
+    [sortCtx, risk.gateOf],
   );
   const snoozeUntilOf = useCallback(
     (pr: PullRequest): string | undefined => {
@@ -862,6 +866,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     bulkPrs: PullRequest[],
     mode: AgentMode,
     agent?: ReviewAgent,
+    forceRound?: boolean,
   ) {
     let started = 0;
     let skipped = 0;
@@ -880,6 +885,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         bulkPr,
         agent ?? preferredReviewer(bulkPr.author),
         mode,
+        forceRound,
       ).catch((error: unknown) => {
         showToast(String(error), "fout");
       });
@@ -909,6 +915,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
   // klopt), dan mergen, dan per stap rebasen. Mislukt het ophalen van de
   // sha's, dan gaat de merge gewoon door zonder auto-rebase.
   async function mergeWithAutoRebase(pr: PullRequest, method: MergeMethod) {
+    assertCanMerge(pr, stackInfoByKey.get(keyOfPr(pr)), risk.gateOf(pr));
     // Een geslaagde nieuwe run begint schoon; een conflictmelding van een
     // vorige run blijft anders staan (bewust, tot deze volgende poging).
     setStackRebaseStatus(null);
@@ -1061,7 +1068,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       ? availableFixer(selectedPr, clis, repoPaths[selectedPr.repoId])
       : null;
 
-  return (
+  const view = (
     // biome-ignore lint/a11y/noStaticElementInteractions: keyboard nav for the PR list
     <div
       ref={cockpitRef}
@@ -1293,10 +1300,12 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
               clis={clis}
               repoPath={selectedPr ? repoPaths[selectedPr.repoId] : undefined}
               run={selectedPr ? runForPr(prKeyOf(selectedPr)) : undefined}
-              onStartRun={(pr, agent, mode) => {
-                void startRun(pr, agent, mode).catch((error: unknown) => {
-                  showToast(String(error), "fout");
-                });
+              onStartRun={(pr, agent, mode, forceRound) => {
+                void startRun(pr, agent, mode, forceRound).catch(
+                  (error: unknown) => {
+                    showToast(String(error), "fout");
+                  },
+                );
               }}
               onCancelRun={handleCancelRun}
               onRepoLinked={refreshRepoPaths}
@@ -1390,11 +1399,11 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           onOpenOnGitHub={(prsToOpen) => {
             for (const pr of prsToOpen) void openUrl(pr.url);
           }}
-          onStartReview={(prsToReview, mode, agent) =>
-            startBulkRuns(prsToReview, mode, agent)
+          onStartReview={(prsToReview, mode, agent, forceRound) =>
+            startBulkRuns(prsToReview, mode, agent, forceRound)
           }
           mergeReasonsFor={(pr) =>
-            mergeReasons(pr, stackInfoByKey.get(keyOfPr(pr)))
+            mergeReasons(pr, stackInfoByKey.get(keyOfPr(pr)), risk.gateOf(pr))
           }
           onMergeSingle={(pr) =>
             handleMergePr(pr, loadMethod()).catch((error: unknown) => {
@@ -1416,4 +1425,5 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
       )}
     </div>
   );
+  return <RiskProvider value={risk}>{view}</RiskProvider>;
 }

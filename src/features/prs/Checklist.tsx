@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import type { PrStackInfo } from "../../lib/github/stacks";
+import type { RiskGate } from "../../lib/risk";
 import type { Settings } from "../../lib/settings";
 import type { AgentMode, ReviewAgent } from "../agents/crossReview";
 import { preferredFixer, preferredReviewer } from "../agents/crossReview";
@@ -54,10 +55,16 @@ function rowOwnsRun(item: ChecklistItem, run: AgentRun): boolean {
 interface ChecklistProps {
   pr: PullRequest;
   stackInfo: PrStackInfo | undefined;
+  risk: RiskGate;
   run: AgentRun | undefined;
   settings: Settings;
   disabledReason: (agent: ReviewAgent) => string | null;
-  onStartRun: (pr: PullRequest, agent: ReviewAgent, mode: AgentMode) => void;
+  onStartRun: (
+    pr: PullRequest,
+    agent: ReviewAgent,
+    mode: AgentMode,
+    forceRound?: boolean,
+  ) => void;
 }
 
 /** De merge-checklist bovenaan het detailpaneel: elk punt met zijn fix op de
@@ -65,12 +72,13 @@ interface ChecklistProps {
 export function Checklist({
   pr,
   stackInfo,
+  risk,
   run,
   settings,
   disabledReason,
   onStartRun,
 }: ChecklistProps) {
-  const items = mergeChecklist(pr, stackInfo);
+  const items = mergeChecklist(pr, stackInfo, risk);
   const runningRun = run?.status === "running" ? run : undefined;
   const { primaryMode } = settings.review;
   const fixer = preferredFixer(pr);
@@ -97,6 +105,7 @@ export function Checklist({
           disabledReason={disabledReason}
           modelLine={reviewModelLine}
           kbd="R"
+          isReview
           onStartRun={onStartRun}
         />
       );
