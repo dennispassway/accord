@@ -23,6 +23,7 @@ function pr(number: number): PullRequest {
     comments: 0,
     openThreads: 0,
     reviewers: [],
+    agentReviewRounds: 0,
     agentReviews: [],
     agentCommitCount: 0,
     assignees: [],

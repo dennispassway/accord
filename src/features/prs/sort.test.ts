@@ -28,6 +28,7 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     reviewers: [],
     // Standaard al door een Accord-agent gereviewd, zodat een PR zonder
     // blokkade in "klaar" valt en niet in "agentReview".
+    agentReviewRounds: 0,
     agentReviews: [
       {
         agent: "claude",

@@ -362,7 +362,12 @@ export function useAgentRuns(
   }, []);
 
   const startRun = useCallback(
-    async (pr: PullRequest, agent: ReviewAgent, mode: AgentMode) => {
+    async (
+      pr: PullRequest,
+      agent: ReviewAgent,
+      mode: AgentMode,
+      forceRound = false,
+    ) => {
       const repoPath = repoPaths[pr.repoId];
       if (repoPath == null || repoPath === "") {
         throw new Error(
@@ -453,6 +458,9 @@ export function useAgentRuns(
           mode,
           model,
           effort,
+          sinceSha: pr.lastAgentReviewSha ?? null,
+          round: pr.agentReviewRounds + 1,
+          forceRound,
         });
       } catch (error) {
         clearTimeoutTimer(runId);

@@ -230,6 +230,40 @@ function parseVerdict(attributes: string): AgentVerdict | undefined {
   return { fixes, verificatie };
 }
 
+/** Een sha uit een marker komt van GitHub; alleen korte of volle hex telt. */
+const SHA_PATTERN = /^[0-9a-f]{7,40}$/;
+
+/**
+ * Telt de reviews met een Accord-marker (elke agent en mode) en leest de sha
+ * uit de nieuwste ervan. Heeft die nieuwste geen geldige sha, dan is het
+ * resultaat undefined en valt het bewust niet terug op een oudere: die kan van
+ * vóór een force-push zijn.
+ */
+function parseReviewRounds(node: Record<string, unknown>): {
+  agentReviewRounds: number;
+  lastAgentReviewSha?: string;
+} {
+  let rounds = 0;
+  let newest: { submittedAt: string; sha?: string } | undefined;
+  for (const review of nodesOf(node.reviews)) {
+    if (!isRecord(review) || !isNonEmptyString(review.body)) continue;
+    const match = review.body.match(AGENT_MARKER);
+    if (!match) continue;
+    rounds += 1;
+    if (!isNonEmptyString(review.submittedAt)) continue;
+    if (newest && newest.submittedAt > review.submittedAt) continue;
+    const sha = (match[3] ?? "").match(/(?:^|\s)sha=(\S+)/)?.[1];
+    newest = {
+      submittedAt: review.submittedAt,
+      sha: sha && SHA_PATTERN.test(sha) ? sha : undefined,
+    };
+  }
+  return {
+    agentReviewRounds: rounds,
+    ...(newest?.sha && { lastAgentReviewSha: newest.sha }),
+  };
+}
+
 /** Auteur van een review: eerst via login, anders via de verborgen marker. */
 function deriveReviewAuthor(
   login: string | undefined,
@@ -389,6 +423,7 @@ function parseNode(node: unknown): PullRequest | undefined {
     openThreads: parseOpenThreads(node),
     reviewers: parseReviewers(node),
     agentReviews: parseAgentReviews(node),
+    ...parseReviewRounds(node),
     agentCommitCount: [...agentCommitCounts(node).values()].reduce(
       (sum, n) => sum + n,
       0,

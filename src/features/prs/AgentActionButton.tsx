@@ -3,7 +3,16 @@ import { useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import type { AgentMode, ReviewAgent } from "../agents/crossReview";
 import { type AgentActionPlan, planAgentAction } from "./agentAction";
-import { AGENT_LABEL, MODE_LABEL, MODE_TITLE } from "./agentModes";
+import {
+  ADVICE_ROUND,
+  ADVICE_TITLE,
+  AGENT_LABEL,
+  isAdviceRound,
+  MODE_LABEL,
+  MODE_TITLE,
+  nextReviewRound,
+  showsRound,
+} from "./agentModes";
 import "./detail.css";
 import { ChevronIcon } from "./icons";
 import { useRovingMenu } from "./menuNav";
@@ -20,7 +29,14 @@ interface AgentActionButtonProps {
   modelLine: (agent: ReviewAgent, mode: AgentMode) => string;
   /** Toetsletter op de knop, bv. "R"; alleen weergave, de sneltoets zit in Cockpit. */
   kbd?: string;
-  onStartRun: (pr: PullRequest, agent: ReviewAgent, mode: AgentMode) => void;
+  /** Alleen de reviewknop: toont "ronde N" en de forceer-actie vanaf ronde 3. */
+  isReview?: boolean;
+  onStartRun: (
+    pr: PullRequest,
+    agent: ReviewAgent,
+    mode: AgentMode,
+    forceRound?: boolean,
+  ) => void;
 }
 
 /**
@@ -37,6 +53,7 @@ export function AgentActionButton({
   disabledReason,
   modelLine,
   kbd,
+  isReview = false,
   onStartRun,
 }: AgentActionButtonProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -46,6 +63,16 @@ export function AgentActionButton({
 
   if (plan.primary == null) return null;
   const { agent, mode: primaryMode } = plan.primary;
+  const round = nextReviewRound(pr);
+  const roundLabel = isReview && showsRound(pr) ? `ronde ${round}` : null;
+  const advice = isReview && isAdviceRound(pr, primaryMode);
+  const force =
+    isReview && round >= ADVICE_ROUND
+      ? {
+          label: "Extra ronde forceren",
+          title: "Start deze review toch met fixes, ook na twee rondes",
+        }
+      : undefined;
 
   function closeMenu() {
     setMenuOpen(false);
@@ -59,11 +86,15 @@ export function AgentActionButton({
         className="agent-action-main"
         title={
           `${MODE_LABEL[primaryMode]} · ${modelLine(agent, primaryMode)}` +
-          (MODE_TITLE[primaryMode] ? `. ${MODE_TITLE[primaryMode]}` : "")
+          (MODE_TITLE[primaryMode] ? `. ${MODE_TITLE[primaryMode]}` : "") +
+          (advice ? `. ${ADVICE_TITLE}` : "")
         }
         onClick={() => onStartRun(pr, agent, primaryMode)}
       >
-        {label(agent)}
+        {advice ? `Advies van ${AGENT_LABEL[agent]}` : label(agent)}
+        {roundLabel != null && (
+          <span className="agent-action-kbd mono">{roundLabel}</span>
+        )}
         {kbd != null && agent === preferred && (
           <span className="agent-action-kbd mono">{kbd}</span>
         )}
@@ -83,10 +114,16 @@ export function AgentActionButton({
             <AgentActionMenu
               items={plan.items}
               modelLine={modelLine}
+              adviceFor={(item) => isReview && isAdviceRound(pr, item.mode)}
+              force={force}
               onClose={closeMenu}
               onChoose={(item) => {
                 closeMenu();
                 onStartRun(pr, item.agent, item.mode);
+              }}
+              onForce={() => {
+                closeMenu();
+                onStartRun(pr, agent, primaryMode, true);
               }}
             />
           )}
@@ -108,19 +145,28 @@ type MenuItem = AgentActionPlan["items"][number];
 function AgentActionMenu({
   items,
   modelLine,
+  adviceFor,
+  force,
   onClose,
   onChoose,
+  onForce,
 }: {
   items: MenuItem[];
   modelLine: (agent: ReviewAgent, mode: AgentMode) => string;
+  adviceFor: (item: MenuItem) => boolean;
+  force?: { label: string; title: string };
   onClose: () => void;
   onChoose: (item: MenuItem) => void;
+  onForce: () => void;
 }) {
   const { setItemRef, handleKeyDown, tabIndexFor } = useRovingMenu(
-    items.length,
+    items.length + (force ? 1 : 0),
     0,
     true,
-    items.map((item) => item.disabledReason != null),
+    [
+      ...items.map((item) => item.disabledReason != null),
+      ...(force ? [false] : []),
+    ],
   );
 
   function handleMenuAreaKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -154,15 +200,31 @@ function AgentActionMenu({
             tabIndex={tabIndexFor(index)}
             className="agent-action-item"
             disabled={item.disabledReason != null}
-            title={item.disabledReason ?? MODE_TITLE[item.mode]}
+            title={
+              item.disabledReason ??
+              (adviceFor(item) ? ADVICE_TITLE : MODE_TITLE[item.mode])
+            }
             onClick={() => onChoose(item)}
           >
-            <span>{`${MODE_LABEL[item.mode]} · ${AGENT_LABEL[item.agent]}`}</span>
+            <span>{`${adviceFor(item) ? "Alleen advies" : MODE_LABEL[item.mode]} · ${AGENT_LABEL[item.agent]}`}</span>
             <span className="agent-action-model mono">
               {item.disabledReason ?? modelLine(item.agent, item.mode)}
             </span>
           </button>
         ))}
+        {force != null && (
+          <button
+            type="button"
+            role="menuitem"
+            ref={setItemRef(items.length)}
+            tabIndex={tabIndexFor(items.length)}
+            className="agent-action-item"
+            title={force.title}
+            onClick={onForce}
+          >
+            <span>{force.label}</span>
+          </button>
+        )}
       </div>
     </>
   );

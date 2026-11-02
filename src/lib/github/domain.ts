@@ -130,6 +130,10 @@ export interface PullRequest {
   openThreads: number;
   reviewers: Reviewer[];
   agentReviews: AgentReview[];
+  /** Reviews met een Accord-marker (elke agent en mode): de volgende run is ronde +1. */
+  agentReviewRounds: number;
+  /** Sha uit de marker van de nieuwste Accord-review; ontbreekt die daar, dan undefined. */
+  lastAgentReviewSha?: string;
   /** Commits van agents op de head-branch, ook van een agent zonder review. */
   agentCommitCount: number;
   assignees: string[];

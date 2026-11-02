@@ -125,7 +125,12 @@ interface DetailPanelProps {
   clis: AgentClis;
   repoPath: string | undefined;
   run: AgentRun | undefined;
-  onStartRun: (pr: PullRequest, agent: ReviewAgent, mode: AgentMode) => void;
+  onStartRun: (
+    pr: PullRequest,
+    agent: ReviewAgent,
+    mode: AgentMode,
+    forceRound?: boolean,
+  ) => void;
   onCancelRun: (runId: string) => void;
   onRepoLinked: () => Promise<void>;
   settings: Settings;

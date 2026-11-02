@@ -57,7 +57,12 @@ interface ChecklistProps {
   run: AgentRun | undefined;
   settings: Settings;
   disabledReason: (agent: ReviewAgent) => string | null;
-  onStartRun: (pr: PullRequest, agent: ReviewAgent, mode: AgentMode) => void;
+  onStartRun: (
+    pr: PullRequest,
+    agent: ReviewAgent,
+    mode: AgentMode,
+    forceRound?: boolean,
+  ) => void;
 }
 
 /** De merge-checklist bovenaan het detailpaneel: elk punt met zijn fix op de
@@ -97,6 +102,7 @@ export function Checklist({
           disabledReason={disabledReason}
           modelLine={reviewModelLine}
           kbd="R"
+          isReview
           onStartRun={onStartRun}
         />
       );

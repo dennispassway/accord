@@ -862,6 +862,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
     bulkPrs: PullRequest[],
     mode: AgentMode,
     agent?: ReviewAgent,
+    forceRound?: boolean,
   ) {
     let started = 0;
     let skipped = 0;
@@ -880,6 +881,7 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
         bulkPr,
         agent ?? preferredReviewer(bulkPr.author),
         mode,
+        forceRound,
       ).catch((error: unknown) => {
         showToast(String(error), "fout");
       });
@@ -1293,10 +1295,12 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
               clis={clis}
               repoPath={selectedPr ? repoPaths[selectedPr.repoId] : undefined}
               run={selectedPr ? runForPr(prKeyOf(selectedPr)) : undefined}
-              onStartRun={(pr, agent, mode) => {
-                void startRun(pr, agent, mode).catch((error: unknown) => {
-                  showToast(String(error), "fout");
-                });
+              onStartRun={(pr, agent, mode, forceRound) => {
+                void startRun(pr, agent, mode, forceRound).catch(
+                  (error: unknown) => {
+                    showToast(String(error), "fout");
+                  },
+                );
               }}
               onCancelRun={handleCancelRun}
               onRepoLinked={refreshRepoPaths}
@@ -1390,8 +1394,8 @@ export function Cockpit({ login, onAuthError, onLogout }: CockpitProps) {
           onOpenOnGitHub={(prsToOpen) => {
             for (const pr of prsToOpen) void openUrl(pr.url);
           }}
-          onStartReview={(prsToReview, mode, agent) =>
-            startBulkRuns(prsToReview, mode, agent)
+          onStartReview={(prsToReview, mode, agent, forceRound) =>
+            startBulkRuns(prsToReview, mode, agent, forceRound)
           }
           mergeReasonsFor={(pr) =>
             mergeReasons(pr, stackInfoByKey.get(keyOfPr(pr)))

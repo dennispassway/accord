@@ -587,3 +587,118 @@ describe("isSearchTruncated", () => {
     expect(isSearchTruncated({ nodes: [validPrNode] })).toBe(false);
   });
 });
+
+describe("parseSearchResponse - review-rondes", () => {
+  function prWithReviews(
+    reviews: { submittedAt: string; body: string; login?: string }[],
+  ) {
+    const [pr] = parseSearchResponse({
+      nodes: [
+        {
+          ...validPrNode,
+          reviews: {
+            nodes: reviews.map((review) => ({
+              author: { login: review.login ?? "dennis" },
+              submittedAt: review.submittedAt,
+              comments: { totalCount: 1 },
+              body: review.body,
+            })),
+          },
+          agentCommits: { nodes: [] },
+        },
+      ],
+    });
+    return pr;
+  }
+
+  it("telt markers van beide agents en modes, en negeert menselijke reviews", () => {
+    const pr = prWithReviews([
+      {
+        submittedAt: "2026-07-01T08:00:00Z",
+        body: "<!-- accord:claude:commentsOnly fixes=geen verificatie=ci -->",
+      },
+      {
+        submittedAt: "2026-07-02T08:00:00Z",
+        body: "<!-- accord:codex:withFixes sha=abc1234 ronde=2 -->",
+      },
+      { submittedAt: "2026-07-03T08:00:00Z", body: "Gewoon een opmerking." },
+    ]);
+
+    expect(pr?.agentReviewRounds).toBe(2);
+  });
+
+  it("geeft 0 rondes zonder marker", () => {
+    const pr = prWithReviews([
+      { submittedAt: "2026-07-03T08:00:00Z", body: "Geen marker." },
+    ]);
+
+    expect(pr?.agentReviewRounds).toBe(0);
+    expect(pr?.lastAgentReviewSha).toBeUndefined();
+  });
+
+  it("leest sha uit de nieuwste review, ongeacht volgorde", () => {
+    const pr = prWithReviews([
+      {
+        submittedAt: "2026-07-03T08:00:00Z",
+        body: "<!-- accord:claude:withFixes sha=bbbbbbb ronde=2 -->",
+      },
+      {
+        submittedAt: "2026-07-02T08:00:00Z",
+        body: "<!-- accord:claude:commentsOnly fixes=geen verificatie=ci sha=aaaaaaa ronde=1 -->",
+      },
+    ]);
+
+    expect(pr?.lastAgentReviewSha).toBe("bbbbbbb");
+  });
+
+  it("valt niet terug op een oudere sha als de nieuwste er geen heeft", () => {
+    const pr = prWithReviews([
+      {
+        submittedAt: "2026-07-02T08:00:00Z",
+        body: "<!-- accord:claude:withFixes sha=aaaaaaa ronde=1 -->",
+      },
+      {
+        submittedAt: "2026-07-03T08:00:00Z",
+        body: "<!-- accord:claude:commentsOnly -->",
+      },
+    ]);
+
+    expect(pr?.agentReviewRounds).toBe(2);
+    expect(pr?.lastAgentReviewSha).toBeUndefined();
+  });
+
+  it.each([
+    "<sha>",
+    "abc; rm -rf /",
+    "abc123",
+    "ABCDEF1",
+    "g".repeat(40),
+    "a".repeat(41),
+  ])("negeert een ongeldige sha (%s)", (sha) => {
+    const pr = prWithReviews([
+      {
+        submittedAt: "2026-07-03T08:00:00Z",
+        body: `<!-- accord:claude:withFixes sha=${sha} ronde=1 -->`,
+      },
+    ]);
+
+    expect(pr?.lastAgentReviewSha).toBeUndefined();
+    expect(pr?.agentReviewRounds).toBe(1);
+  });
+
+  it("accepteert een volle 40-tekens sha naast verdict-velden", () => {
+    const sha = "0123456789abcdef0123456789abcdef01234567";
+    const pr = prWithReviews([
+      {
+        submittedAt: "2026-07-03T08:00:00Z",
+        body: `<!-- accord:claude:commentsOnly fixes=nodig verificatie=ci sha=${sha} ronde=3 -->`,
+      },
+    ]);
+
+    expect(pr?.lastAgentReviewSha).toBe(sha);
+    expect(pr?.agentReviews[0]?.verdict).toEqual({
+      fixes: "nodig",
+      verificatie: "ci",
+    });
+  });
+});

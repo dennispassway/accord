@@ -149,6 +149,10 @@ interface RawPr {
   mergeState?: MergeStateStatus;
   /** ARUNS uit de designspec: reviewhistorie van agents op deze PR. */
   aRuns?: RawARun[];
+  /** Aantal Accord-reviews; standaard het aantal aRuns. Eén agent kan er meer dan één hebben. */
+  rounds?: number;
+  /** Sha uit de marker van de nieuwste Accord-review. */
+  lastSha?: string;
 }
 
 // Geporteerd uit PRS + PEOPLE + COMMENTS + MOM in de designspec.
@@ -275,6 +279,9 @@ const RAW_PRS: RawPr[] = [
     comments: 9,
     openThreads: 2,
     aRuns: [["claude", "fixes", 5, 1, 180]],
+    // Twee eerdere Accord-reviews: de volgende run is ronde 3 (alleen advies).
+    rounds: 2,
+    lastSha: "a1b2c3d",
   },
   {
     id: "ken188",
@@ -570,6 +577,8 @@ function toPullRequest(raw: RawPr): PullRequest {
     openThreads: raw.openThreads ?? 0,
     reviewers,
     agentReviews: (raw.aRuns ?? []).map(agentRun),
+    agentReviewRounds: raw.rounds ?? raw.aRuns?.length ?? 0,
+    ...(raw.lastSha && { lastAgentReviewSha: raw.lastSha }),
     agentCommitCount: (raw.aRuns ?? []).reduce(
       (sum, run) => sum + agentRun(run).commitCount,
       0,
