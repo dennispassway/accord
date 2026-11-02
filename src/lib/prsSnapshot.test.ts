@@ -139,6 +139,22 @@ describe("prsSnapshot", () => {
     expect(snapshot?.prs[0]?.openThreads).toBe(0);
   });
 
+  it("vult agentReviewRounds aan voor een snapshot van een oudere appversie", () => {
+    const { agentReviewRounds, ...oudeVorm } = pr();
+    storage.setItem(
+      "pr-cockpit.prsSnapshot",
+      JSON.stringify({
+        prs: [oudeVorm, { ...pr(), agentReviewRounds: 2 }],
+        viewerLogin: "dennis",
+        lastUpdated: "2026-08-02T10:00:00.000Z",
+      }),
+    );
+
+    const snapshot = loadPrsSnapshot(storage);
+    expect(snapshot?.prs[0]?.agentReviewRounds).toBe(0);
+    expect(snapshot?.prs[1]?.agentReviewRounds).toBe(2);
+  });
+
   it("laat een geldige mergeStateStatus/openThreads ongemoeid", () => {
     storage.setItem(
       "pr-cockpit.prsSnapshot",

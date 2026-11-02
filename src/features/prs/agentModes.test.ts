@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isAdviceRound, nextReviewRound, showsRound } from "./agentModes";
+import {
+  forceRoundRequest,
+  isAdviceRound,
+  nextReviewRound,
+  showsRound,
+} from "./agentModes";
 
 const rounds = (agentReviewRounds: number) => ({ agentReviewRounds });
 
@@ -19,5 +24,14 @@ describe("review-rondes", () => {
     expect(isAdviceRound(rounds(2), "withFixes")).toBe(true);
     expect(isAdviceRound(rounds(2), "commentsOnly")).toBe(false);
     expect(isAdviceRound(rounds(5), "fixChecks")).toBe(false);
+  });
+
+  it("forceert altijd withFixes, en alleen als die modus advies zou zijn", () => {
+    expect(forceRoundRequest(rounds(1), "claude")).toBeUndefined();
+    expect(forceRoundRequest(rounds(2), "codex")).toEqual({
+      agent: "codex",
+      mode: "withFixes",
+      forceRound: true,
+    });
   });
 });

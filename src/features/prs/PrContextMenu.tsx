@@ -167,8 +167,7 @@ export function PrContextMenu({
         ]
       : []),
     ...REVIEW_CHOICES.map(({ agent, mode, label }) => {
-      // Bij één PR met eerdere Accord-reviews: de ronde erbij, en vanaf ronde 3
-      // is withFixes alleen advies. Bij een bulkselectie lopen de rondes uiteen.
+      // Bij een bulkselectie lopen de rondes uiteen.
       const advice = singlePr != null && isAdviceRound(singlePr, mode);
       const base = advice ? `${agentLabel[agent]}: alleen advies` : label;
       return {

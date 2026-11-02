@@ -334,7 +334,10 @@ export async function fetchAllPrs(
     });
   }
   const prsFor = (ids: string[]) =>
-    parseSearchResponse({ nodes: ids.map((id) => nodeById.get(id) ?? null) });
+    parseSearchResponse(
+      { nodes: ids.map((id) => nodeById.get(id) ?? null) },
+      viewer?.login,
+    );
 
   return {
     prs: mergePrSources(

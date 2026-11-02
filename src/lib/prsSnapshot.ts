@@ -29,7 +29,15 @@ function normalizePr(pr: PullRequest): PullRequest {
   const openThreads = typeof rawThreads === "number" ? rawThreads : 0;
   const rawCommits = (pr as Partial<PullRequest>).agentCommitCount;
   const agentCommitCount = typeof rawCommits === "number" ? rawCommits : 0;
-  return { ...pr, mergeStateStatus, openThreads, agentCommitCount };
+  const rawRounds = (pr as Partial<PullRequest>).agentReviewRounds;
+  const agentReviewRounds = typeof rawRounds === "number" ? rawRounds : 0;
+  return {
+    ...pr,
+    mergeStateStatus,
+    openThreads,
+    agentCommitCount,
+    agentReviewRounds,
+  };
 }
 
 /** Minimale Storage-vorm, zodat tests een in-memory fake kunnen meegeven

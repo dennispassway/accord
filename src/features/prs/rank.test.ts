@@ -35,8 +35,8 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     reviewers: [],
     // Standaard al door een Accord-agent gereviewd, zodat een PR zonder
     // blokkade "klaar" is; de agentReview-tests zetten dit expliciet leeg.
-    agentReviewRounds: 0,
     agentReviews: [AGENT_REVIEW],
+    agentReviewRounds: 0,
     agentCommitCount: 0,
     assignees: [],
     reviewRequestedFromMe: false,

@@ -4,9 +4,9 @@ import type { PullRequest } from "../../lib/github/domain";
 import type { AgentMode, ReviewAgent } from "../agents/crossReview";
 import { type AgentActionPlan, planAgentAction } from "./agentAction";
 import {
-  ADVICE_ROUND,
   ADVICE_TITLE,
   AGENT_LABEL,
+  forceRoundRequest,
   isAdviceRound,
   MODE_LABEL,
   MODE_TITLE,
@@ -66,8 +66,9 @@ export function AgentActionButton({
   const round = nextReviewRound(pr);
   const roundLabel = isReview && showsRound(pr) ? `ronde ${round}` : null;
   const advice = isReview && isAdviceRound(pr, primaryMode);
+  const forceRequest = isReview ? forceRoundRequest(pr, agent) : undefined;
   const force =
-    isReview && round >= ADVICE_ROUND
+    forceRequest != null
       ? {
           label: "Extra ronde forceren",
           title: "Start deze review toch met fixes, ook na twee rondes",
@@ -123,7 +124,14 @@ export function AgentActionButton({
               }}
               onForce={() => {
                 closeMenu();
-                onStartRun(pr, agent, primaryMode, true);
+                if (forceRequest != null) {
+                  onStartRun(
+                    pr,
+                    forceRequest.agent,
+                    forceRequest.mode,
+                    forceRequest.forceRound,
+                  );
+                }
               }}
             />
           )}

@@ -739,8 +739,20 @@ fn kill_group_if_alive(pgid: u32) {
 /// lezen allebei deze functie, zodat ze niet uit elkaar kunnen lopen: een
 /// hernoemde mode of agent zou anders stil een review opleveren die Accord niet
 /// meer herkent.
-fn review_marker(agent: &str, mode: &str, round: u32) -> String {
-    format!("<!-- accord:{agent}:{mode} sha=<sha> ronde={round} -->")
+fn review_marker(agent: &str, mode: &str, round: u32, head_sha: Option<&str>) -> String {
+    format!(
+        "<!-- accord:{agent}:{mode}{} ronde={round} -->",
+        sha_field(head_sha)
+    )
+}
+
+/// ` sha=<sha>` als Rust de head van deze run kon lezen; anders niets, zodat de
+/// volgende ronde de volledige diff reviewt.
+fn sha_field(head_sha: Option<&str>) -> String {
+    head_sha
+        .filter(|sha| valid_sha(sha))
+        .map(|sha| format!(" sha={sha}"))
+        .unwrap_or_default()
 }
 
 /// Een sha komt uit een review-body op GitHub en belandt in de prompt: alleen
@@ -749,13 +761,35 @@ fn valid_sha(sha: &str) -> bool {
     (7..=40).contains(&sha.len()) && sha.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
+/// Een branchnaam komt van GitHub en staat in shell-commando's in de prompt;
+/// git laat `;`, `$`, `|` en backticks toe, dus alleen een veilige set mag door.
+fn valid_ref(name: &str) -> bool {
+    !name.is_empty()
+        && !name.starts_with('-')
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/' | b'-'))
+}
+
+fn checked_refs(head_ref: &str, base_ref: &str) -> Result<(), String> {
+    for (label, name) in [("head", head_ref), ("base", base_ref)] {
+        if !valid_ref(name) {
+            return Err(format!(
+                "de {label}-branch {name:?} bevat tekens die Accord niet in een agent-prompt zet; hernoem de branch (alleen letters, cijfers, . _ / -)"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Vanaf deze ronde geeft withFixes alleen advies en vraagt commentsOnly om
 /// heroverweging, tenzij de gebruiker de ronde forceert.
 const ADVICE_ROUND: u32 = 3;
 
-/// Uitleg bij `<sha>` in de marker; de volgende review leest hem terug om alleen
-/// het verschil sinds deze review te beoordelen.
-const SHA_HINT: &str = "; vervang daarin `<sha>` door de uitkomst van git rev-parse HEAD, die je aan het BEGIN van je review draait, vóór eventuele eigen commits";
+/// Geeft deze run alleen advies in plaats van te fixen of te pushen?
+fn is_advice_round(round: u32, force_round: bool) -> bool {
+    round >= ADVICE_ROUND && !force_round
+}
 
 /// Zoekterm voor `review_posted`: de marker zonder sluitende ` -->`, zodat ook
 /// de commentsOnly-marker met verdict-velden gevonden wordt.
@@ -772,27 +806,27 @@ fn prompt_for_mode(
     base_ref: &str,
     push_marker: &Path,
     since_sha: Option<&str>,
+    head_sha: Option<&str>,
     round: u32,
     force_round: bool,
 ) -> Result<String, String> {
     let round = round.max(1);
     let since_sha = since_sha.filter(|sha| valid_sha(sha));
-    let advice = round >= ADVICE_ROUND && !force_round;
+    let advice = is_advice_round(round, force_round);
     let prev_rounds = round - 1;
     let marker = if mode == "commentsOnly" {
         // Verdict-velden voor de fix-run die hierna kan volgen; de rest van de
         // app zoekt op de prefix (`review_marker_prefix`).
         format!(
-            "<!-- accord:{agent}:commentsOnly fixes=<nodig|geen> verificatie=<ci|lokaal> sha=<sha> ronde={round} -->"
+            "<!-- accord:{agent}:commentsOnly fixes=<nodig|geen> verificatie=<ci|lokaal>{} ronde={round} -->",
+            sha_field(head_sha)
         )
     } else {
-        review_marker(agent, mode, round)
+        review_marker(agent, mode, round, head_sha)
     };
-    // Alleen de review-modi: met een eerdere review beoordeelt de agent het
-    // verschil sinds die commit, zodat een volgende ronde convergeert.
     let read_diff = match since_sha {
         Some(sha) => format!(
-            "Lees daarna wat er is veranderd. De vorige Accord-review op deze PR keek naar commit {sha}. Controleer met `git merge-base --is-ancestor {sha} HEAD` of die commit nog in de geschiedenis zit. Zo ja: beoordeel alleen `git diff {sha}..HEAD` en gebruik gh pr diff {pr_number} alleen voor context. Zo nee (force-push of onbekende commit): review de volledige diff (gh pr diff {pr_number})."
+            "Lees daarna wat er is veranderd. De vorige Accord-review op deze PR keek naar commit {sha}. Controleer met `git merge-base --is-ancestor {sha} HEAD` of die commit nog in de geschiedenis zit (exitcode 0 betekent ja). Zo ja: beoordeel alleen `git diff {sha}..HEAD` en gebruik gh pr diff {pr_number} alleen voor context; is die diff leeg, of bevat `git log --merges {sha}..HEAD` een merge-commit (bijvoorbeeld na Update branch of een conflictoplossing), review dan de volledige diff (gh pr diff {pr_number}). Zo nee (force-push of onbekende commit): review de volledige diff (gh pr diff {pr_number})."
         ),
         None => format!("Lees daarna de volledige diff (gh pr diff {pr_number})."),
     };
@@ -842,14 +876,14 @@ fn prompt_for_mode(
     );
     let prompt = match mode {
         "withFixes" if advice => format!(
-            "Review pull request #{pr_number} in deze repo, maar fix niets: dit is ronde {round} en eerdere rondes losten het probleem niet op. Wijzig geen bestanden en maak geen commits. {review_md_read} {read_diff} {diff_focus} Lees ook de al geplaatste review-comments en open threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments --paginate en gh pr view {pr_number} --comments), en zoek welk probleem steeds terugkomt. Plaats één review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review{SHA_HINT}), gevolgd door in maximaal 5 zinnen welk probleem na {prev_rounds} rondes steeds terugkomt en of de aanpak heroverwogen moet worden, met een concreet alternatief."
+            "Review pull request #{pr_number} in deze repo, maar fix niets: dit is ronde {round} en eerdere rondes losten het probleem niet op. Wijzig geen bestanden en maak geen commits. {review_md_read} {read_diff} {diff_focus} Lees ook de al geplaatste review-comments en open threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments --paginate en gh pr view {pr_number} --comments), en zoek welk probleem steeds terugkomt. Plaats één review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review), gevolgd door in maximaal 5 zinnen welk probleem na {prev_rounds} rondes steeds terugkomt en of de aanpak heroverwogen moet worden, met een concreet alternatief."
         ),
         "withFixes" => format!(
-            "Review pull request #{pr_number} in deze repo. {review_md_read} {read_diff} {diff_focus} Lees ook de al geplaatste review-comments en open threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments --paginate en gh pr view {pr_number} --comments), en vorm daarna pas je oordeel. Richt je op problemen die gedrag raken (bugs, security, dataverlies); stijl alleen als het echt schaadt. Fix wat je vindt met kleine, losse commits, en verwerk daarbij ook de terechte punten uit de open threads. Draai daarna de tests en linter van het project. {light_hint} {hand_off} Reageer per verwerkte thread in die thread zelf (gh api met in_reply_to) wat je hebt aangepast en resolve hem daarna via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het met een punt gemotiveerd oneens, leg dat uit in een reply en laat die thread open. Sluit af met één samenvattende review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review{SHA_HINT}), gevolgd door per bevinding bestand:regel, wat er mis was en wat je hebt aangepast.{REVIEW_RULES}{REVIEW_LENS_COMMON}{REVIEW_LENS_WITH_FIXES}{}",
+            "Review pull request #{pr_number} in deze repo. {review_md_read} {read_diff} {diff_focus} Lees ook de al geplaatste review-comments en open threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments --paginate en gh pr view {pr_number} --comments), en vorm daarna pas je oordeel. Richt je op problemen die gedrag raken (bugs, security, dataverlies); stijl alleen als het echt schaadt. Fix wat je vindt met kleine, losse commits, en verwerk daarbij ook de terechte punten uit de open threads. Draai daarna de tests en linter van het project. {light_hint} {hand_off} Reageer per verwerkte thread in die thread zelf (gh api met in_reply_to) wat je hebt aangepast en resolve hem daarna via de GraphQL-mutatie resolveReviewThread (thread-ids haal je met gh api graphql uit reviewThreads op de PR); ben je het met een punt gemotiveerd oneens, leg dat uit in een reply en laat die thread open. Sluit af met één samenvattende review via gh pr review {pr_number} --comment; laat de review-body BEGINNEN met exact de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review), gevolgd door per bevinding bestand:regel, wat er mis was en wat je hebt aangepast.{REVIEW_RULES}{REVIEW_LENS_COMMON}{REVIEW_LENS_WITH_FIXES}{}",
             review_lens_appendix()
         ),
         "commentsOnly" => format!(
-            "Review pull request #{pr_number} in deze repo. {review_md_read} {read_diff} {diff_focus} Lees ook de al geplaatste review-comments en threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments --paginate en gh pr view {pr_number} --comments), en vorm daarna pas je bevindingen. Controleer elke bevinding tegen de code en meld alleen punten waar je zeker van bent, met bestand:regel erbij. Label elke bevinding: [belangrijk] voor bugs, security of dataverlies, [bestaand] voor een probleem dat al op de basisbranch bestond (zie de regels hieronder), [nit] voor stijl; maximaal 5 nits, en sla gegenereerde bestanden en lockfiles over. Plaats alles als één review met inline comments op de betreffende regels: post naar gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/reviews --input - een JSON-payload met event COMMENT, en als body: de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review; vervang daarin `<nodig|geen>` en `<ci|lokaal>` door je oordeel: fixes=nodig als er minstens één [belangrijk]-bevinding is (dit telt alleen [belangrijk], niet [bestaand]), anders fixes=geen; verificatie=lokaal alleen als de fix iets raakt dat CI niet dekt of als de repo geen CI-checks heeft (gh pr checks {pr_number} geeft niets terug), anders verificatie=ci{SHA_HINT}) gevolgd door {rethink}een korte samenvatting, en per bevinding een entry in comments met path, line en side RIGHT (regelnummer in het nieuwe bestand, niet de diff-positie). Per inline comment: het probleem, waarom het uitmaakt en een concreet fix-voorstel. Geen blokkerende punten: zeg dat dan expliciet in één zin in de review-body. Wijzig geen bestanden en push geen code.{REVIEW_RULES}{REVIEW_LENS_COMMON}{REVIEW_LENS_COMMENTS_ONLY}{}",
+            "Review pull request #{pr_number} in deze repo. {review_md_read} {read_diff} {diff_focus} Lees ook de al geplaatste review-comments en threads (gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments --paginate en gh pr view {pr_number} --comments), en vorm daarna pas je bevindingen. Controleer elke bevinding tegen de code en meld alleen punten waar je zeker van bent, met bestand:regel erbij. Label elke bevinding: [belangrijk] voor bugs, security of dataverlies, [bestaand] voor een probleem dat al op de basisbranch bestond (zie de regels hieronder), [nit] voor stijl; maximaal 5 nits, en sla gegenereerde bestanden en lockfiles over. Plaats alles als één review met inline comments op de betreffende regels: post naar gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/reviews --input - een JSON-payload met event COMMENT, en als body: de regel `{marker}` (een onzichtbare marker, niet zichtbaar op GitHub, waarmee Accord deze review herkent als agent-review; vervang daarin `<nodig|geen>` en `<ci|lokaal>` door je oordeel: fixes=nodig als er minstens één [belangrijk]-bevinding is (dit telt alleen [belangrijk], niet [bestaand]), anders fixes=geen; verificatie=lokaal alleen als de fix iets raakt dat CI niet dekt of als de repo geen CI-checks heeft (gh pr checks {pr_number} geeft niets terug), anders verificatie=ci) gevolgd door {rethink}een korte samenvatting, en per bevinding een entry in comments met path, line en side RIGHT (regelnummer in het nieuwe bestand, niet de diff-positie). Per inline comment: het probleem, waarom het uitmaakt en een concreet fix-voorstel. Geen blokkerende punten: zeg dat dan expliciet in één zin in de review-body. Wijzig geen bestanden en push geen code.{REVIEW_RULES}{REVIEW_LENS_COMMON}{REVIEW_LENS_COMMENTS_ONLY}{}",
             review_lens_appendix()
         ),
         "fixComments" => format!(
@@ -1019,6 +1053,10 @@ fn check_codex_git_access(binary: &Path, worktree: &Path, roots: &[PathBuf]) -> 
         })
 }
 
+/// De Bash-commando's die een commentsOnly-run van claude mag draaien: alleen
+/// lezen. Elk `git <sub>` in de commentsOnly-prompt moet hier staan (test).
+const COMMENTS_ONLY_TOOLS: &str = "Read,Grep,Glob,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh api repos/:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git rev-parse:*),Bash(rg:*),Bash(grep:*),Bash(find:*),Bash(rtk rg:*),Bash(rtk grep:*),Bash(rtk find:*),Bash(git merge-base:*)";
+
 fn agent_command(
     agent: &str,
     mode: &str,
@@ -1066,9 +1104,7 @@ fn agent_command(
                 // rg/grep/find staan erbij omdat een hook Grep/Glob kan omleiden naar
                 // een shell-zoekopdracht; zonder die patronen liep elke zoekactie op
                 // een permission-fout stuk. De rtk-varianten dekken diezelfde omleiding.
-                command.arg("--allowedTools").arg(
-                    "Read,Grep,Glob,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh api repos/:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git rev-parse:*),Bash(rg:*),Bash(grep:*),Bash(find:*),Bash(rtk rg:*),Bash(rtk grep:*),Bash(rtk find:*)",
-                );
+                command.arg("--allowedTools").arg(COMMENTS_ONLY_TOOLS);
             }
         }
         // Codex kent geen read-only modus MET netwerk, en zonder netwerk kan het
@@ -1262,11 +1298,13 @@ fn push_if_marked(app: &AppHandle, run_id: &str, worktree: &Path, head_ref: &str
 /// kon draaien.
 fn review_outcome(
     mode: &str,
+    advice: bool,
     exit_code: i32,
     cancelled: bool,
     posted: impl FnOnce() -> Result<bool, String>,
 ) -> (bool, Option<String>) {
-    if mode != "commentsOnly" || cancelled || exit_code != 0 {
+    let expects_review = mode == "commentsOnly" || (mode == "withFixes" && advice);
+    if !expects_review || cancelled || exit_code != 0 {
         return (true, None);
     }
     match posted() {
@@ -1590,21 +1628,11 @@ fn start_review_blocking(
     force_round: bool,
 ) -> Result<(), String> {
     checked_run_id(&run_id)?;
+    checked_refs(&head_ref, &base_ref)?;
     let marker = push_marker(&run_id);
     // Een marker van een vorige run met hetzelfde id zou meteen een push
     // opleveren; opruimen vóór de start is de enige plek waar dat zeker kan.
     let _ = std::fs::remove_file(&marker);
-    let prompt = prompt_for_mode(
-        &agent,
-        &mode,
-        pr_number,
-        &head_ref,
-        &base_ref,
-        &marker,
-        since_sha.as_deref(),
-        round,
-        force_round,
-    )?;
     let repo_path = PathBuf::from(&repo_path);
     if !repo_path.is_absolute() {
         return Err("repo-pad moet absoluut zijn".to_string());
@@ -1706,6 +1734,23 @@ fn start_review_blocking(
         } else {
             Vec::new()
         };
+        // Rust leest de sha zelf: een agent die hem invult kan er vrije tekst van
+        // maken. Lukt het lezen niet, dan krijgt de marker geen sha-veld.
+        let head_sha = run_git(&worktree, &["rev-parse", "HEAD"])
+            .ok()
+            .filter(|sha| valid_sha(sha));
+        let prompt = prompt_for_mode(
+            &agent,
+            &mode,
+            pr_number,
+            &head_ref,
+            &base_ref,
+            &marker,
+            since_sha.as_deref(),
+            head_sha.as_deref(),
+            round,
+            force_round,
+        )?;
         agent_command(&agent, &mode, &prompt, &binary, &model, &effort, &git_roots)
     })() {
         Ok(command) => command,
@@ -1831,6 +1876,7 @@ fn start_review_blocking(
     // moment, en dat moment is de start van de agent, niet zijn einde.
     let review_since = review_cutoff();
     let review_mode = mode.clone();
+    let advice = is_advice_round(round, force_round);
     let review_marker = review_marker_prefix(&agent, &mode);
     std::thread::spawn(move || {
         let exit_code = match child.wait() {
@@ -1866,9 +1912,10 @@ fn start_review_blocking(
         // Exit 0 is voor commentsOnly geen bewijs: die mode laat niets in de
         // worktree achter, dus de enige uitkomst staat op GitHub. Daar kijken we
         // dan ook, vóór cleanup_run, want daarna is de run uit beeld.
-        let (review_ok, review_line) = review_outcome(&review_mode, exit_code, cancelled, || {
-            review_posted(&repo_path, pr_number, &review_marker, review_since)
-        });
+        let (review_ok, review_line) =
+            review_outcome(&review_mode, advice, exit_code, cancelled, || {
+                review_posted(&repo_path, pr_number, &review_marker, review_since)
+            });
         if let Some(line) = review_line {
             emit_log(&app_for_wait, &run_id, vec![line]);
         }
@@ -2164,7 +2211,9 @@ mod tests {
         head_ref: &str,
         base_ref: &str,
     ) -> Result<String, String> {
-        convergence_prompt(agent, mode, pr_number, head_ref, base_ref, None, 1, false)
+        convergence_prompt(
+            agent, mode, pr_number, head_ref, base_ref, None, None, 1, false,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2175,6 +2224,7 @@ mod tests {
         head_ref: &str,
         base_ref: &str,
         since_sha: Option<&str>,
+        head_sha: Option<&str>,
         round: u32,
         force_round: bool,
     ) -> Result<String, String> {
@@ -2186,12 +2236,23 @@ mod tests {
             base_ref,
             Path::new(TEST_MARKER),
             since_sha,
+            head_sha,
             round,
             force_round,
         )
     }
 
     fn review(mode: &str, since_sha: Option<&str>, round: u32, force: bool) -> String {
+        review_at(mode, since_sha, None, round, force)
+    }
+
+    fn review_at(
+        mode: &str,
+        since_sha: Option<&str>,
+        head_sha: Option<&str>,
+        round: u32,
+        force: bool,
+    ) -> String {
         convergence_prompt(
             "claude",
             mode,
@@ -2199,6 +2260,7 @@ mod tests {
             "feature/x",
             "main",
             since_sha,
+            head_sha,
             round,
             force,
         )
@@ -2206,27 +2268,148 @@ mod tests {
     }
 
     #[test]
-    fn review_markers_carry_sha_placeholder_and_round() {
-        let with_fixes = review("withFixes", None, 3, true);
-        assert!(with_fixes.contains("<!-- accord:claude:withFixes sha=<sha> ronde=3 -->"));
-        let comments_only = review("commentsOnly", None, 3, false);
+    fn review_markers_carry_the_head_sha_and_round_literally() {
+        let with_fixes = review_at("withFixes", None, Some("abc1234"), 3, true);
+        assert!(with_fixes.contains("<!-- accord:claude:withFixes sha=abc1234 ronde=3 -->"));
+        let comments_only = review_at("commentsOnly", None, Some("abc1234"), 3, false);
         assert!(comments_only.contains(
-            "<!-- accord:claude:commentsOnly fixes=<nodig|geen> verificatie=<ci|lokaal> sha=<sha> ronde=3 -->"
+            "<!-- accord:claude:commentsOnly fixes=<nodig|geen> verificatie=<ci|lokaal> sha=abc1234 ronde=3 -->"
         ));
         for p in [&with_fixes, &comments_only] {
-            assert!(p.contains("git rev-parse HEAD"));
-            assert!(p.contains("BEGIN van je review"));
+            assert!(!p.contains("<sha>"));
+            assert!(!p.contains("rev-parse"));
+        }
+    }
+
+    #[test]
+    fn marker_has_no_sha_field_without_a_valid_head_sha() {
+        for head in [None, Some("abc; rm -rf /"), Some("ABC1234")] {
+            let p = review_at("withFixes", None, head, 2, false);
+            assert!(
+                p.contains("<!-- accord:claude:withFixes ronde=2 -->"),
+                "{head:?}"
+            );
+            assert!(!p.contains("rm -rf"), "{head:?}");
         }
     }
 
     #[test]
     fn review_marker_prefix_still_matches_the_new_markers() {
-        let marker = review_marker("claude", "withFixes", 2);
+        let marker = review_marker("claude", "withFixes", 2, Some("abc1234"));
         assert!(marker.contains(&review_marker_prefix("claude", "withFixes")));
         assert!(
             "<!-- accord:claude:commentsOnly fixes=geen verificatie=ci sha=abc1234 ronde=2 -->"
                 .contains(&review_marker_prefix("claude", "commentsOnly"))
         );
+    }
+
+    #[test]
+    fn an_advice_run_without_a_review_counts_as_failed() {
+        let (ok, line) = review_outcome("withFixes", true, 0, false, || Ok(false));
+        assert!(!ok);
+        assert!(line.expect("logregel").contains("geen review"));
+        let (ok, line) = review_outcome("withFixes", true, 0, false, || Ok(true));
+        assert!(ok);
+        assert_eq!(line, None);
+        let (ok, _) = review_outcome("withFixes", true, 1, false, || panic!("niet nodig"));
+        assert!(ok);
+    }
+
+    #[test]
+    fn only_safe_branch_names_pass_the_ref_check() {
+        for ok in ["main", "feature/x-1", "release/v1.2", "claude/fix_it"] {
+            assert!(valid_ref(ok), "{ok}");
+        }
+        for bad in [
+            "main;curl x|sh",
+            "$(id)",
+            "a b",
+            "-x",
+            "",
+            "a`id`",
+            "a\nb",
+            "é",
+        ] {
+            assert!(!valid_ref(bad), "{bad:?}");
+        }
+        assert!(checked_refs("feature/x", "main").is_ok());
+        let err = checked_refs("feature/x", "main;curl x|sh").unwrap_err();
+        assert!(err.contains("base"));
+        assert!(checked_refs("$(id)", "main").unwrap_err().contains("head"));
+    }
+
+    #[test]
+    fn advice_rounds_are_round_three_without_force() {
+        assert!(!is_advice_round(2, false));
+        assert!(is_advice_round(3, false));
+        assert!(!is_advice_round(3, true));
+    }
+
+    #[test]
+    fn since_sha_text_falls_back_to_the_full_diff_on_empty_or_merged_ranges() {
+        for mode in REVIEW_MODES {
+            let p = review(mode, Some("abc1234"), 2, false);
+            assert!(p.contains("is die diff leeg"), "{mode}");
+            assert!(p.contains("git log --merges abc1234..HEAD"), "{mode}");
+            assert!(p.contains("Update branch"), "{mode}");
+            assert!(p.contains("exitcode 0 betekent ja"), "{mode}");
+            assert!(!p.contains("&& echo"), "{mode}");
+        }
+    }
+
+    #[test]
+    fn comments_only_allows_merge_base() {
+        assert!(COMMENTS_ONLY_TOOLS.contains("Bash(git merge-base:*)"));
+        let command = agent_command(
+            "claude",
+            "commentsOnly",
+            "prompt",
+            Path::new("/usr/bin/claude"),
+            "sonnet",
+            "midden",
+            &[],
+        )
+        .expect("command");
+        let args: Vec<String> = command
+            .get_args()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect();
+        let at = args
+            .iter()
+            .position(|a| a == "--allowedTools")
+            .expect("flag");
+        assert_eq!(args[at + 1], COMMENTS_ONLY_TOOLS);
+    }
+
+    #[test]
+    fn every_git_command_in_the_comments_only_prompt_is_allowed() {
+        for (since, round) in [
+            (None, 1),
+            (Some("abc1234"), 1),
+            (None, 3),
+            (Some("abc1234"), 3),
+        ] {
+            let p = review("commentsOnly", since, round, false);
+            let own = p.split("--- Lens:").next().expect("prompt");
+            let words: Vec<&str> = own.split_whitespace().collect();
+            let mut seen = 0;
+            for pair in words.windows(2) {
+                if pair[0].trim_start_matches('`') == "git" {
+                    let sub =
+                        pair[1].trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-');
+                    let needle = format!("Bash(git {sub}:*)");
+                    assert!(
+                        COMMENTS_ONLY_TOOLS.contains(&needle),
+                        "git {sub} staat niet in de allowlist ({since:?} ronde {round})"
+                    );
+                    seen += 1;
+                }
+            }
+            assert!(
+                seen >= usize::from(since.is_some()) * 3,
+                "{since:?} {round}"
+            );
+        }
     }
 
     #[test]
@@ -2279,7 +2462,7 @@ mod tests {
         assert!(p.contains("na 2 rondes steeds terugkomt"));
         assert!(p.contains("heroverwogen"));
         assert!(p.contains("concreet alternatief"));
-        assert!(p.contains("<!-- accord:claude:withFixes sha=<sha> ronde=3 -->"));
+        assert!(p.contains("<!-- accord:claude:withFixes ronde=3 -->"));
         assert!(review("withFixes", None, 7, false).contains("na 6 rondes"));
     }
 
@@ -2725,14 +2908,14 @@ mod tests {
         let comments_only =
             prompt_for_mode("claude", "commentsOnly", 42, "feature/x", "main").expect("prompt");
         assert!(comments_only.contains(
-            "<!-- accord:claude:commentsOnly fixes=<nodig|geen> verificatie=<ci|lokaal> sha=<sha> ronde=1 -->"
+            "<!-- accord:claude:commentsOnly fixes=<nodig|geen> verificatie=<ci|lokaal> ronde=1 -->"
         ));
         assert!(comments_only.contains("fixes=nodig als er minstens één [belangrijk]-bevinding is"));
         assert!(comments_only.contains("verificatie=lokaal alleen als"));
 
         let with_fixes =
             prompt_for_mode("codex", "withFixes", 42, "feature/x", "main").expect("prompt");
-        assert!(with_fixes.contains("<!-- accord:codex:withFixes sha=<sha> ronde=1 -->"));
+        assert!(with_fixes.contains("<!-- accord:codex:withFixes ronde=1 -->"));
     }
 
     #[test]
@@ -2895,7 +3078,7 @@ mod tests {
         assert!("<!-- accord:claude:commentsOnly fixes=geen verificatie=ci -->".contains(&prefix));
         assert!("<!-- accord:claude:commentsOnly -->".contains(&prefix));
         let prefix = review_marker_prefix("codex", "withFixes");
-        assert!(review_marker("codex", "withFixes", 1).contains(&prefix));
+        assert!(review_marker("codex", "withFixes", 1, None).contains(&prefix));
     }
 
     #[test]
@@ -3154,7 +3337,7 @@ mod tests {
 
     #[test]
     fn a_comments_only_run_without_a_review_counts_as_failed() {
-        let (ok, line) = review_outcome("commentsOnly", 0, false, || Ok(false));
+        let (ok, line) = review_outcome("commentsOnly", false, 0, false, || Ok(false));
         assert!(!ok);
         assert!(
             line.expect("logregel").contains("geen review"),
@@ -3164,7 +3347,7 @@ mod tests {
 
     #[test]
     fn a_comments_only_run_with_a_review_counts_as_done() {
-        let (ok, line) = review_outcome("commentsOnly", 0, false, || Ok(true));
+        let (ok, line) = review_outcome("commentsOnly", false, 0, false, || Ok(true));
         assert!(ok);
         assert_eq!(line, None);
     }
@@ -3174,7 +3357,9 @@ mod tests {
     // geplaatst is, dus de run blijft geslaagd en de reden gaat naar het log.
     #[test]
     fn a_failing_check_does_not_fail_the_run() {
-        let (ok, line) = review_outcome("commentsOnly", 0, false, || Err("gh: 401".to_string()));
+        let (ok, line) = review_outcome("commentsOnly", false, 0, false, || {
+            Err("gh: 401".to_string())
+        });
         assert!(ok);
         assert!(line.expect("logregel").contains("gh: 401"));
     }
@@ -3188,7 +3373,7 @@ mod tests {
             ("commentsOnly", 1, false),
             ("commentsOnly", 0, true),
         ] {
-            let (ok, line) = review_outcome(mode, exit_code, cancelled, || {
+            let (ok, line) = review_outcome(mode, false, exit_code, cancelled, || {
                 panic!("de controle hoort hier niet te draaien: {mode} {exit_code} {cancelled}")
             });
             assert!(ok);

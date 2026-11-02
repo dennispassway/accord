@@ -592,24 +592,68 @@ describe("parseSearchResponse - review-rondes", () => {
   function prWithReviews(
     reviews: { submittedAt: string; body: string; login?: string }[],
   ) {
+    const [pr] = parseSearchResponse(
+      {
+        nodes: [
+          {
+            ...validPrNode,
+            reviews: {
+              nodes: reviews.map((review) => ({
+                author: { login: review.login ?? "dennis" },
+                submittedAt: review.submittedAt,
+                comments: { totalCount: 1 },
+                body: review.body,
+              })),
+            },
+            agentCommits: { nodes: [] },
+          },
+        ],
+      },
+      "dennis",
+    );
+    return pr;
+  }
+
+  it("negeert markers van een vreemde login, voor telling en sha", () => {
+    const pr = prWithReviews([
+      {
+        submittedAt: "2026-07-01T08:00:00Z",
+        body: "<!-- accord:claude:withFixes sha=aaaaaaa ronde=1 -->",
+      },
+      {
+        submittedAt: "2026-07-02T08:00:00Z",
+        login: "mallory",
+        body: "<!-- accord:claude:withFixes sha=bbbbbbb ronde=2 -->",
+      },
+    ]);
+
+    expect(pr?.agentReviewRounds).toBe(1);
+    expect(pr?.lastAgentReviewSha).toBe("aaaaaaa");
+  });
+
+  it("telt een marker van een agent-login ook zonder viewer", () => {
     const [pr] = parseSearchResponse({
       nodes: [
         {
           ...validPrNode,
           reviews: {
-            nodes: reviews.map((review) => ({
-              author: { login: review.login ?? "dennis" },
-              submittedAt: review.submittedAt,
-              comments: { totalCount: 1 },
-              body: review.body,
-            })),
+            nodes: [
+              {
+                author: { login: "claude[bot]" },
+                submittedAt: "2026-07-02T08:00:00Z",
+                comments: { totalCount: 1 },
+                body: "<!-- accord:claude:commentsOnly sha=ccccccc ronde=1 -->",
+              },
+            ],
           },
           agentCommits: { nodes: [] },
         },
       ],
     });
-    return pr;
-  }
+
+    expect(pr?.agentReviewRounds).toBe(1);
+    expect(pr?.lastAgentReviewSha).toBe("ccccccc");
+  });
 
   it("telt markers van beide agents en modes, en negeert menselijke reviews", () => {
     const pr = prWithReviews([

@@ -230,16 +230,19 @@ function parseVerdict(attributes: string): AgentVerdict | undefined {
   return { fixes, verificatie };
 }
 
-/** Een sha uit een marker komt van GitHub; alleen korte of volle hex telt. */
 const SHA_PATTERN = /^[0-9a-f]{7,40}$/;
 
 /**
  * Telt de reviews met een Accord-marker (elke agent en mode) en leest de sha
- * uit de nieuwste ervan. Heeft die nieuwste geen geldige sha, dan is het
- * resultaat undefined en valt het bewust niet terug op een oudere: die kan van
- * vóór een force-push zijn.
+ * uit de nieuwste ervan. Alleen reviews van de ingelogde gebruiker of van een
+ * agent-login tellen: de body van een vreemde review kan een marker nabootsen.
+ * Heeft de nieuwste geen geldige sha, dan is het resultaat undefined en valt
+ * het bewust niet terug op een oudere: die kan van vóór een force-push zijn.
  */
-function parseReviewRounds(node: Record<string, unknown>): {
+function parseReviewRounds(
+  node: Record<string, unknown>,
+  viewerLogin: string | null | undefined,
+): {
   agentReviewRounds: number;
   lastAgentReviewSha?: string;
 } {
@@ -247,6 +250,9 @@ function parseReviewRounds(node: Record<string, unknown>): {
   let newest: { submittedAt: string; sha?: string } | undefined;
   for (const review of nodesOf(node.reviews)) {
     if (!isRecord(review) || !isNonEmptyString(review.body)) continue;
+    const login = isRecord(review.author) ? review.author.login : undefined;
+    if (!isNonEmptyString(login)) continue;
+    if (login !== viewerLogin && deriveAuthor(login).kind !== "agent") continue;
     const match = review.body.match(AGENT_MARKER);
     if (!match) continue;
     rounds += 1;
@@ -370,7 +376,10 @@ function parseAgentReviews(node: Record<string, unknown>): AgentReview[] {
   );
 }
 
-function parseNode(node: unknown): PullRequest | undefined {
+function parseNode(
+  node: unknown,
+  viewerLogin: string | null | undefined,
+): PullRequest | undefined {
   if (!isRecord(node)) return undefined;
 
   const repository = isRecord(node.repository) ? node.repository : undefined;
@@ -423,7 +432,7 @@ function parseNode(node: unknown): PullRequest | undefined {
     openThreads: parseOpenThreads(node),
     reviewers: parseReviewers(node),
     agentReviews: parseAgentReviews(node),
-    ...parseReviewRounds(node),
+    ...parseReviewRounds(node, viewerLogin),
     agentCommitCount: [...agentCommitCounts(node).values()].reduce(
       (sum, n) => sum + n,
       0,
@@ -446,11 +455,14 @@ export function isSearchTruncated(json: unknown): boolean {
 }
 
 /** Defensively parses a single search result's `{ nodes }` shape. */
-export function parseSearchResponse(json: unknown): PullRequest[] {
+export function parseSearchResponse(
+  json: unknown,
+  viewerLogin?: string | null,
+): PullRequest[] {
   if (!isRecord(json) || !Array.isArray(json.nodes)) return [];
   const prs: PullRequest[] = [];
   for (const node of json.nodes) {
-    const pr = parseNode(node);
+    const pr = parseNode(node, viewerLogin);
     if (pr) prs.push(pr);
   }
   return prs;

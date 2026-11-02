@@ -32,14 +32,12 @@ export function otherAgent(agent: ReviewAgent): ReviewAgent {
 /** Vanaf deze ronde geeft withFixes alleen advies (src-tauri/src/agents.rs, ADVICE_ROUND). */
 export const ADVICE_ROUND = 3;
 
-/** De ronde die een nieuwe review-run op deze PR wordt. */
 export function nextReviewRound(
   pr: Pick<PullRequest, "agentReviewRounds">,
 ): number {
   return pr.agentReviewRounds + 1;
 }
 
-/** Geeft een review in deze modus alleen advies in plaats van fixes te pushen? */
 export function isAdviceRound(
   pr: Pick<PullRequest, "agentReviewRounds">,
   mode: AgentMode,
@@ -47,11 +45,20 @@ export function isAdviceRound(
   return mode === "withFixes" && nextReviewRound(pr) >= ADVICE_ROUND;
 }
 
-/** Heeft de volgende review al minstens één voorganger, dan krijgt hij een ronde-label. */
 export function showsRound(
   pr: Pick<PullRequest, "agentReviewRounds">,
 ): boolean {
   return pr.agentReviewRounds > 0;
+}
+
+/** "Extra ronde forceren" start altijd withFixes, de modus die vanaf ronde 3 advies wordt. */
+export function forceRoundRequest(
+  pr: Pick<PullRequest, "agentReviewRounds">,
+  agent: ReviewAgent,
+): { agent: ReviewAgent; mode: "withFixes"; forceRound: true } | undefined {
+  return isAdviceRound(pr, "withFixes")
+    ? { agent, mode: "withFixes", forceRound: true }
+    : undefined;
 }
 
 export const ADVICE_TITLE =
