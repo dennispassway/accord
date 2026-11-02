@@ -28,9 +28,11 @@ import {
 } from "./icons";
 import "./prlist.css";
 import { ResizeHandle } from "./ResizeHandle";
+import { RiskBadge } from "./RiskBadge";
 import { RowMetrics } from "./RowMetrics";
 import type { PrStatusKey } from "./rank";
 import { prStatus } from "./rank";
+import { useRisk } from "./riskContext";
 import type { PrSection } from "./sort";
 import { useColumnWidths } from "./useColumnWidths";
 import { useContainerWidth } from "./useContainerWidth";
@@ -125,6 +127,7 @@ export function PrList({
   laterCollapsed,
   onToggleLater,
 }: PrListProps) {
+  const { gateOf } = useRisk();
   const selectedRowRef = useRef<HTMLButtonElement>(null);
   const [tableRef, tableWidth] = useContainerWidth<HTMLDivElement>();
   const {
@@ -195,9 +198,11 @@ export function PrList({
     const stackInfo = stackInfoByKey.get(key);
     const running = runningPrKeys.has(key);
     const verdict = latestVerdict(pr);
+    const riskGate = gateOf(pr);
     const status = prStatus(pr, {
       agentBezig: running,
       stackBlocked: (stackInfo?.blockedByPrNumbers.length ?? 0) > 0,
+      risk: riskGate,
     });
     const isSelected = key === selectedKey || selectedKeys.has(key);
     const SectionIcon =
@@ -270,6 +275,7 @@ export function PrList({
           <span className="pl-cell pl-cell-nr mono">#{pr.number}</span>
           <span className="pl-cell pl-cell-title">
             <span className="pl-title">{pr.title}</span>
+            <RiskBadge gate={riskGate} />
             {verdict && <VerdictBadge verdict={verdict} />}
             {stackInfo && stackInfo.stackSize > 1 && (
               <span className="pl-stack-chip mono" title="Positie in de stack">

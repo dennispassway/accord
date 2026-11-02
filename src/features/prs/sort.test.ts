@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PullRequest } from "../../lib/github/domain";
 import { toPrNumber, toRepoId } from "../../lib/github/domain";
+import { NORMAL_GATE } from "../../lib/risk";
 import type { PrStatusKey } from "./rank";
 import { buildSections, type SortCtx } from "./sort";
 
@@ -43,6 +44,10 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     reviewRequestedFromMe: false,
     assignedToMe: false,
     authoredByMe: false,
+    headOid: "",
+    changedPaths: [],
+    changedFileCount: 0,
+    humanApprovedHead: false,
     ...overrides,
   };
 }
@@ -50,6 +55,7 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
 const idleCtx = {
   isAgentBezig: () => false,
   isStackBlocked: () => false,
+  riskOf: () => NORMAL_GATE,
 };
 
 describe("buildSections", () => {
@@ -107,6 +113,7 @@ describe("buildSections", () => {
     const ctx = {
       isAgentBezig: (pr: PullRequest) => pr.id === "agent",
       isStackBlocked: () => false,
+      riskOf: () => NORMAL_GATE,
     };
     const sections = buildSections([agentPr, wachtPr], "triage", ctx);
     expect(sections.map((s) => s.titel)).toEqual(["Agent bezig", "Wachten"]);
@@ -131,6 +138,7 @@ describe("buildSections", () => {
     const ctx: SortCtx = {
       isAgentBezig: (pr) => pr.id === "agent",
       isStackBlocked: () => false,
+      riskOf: () => NORMAL_GATE,
     };
 
     const sections = buildSections(prs, "triage", ctx);

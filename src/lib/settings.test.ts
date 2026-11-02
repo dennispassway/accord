@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  applyRiskDrafts,
   CLAUDE_MODELS,
   CODEX_MODELS,
   claudeModels,
@@ -7,6 +8,7 @@ import {
   DEFAULT_SETTINGS,
   loadSettings,
   modelForMode,
+  riskPatternsAfterEdit,
   saveSettings,
   withCurrent,
 } from "./settings";
@@ -312,5 +314,70 @@ describe("modellijsten", () => {
     expect(withCurrent(["gpt-5.6-sol"], "gpt-5.6-sol")).toEqual([
       "gpt-5.6-sol",
     ]);
+  });
+});
+
+describe("riskPatterns", () => {
+  it("heeft standaard geen eigen patronen", () => {
+    expect(DEFAULT_SETTINGS.riskPatterns).toEqual({});
+  });
+
+  it("laadt een opgeslagen blob zonder riskPatterns, met {} als aanvulling", () => {
+    localStorage.setItem(
+      "pr-cockpit.settings",
+      JSON.stringify({
+        ...DEFAULT_SETTINGS,
+        theme: "dark",
+        riskPatterns: undefined,
+      }),
+    );
+    const loaded = loadSettings();
+    expect(loaded.theme).toBe("dark");
+    expect(loaded.riskPatterns).toEqual({});
+  });
+
+  it("bewaart patronen per repo en gooit rommel weg", () => {
+    localStorage.setItem(
+      "pr-cockpit.settings",
+      JSON.stringify({
+        ...DEFAULT_SETTINGS,
+        riskPatterns: { "a/b": ["src/**", 3, ""], "c/d": "niet-een-lijst" },
+      }),
+    );
+    expect(loadSettings().riskPatterns).toEqual({ "a/b": ["src/**"] });
+  });
+});
+
+describe("riskPatternsAfterEdit", () => {
+  it("zet de getrimde, niet-lege regels als lijst voor die repo", () => {
+    expect(
+      riskPatternsAfterEdit(
+        { "x/y": ["z/**"] },
+        "a/b",
+        " src/** \n\n**/auth.*\n",
+      ),
+    ).toEqual({ "x/y": ["z/**"], "a/b": ["src/**", "**/auth.*"] });
+  });
+
+  it("verwijdert de sleutel bij lege of blanco tekst", () => {
+    expect(
+      riskPatternsAfterEdit({ "a/b": ["src/**"], "x/y": ["z"] }, "a/b", " \n "),
+    ).toEqual({ "x/y": ["z"] });
+  });
+});
+
+describe("applyRiskDrafts", () => {
+  it("past alle concepten toe en laat andere repo's staan", () => {
+    expect(
+      applyRiskDrafts(
+        { "x/y": ["z"], "a/b": ["oud"] },
+        { "a/b": "src/**", "c/d": "db/**\n", "x/y": "" },
+      ),
+    ).toEqual({ "a/b": ["src/**"], "c/d": ["db/**"] });
+  });
+
+  it("geeft de huidige patronen terug zonder concepten", () => {
+    const current = { "a/b": ["x"] };
+    expect(applyRiskDrafts(current, {})).toBe(current);
   });
 });

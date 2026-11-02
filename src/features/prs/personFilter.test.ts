@@ -38,6 +38,10 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     reviewRequestedFromMe: false,
     assignedToMe: false,
     authoredByMe: false,
+    headOid: "",
+    changedPaths: [],
+    changedFileCount: 0,
+    humanApprovedHead: false,
     ...overrides,
   };
 }

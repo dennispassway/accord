@@ -140,4 +140,12 @@ export interface PullRequest {
   reviewRequestedFromMe: boolean;
   assignedToMe: boolean;
   authoredByMe: boolean;
+  /** Sha van de PR-head; "" als GitHub hem niet meegaf. */
+  headOid: string;
+  /** Paden van de gewijzigde bestanden; de query haalt er maximaal 100 op. */
+  changedPaths: string[];
+  /** Totaal aantal gewijzigde bestanden volgens GitHub; groter dan `changedPaths` als die afgekapt is. */
+  changedFileCount: number;
+  /** Een mens (geen agent-login, geen Accord-marker) keurde precies de huidige head goed. */
+  humanApprovedHead: boolean;
 }

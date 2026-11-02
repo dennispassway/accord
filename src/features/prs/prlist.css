@@ -521,3 +521,8 @@ li:first-child > .pl-group-header {
   color: var(--text-3);
   background: color-mix(in srgb, var(--text-3) 12%, transparent);
 }
+
+.verdict-badge-risico {
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 14%, transparent);
+}

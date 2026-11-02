@@ -77,6 +77,9 @@ export interface Settings {
   /** Systeemnotificaties (agent-run klaar/mislukt, CI-omslag, merge), alleen
    * als het venster niet gefocust is. */
   notifications: boolean;
+  /** Eigen hoog-risico-globs per repo (`owner/name`). Geen of een lege lijst
+   * voor een repo betekent de standaardpatronen uit `risk.ts`. */
+  riskPatterns: Record<string, string[]>;
 }
 
 const STORAGE_KEY = "pr-cockpit.settings";
@@ -102,12 +105,53 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   autoRebaseStacks: true,
   notifications: true,
+  riskPatterns: {},
 };
 
 /** null, undefined, lege string of een onbekende waarde vallen terug op
  * "system"; een verplicht veld komt bij oudere/corrupte opslag vaak als "" binnen. */
 function normalizeTheme(value: unknown): Theme {
   return value === "light" || value === "dark" ? value : "system";
+}
+
+function normalizeRiskPatterns(value: unknown): Record<string, string[]> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+  const out: Record<string, string[]> = {};
+  for (const [repoId, globs] of Object.entries(value)) {
+    if (!Array.isArray(globs)) continue;
+    const valid = globs.filter(
+      (glob): glob is string => typeof glob === "string" && glob.trim() !== "",
+    );
+    if (valid.length > 0) out[repoId] = valid;
+  }
+  return out;
+}
+
+/** De nieuwe `riskPatterns` na het bewerken van de tekst van één repo: één
+ * glob per regel, een lege tekst verwijdert de sleutel (dan gelden de defaults). */
+export function riskPatternsAfterEdit(
+  current: Record<string, string[]>,
+  repoId: string,
+  text: string,
+): Record<string, string[]> {
+  const globs = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+  const { [repoId]: _old, ...rest } = current;
+  return globs.length > 0 ? { ...rest, [repoId]: globs } : rest;
+}
+
+export function applyRiskDrafts(
+  current: Record<string, string[]>,
+  drafts: Record<string, string>,
+): Record<string, string[]> {
+  return Object.entries(drafts).reduce(
+    (patterns, [repoId, text]) => riskPatternsAfterEdit(patterns, repoId, text),
+    current,
+  );
 }
 
 /** null, undefined of een niet-boolean waarde vallen terug op de default. */
@@ -176,6 +220,7 @@ export function loadSettings(): Settings {
       theme: normalizeTheme(parsed.theme),
       autoRebaseStacks: normalizeAutoRebaseStacks(parsed.autoRebaseStacks),
       notifications: normalizeNotifications(parsed.notifications),
+      riskPatterns: normalizeRiskPatterns(parsed.riskPatterns),
     };
   } catch {
     return DEFAULT_SETTINGS;
