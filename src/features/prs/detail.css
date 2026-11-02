@@ -1051,3 +1051,45 @@
   line-height: 13px;
   color: var(--text-3);
 }
+
+.detail-noise {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.detail-noise p {
+  margin: 0;
+}
+
+.detail-noise-repo {
+  color: var(--text-2);
+}
+
+.detail-noise-note {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.detail-merge-override {
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-1);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.detail-merge-override:hover {
+  background: var(--fill-1);
+}
+
+.detail-merge-override.confirming {
+  color: var(--warn);
+  box-shadow: inset 0 0 0 1px var(--warn);
+}

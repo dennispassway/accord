@@ -6,7 +6,9 @@ import type { RepoId } from "../../lib/github/domain";
 import { isMockApp, mockMode } from "../../lib/mock/mode";
 import { costFactor, formatCostFactor } from "../../lib/modelCost";
 import { mod } from "../../lib/platform";
+import { DEFAULT_HIGH_RISK_PATTERNS } from "../../lib/risk";
 import {
+  applyRiskDrafts,
   claudeModels,
   codexModels,
   EFFORTS,
@@ -142,6 +144,23 @@ export function SettingsSheet({
   });
   const [unlinkErrors, setUnlinkErrors] = useState<Record<string, string>>({});
   const [confirmingLogout, setConfirmingLogout] = useState(false);
+  // Getypte tekst gaat bij blur of sluiten als lijst naar de settings, niet per toetsaanslag.
+  const [riskDrafts, setRiskDrafts] = useState<Record<string, string>>({});
+  const riskDraftsRef = useRef(riskDrafts);
+  riskDraftsRef.current = riskDrafts;
+  const flushRiskDraftsRef = useRef(() => {});
+  flushRiskDraftsRef.current = () => {
+    const drafts = riskDraftsRef.current;
+    if (Object.keys(drafts).length === 0) return;
+    onUpdate((s) => ({
+      ...s,
+      riskPatterns: applyRiskDrafts(s.riskPatterns, drafts),
+    }));
+    setRiskDrafts({});
+  };
+  function flushRiskDrafts() {
+    flushRiskDraftsRef.current();
+  }
   const logoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function clearLogoutTimeout() {
@@ -172,6 +191,7 @@ export function SettingsSheet({
       setLinkingRepo(null);
       setUnlinkErrors({});
       setConfirmingLogout(false);
+      flushRiskDraftsRef.current();
       if (logoutTimeoutRef.current != null) {
         clearTimeout(logoutTimeoutRef.current);
         logoutTimeoutRef.current = null;
@@ -576,6 +596,46 @@ export function SettingsSheet({
                 </div>
               );
             })}
+          </div>
+
+          <div className="settings-section">
+            <div className="settings-section-head">
+              <span className="settings-section-title">Hoog risico</span>
+              <span className="settings-section-note">
+                bestandspatronen per project, één per regel
+              </span>
+            </div>
+            {repoIds.map((repoId) => (
+              <div key={repoId} className="settings-repo-row-wrap">
+                <span className="settings-repo-name">
+                  {repoNameOnly(repoId)}
+                </span>
+                <textarea
+                  className="settings-risk-input"
+                  aria-label={`Hoog-risico-patronen voor ${repoId}`}
+                  spellCheck={false}
+                  placeholder={DEFAULT_HIGH_RISK_PATTERNS.join("\n")}
+                  value={
+                    riskDrafts[repoId] ??
+                    (settings.riskPatterns[repoId] ?? []).join("\n")
+                  }
+                  onChange={(event) => {
+                    const text = event.target.value;
+                    setRiskDrafts((current) => ({
+                      ...current,
+                      [repoId]: text,
+                    }));
+                  }}
+                  onBlur={flushRiskDrafts}
+                />
+              </div>
+            ))}
+            <p className="settings-row-hint">
+              Eigen patronen vervangen de standaardpatronen, ze vullen die niet
+              aan. Leeg betekent de standaardpatronen (grijs getoond). Een PR
+              die een pad raakt dat matcht, of meer dan 100 bestanden, heeft een
+              menselijke review nodig voor hij gemerged kan worden.
+            </p>
           </div>
 
           <div className="settings-section">

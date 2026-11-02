@@ -402,7 +402,7 @@ export function usePrs(
         throw new Error("Niet ingelogd");
       }
       try {
-        await mergePullRequest(token, pr.id, method, tauriFetch);
+        await mergePullRequest(token, pr.id, method, pr.headOid, tauriFetch);
       } catch (error) {
         if (error instanceof AuthError) {
           onAuthErrorRef.current();

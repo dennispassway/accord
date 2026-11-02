@@ -1,6 +1,7 @@
 import type { PullRequest } from "../../lib/github/domain";
 import { isBlockedByProtection } from "../../lib/github/merge";
 import type { PrStackInfo } from "../../lib/github/stacks";
+import type { RiskGate } from "../../lib/risk";
 import type { FixMode } from "../agents/crossReview";
 
 export type ChecklistTone = "ok" | "err" | "warn" | "none";
@@ -13,7 +14,8 @@ export type ChecklistKey =
   | "draft"
   | "behind"
   | "protection"
-  | "stack";
+  | "stack"
+  | "risk";
 
 export interface ChecklistItem {
   key: ChecklistKey;
@@ -163,6 +165,7 @@ function reviewItem(pr: PullRequest): ChecklistItem {
 export function mergeChecklist(
   pr: PullRequest,
   stackInfo: PrStackInfo | undefined,
+  risk: RiskGate,
 ): ChecklistItem[] {
   const items: ChecklistItem[] = [conflictItem(pr), checksItem(pr)];
   if (pr.openThreads > 0) {
@@ -207,6 +210,16 @@ export function mergeChecklist(
       key: "stack",
       tone: "warn",
       label: `Eerst ${stackInfo.blockedByPrNumbers.map((n) => `#${n}`).join(", ")} mergen`,
+      blocking: true,
+    });
+  }
+  if (risk.needsHumanReview) {
+    items.push({
+      key: "risk",
+      tone: "warn",
+      label: "Menselijke review nodig (hoog risico)",
+      detail: risk.reasons.join(", "),
+      detailIsCode: true,
       blocking: true,
     });
   }

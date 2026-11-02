@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAX_FILES } from "../risk";
 import type { MergeStateStatus } from "./domain";
 import {
   draftPrNodeNoCi,
@@ -747,5 +748,121 @@ describe("parseSearchResponse - review-rondes", () => {
       fixes: "nodig",
       verificatie: "ci",
     });
+  });
+});
+
+describe("risico-velden", () => {
+  const HEAD = "a".repeat(40);
+  const approval = (overrides: Record<string, unknown> = {}) => ({
+    author: { __typename: "User", login: "alice" },
+    state: "APPROVED",
+    body: "Ziet er goed uit",
+    commit: { oid: HEAD },
+    ...overrides,
+  });
+  const parse = (extra: Record<string, unknown>) =>
+    parseSearchResponse({
+      nodes: [{ ...validPrNode, headRefOid: HEAD, ...extra }],
+    })[0];
+  const withReviews = (...nodes: unknown[]) =>
+    parse({ riskApprovals: { nodes } });
+
+  it("leest headOid, changedPaths en changedFileCount", () => {
+    const pr = parse({
+      changedFiles: 2,
+      files: { nodes: [{ path: "src/a.ts" }, { path: "b/auth.rs" }] },
+    });
+    expect(pr?.headOid).toBe(HEAD);
+    expect(pr?.changedPaths).toEqual(["src/a.ts", "b/auth.rs"]);
+    expect(pr?.changedFileCount).toBe(2);
+  });
+
+  it("is fail-closed als changedFiles ontbreekt", () => {
+    const pr = parse({ files: { nodes: [{ path: "a.ts" }] } });
+    expect(pr?.changedFileCount).toBe(MAX_FILES + 1);
+  });
+
+  it("valt terug op lege waarden als de velden ontbreken", () => {
+    const [pr] = parseSearchResponse({ nodes: [validPrNode] });
+    expect(pr?.headOid).toBe("");
+    expect(pr?.changedPaths).toEqual([]);
+    expect(pr?.changedFileCount).toBe(MAX_FILES + 1);
+    expect(pr?.humanApprovedHead).toBe(false);
+  });
+
+  it("telt een menselijke approval op de head-sha", () => {
+    expect(withReviews(approval())?.humanApprovedHead).toBe(true);
+  });
+
+  it("telt een approval van een agent-login niet", () => {
+    expect(
+      withReviews(approval({ author: { login: "claude-bot" } }))
+        ?.humanApprovedHead,
+    ).toBe(false);
+    expect(
+      withReviews(approval({ author: { login: "ci[bot]" } }))
+        ?.humanApprovedHead,
+    ).toBe(false);
+  });
+
+  it("telt een approval van een Bot zonder [bot] in de login niet", () => {
+    expect(
+      withReviews(
+        approval({ author: { __typename: "Bot", login: "github-actions" } }),
+      )?.humanApprovedHead,
+    ).toBe(false);
+  });
+
+  it("telt een approval zonder __typename niet", () => {
+    expect(
+      withReviews(approval({ author: { login: "alice" } }))?.humanApprovedHead,
+    ).toBe(false);
+  });
+
+  it("leest approvals niet uit latestOpinionatedReviews", () => {
+    const pr = parse({
+      latestOpinionatedReviews: { nodes: [approval()] },
+    });
+    expect(pr?.humanApprovedHead).toBe(false);
+  });
+
+  it("telt een approval met de Accord-marker in de body niet", () => {
+    const body =
+      "<!-- accord:claude:commentsOnly fixes=geen verificatie=ci -->\nOK";
+    expect(withReviews(approval({ body }))?.humanApprovedHead).toBe(false);
+  });
+
+  it("telt een approval op een andere sha niet", () => {
+    expect(
+      withReviews(approval({ commit: { oid: "b".repeat(40) } }))
+        ?.humanApprovedHead,
+    ).toBe(false);
+  });
+
+  it("telt CHANGES_REQUESTED op de head niet", () => {
+    expect(
+      withReviews(approval({ state: "CHANGES_REQUESTED" }))?.humanApprovedHead,
+    ).toBe(false);
+  });
+
+  it("telt niets als de headOid onbekend is", () => {
+    const pr = parseSearchResponse({
+      nodes: [
+        {
+          ...validPrNode,
+          riskApprovals: {
+            nodes: [approval({ commit: { oid: "" } })],
+          },
+        },
+      ],
+    })[0];
+    expect(pr?.humanApprovedHead).toBe(false);
+  });
+
+  it("telt een menselijke approval ook naast een agent-approval", () => {
+    expect(
+      withReviews(approval({ author: { login: "codex" } }), approval())
+        ?.humanApprovedHead,
+    ).toBe(true);
   });
 });
