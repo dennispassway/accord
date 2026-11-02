@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ReviewThread } from "./github/prDetail";
 import {
   classifyThread,
   countNoise,
+  parseNoise,
   prNoise,
   recordNoise,
   repoNoise,
@@ -132,20 +133,55 @@ describe("recordNoise / repoNoise", () => {
     expect(repoNoise("a/b").prs).toBe(0);
   });
 
-  it("vuurt een event bij een geslaagde opslag", () => {
+  describe("met een window", () => {
     const target = new EventTarget();
-    Object.defineProperty(globalThis, "window", {
-      value: target,
-      configurable: true,
+    beforeEach(() => {
+      Object.defineProperty(globalThis, "window", {
+        value: target,
+        configurable: true,
+      });
     });
-    let fired = 0;
-    target.addEventListener("pr-cockpit:review-noise", () => {
-      fired += 1;
+    afterEach(() => {
+      Reflect.deleteProperty(globalThis, "window");
     });
+
+    function countEvents(): () => number {
+      let fired = 0;
+      target.addEventListener("pr-cockpit:review-noise", () => {
+        fired += 1;
+      });
+      return () => fired;
+    }
+
+    it("vuurt een event bij een geslaagde opslag", () => {
+      const fired = countEvents();
+      recordNoise("a/b", 1, { gefixt: 1, weerlegd: 0, open: 0 });
+      expect(fired()).toBe(1);
+    });
+
+    it("schrijft niet en vuurt geen event bij gelijke counts", () => {
+      recordNoise("a/b", 1, { gefixt: 1, weerlegd: 0, open: 0 });
+      const fired = countEvents();
+      recordNoise("a/b", 1, { gefixt: 1, weerlegd: 0, open: 0 });
+      recordNoise("a/b", 2, { gefixt: 0, weerlegd: 0, open: 0 });
+      expect(fired()).toBe(0);
+      recordNoise("a/b", 1, { gefixt: 2, weerlegd: 0, open: 0 });
+      expect(fired()).toBe(1);
+    });
+  });
+
+  it("prNoise geeft de counts van een PR of null", () => {
     recordNoise("a/b", 1, { gefixt: 1, weerlegd: 0, open: 0 });
-    expect(fired).toBe(1);
     expect(prNoise("a/b", 1)).toEqual({ gefixt: 1, weerlegd: 0, open: 0 });
     expect(prNoise("a/b", 2)).toBeNull();
+  });
+
+  it("hergebruikt een al geparste opslag", () => {
+    recordNoise("a/b", 1, { gefixt: 1, weerlegd: 0, open: 0 });
+    const all = parseNoise(localStorage.getItem("pr-cockpit.reviewNoise"));
+    localStorage.clear();
+    expect(prNoise("a/b", 1, all)).not.toBeNull();
+    expect(repoNoise("a/b", all).prs).toBe(1);
   });
 
   it("gooit niet als localStorage zelf faalt", () => {

@@ -81,7 +81,6 @@ query PrDetail($owner: String!, $name: String!, $number: Int!) {
     pullRequest(number: $number) {
       body
       headRefOid
-      reviews(last: 50) { nodes { id body } }
       comments(first: 100) { nodes { author { login } bodyText body createdAt } }
       reviewThreads(first: 100) {
         nodes {
@@ -94,7 +93,8 @@ query PrDetail($owner: String!, $name: String!, $number: Int!) {
           viewerCanReply
           viewerCanResolve
           viewerCanUnresolve
-          comments(first: 50) { nodes { author { login } bodyText body createdAt pullRequestReview { id } } }
+          comments(first: 50) { nodes { author { login } bodyText body createdAt } }
+          origin: comments(first: 1) { nodes { pullRequestReview { body } } }
         }
       }
     }
@@ -143,34 +143,20 @@ interface RawThreadNode {
   viewerCanResolve?: boolean;
   viewerCanUnresolve?: boolean;
   comments?: { nodes?: unknown };
+  origin?: {
+    nodes?: { pullRequestReview?: { body?: string | null } | null }[];
+  };
 }
 
-/** review-id -> agent, voor reviews met een Accord-marker. */
-function parseAgentReviews(nodes: unknown): Map<string, "claude" | "codex"> {
-  const agents = new Map<string, "claude" | "codex">();
-  if (!Array.isArray(nodes)) return agents;
-  for (const node of nodes) {
-    const { id, body } = (node ?? {}) as { id?: unknown; body?: unknown };
-    if (typeof id !== "string" || typeof body !== "string") continue;
-    const agent = AGENT_MARKER.exec(body)?.[1];
-    if (agent === "claude" || agent === "codex") agents.set(id, agent);
-  }
-  return agents;
-}
-
-function parseThread(
-  node: unknown,
-  agentReviews: Map<string, "claude" | "codex">,
-): ReviewThread | null {
+function parseThread(node: unknown): ReviewThread | null {
   if (node == null || typeof node !== "object") return null;
   const raw = node as RawThreadNode;
   if (raw.path == null) return null;
-  const firstComment = Array.isArray(raw.comments?.nodes)
-    ? (raw.comments.nodes[0] as
-        | { pullRequestReview?: { id?: string } | null }
-        | undefined)
-    : undefined;
-  const reviewId = firstComment?.pullRequestReview?.id;
+  const reviewBody = raw.origin?.nodes?.[0]?.pullRequestReview?.body;
+  const agent =
+    typeof reviewBody === "string"
+      ? AGENT_MARKER.exec(reviewBody)?.[1]
+      : undefined;
   return {
     id: raw.id ?? "",
     path: raw.path,
@@ -178,7 +164,7 @@ function parseThread(
     diffSide: parseDiffSide(raw.diffSide),
     isResolved: raw.isResolved ?? false,
     isOutdated: raw.isOutdated ?? false,
-    agentReview: (reviewId != null && agentReviews.get(reviewId)) || null,
+    agentReview: agent === "claude" || agent === "codex" ? agent : null,
     viewerCanReply: raw.viewerCanReply ?? false,
     viewerCanResolve: raw.viewerCanResolve ?? false,
     viewerCanUnresolve: raw.viewerCanUnresolve ?? false,
@@ -186,13 +172,10 @@ function parseThread(
   };
 }
 
-function parseThreads(
-  nodes: unknown,
-  agentReviews: Map<string, "claude" | "codex">,
-): ReviewThread[] {
+function parseThreads(nodes: unknown): ReviewThread[] {
   if (!Array.isArray(nodes)) return [];
   return nodes
-    .map((node) => parseThread(node, agentReviews))
+    .map(parseThread)
     .filter((thread): thread is ReviewThread => thread != null);
 }
 
@@ -285,7 +268,6 @@ async function fetchComments(
           body?: string | null;
           headRefOid?: string | null;
           comments?: { nodes?: unknown };
-          reviews?: { nodes?: unknown };
           reviewThreads?: { nodes?: unknown };
         } | null;
       } | null;
@@ -301,10 +283,7 @@ async function fetchComments(
   const issueComments = parseComments(pullRequest?.comments?.nodes).sort(
     (a, b) => a.createdAt.localeCompare(b.createdAt),
   );
-  const reviewThreads = parseThreads(
-    pullRequest?.reviewThreads?.nodes,
-    parseAgentReviews(pullRequest?.reviews?.nodes),
-  );
+  const reviewThreads = parseThreads(pullRequest?.reviewThreads?.nodes);
 
   return {
     body: pullRequest?.body ?? "",

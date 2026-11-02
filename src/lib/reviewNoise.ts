@@ -20,7 +20,6 @@ export function classifyThread(
   return t.isOutdated ? "gefixt" : "weerlegd";
 }
 
-/** Telt alleen threads die bij een agent-review horen. */
 export function countNoise(
   threads: Pick<ReviewThread, "isResolved" | "isOutdated" | "agentReview">[],
 ): NoiseCounts {
@@ -41,16 +40,16 @@ function isCounts(value: unknown): value is NoiseCounts {
   );
 }
 
-/** Corrupte JSON of een andere vorm geeft een lege opslag; ongeldige
- * entries worden overgeslagen. */
-function load(): Record<string, NoiseCounts> {
+type NoiseStore = Record<string, NoiseCounts>;
+
+/** Corrupte JSON of een andere vorm geeft een lege opslag. */
+export function parseNoise(raw: string | null): NoiseStore {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === null) return {};
-    const parsed: unknown = JSON.parse(stored);
+    if (raw === null) return {};
+    const parsed: unknown = JSON.parse(raw);
     if (parsed === null || typeof parsed !== "object") return {};
     const entries = Object.entries(parsed).filter(([, v]) => isCounts(v));
-    return Object.fromEntries(entries) as Record<string, NoiseCounts>;
+    return Object.fromEntries(entries) as NoiseStore;
   } catch {
     return {};
   }
@@ -63,12 +62,20 @@ export function recordNoise(
   number: number,
   counts: NoiseCounts,
 ): void {
-  const all = load();
+  const all = parseNoise(noiseSnapshot());
   const key = `${repoId}#${number}`;
+  const old = all[key];
   if (counts.gefixt + counts.weerlegd + counts.open === 0) {
-    if (!(key in all)) return;
+    if (old === undefined) return;
     delete all[key];
   } else {
+    if (
+      old?.gefixt === counts.gefixt &&
+      old.weerlegd === counts.weerlegd &&
+      old.open === counts.open
+    ) {
+      return;
+    }
     all[key] = counts;
   }
   try {
@@ -79,12 +86,14 @@ export function recordNoise(
   }
 }
 
-/** Opgeslagen counts van één PR, of null als er geen entry is. */
-export function prNoise(repoId: string, number: number): NoiseCounts | null {
-  return load()[`${repoId}#${number}`] ?? null;
+export function prNoise(
+  repoId: string,
+  number: number,
+  all: NoiseStore = parseNoise(noiseSnapshot()),
+): NoiseCounts | null {
+  return all[`${repoId}#${number}`] ?? null;
 }
 
-/** Voor useSyncExternalStore: abonneert op schrijfacties van recordNoise. */
 export function subscribeNoise(onChange: () => void): () => void {
   window.addEventListener(NOISE_EVENT, onChange);
   return () => window.removeEventListener(NOISE_EVENT, onChange);
@@ -99,14 +108,16 @@ export function noiseSnapshot(): string | null {
   }
 }
 
-/** Som over alle bewaarde PR's van deze repo, plus het aantal PR's. */
-export function repoNoise(repoId: string): {
+export function repoNoise(
+  repoId: string,
+  all: NoiseStore = parseNoise(noiseSnapshot()),
+): {
   prs: number;
   counts: NoiseCounts;
 } {
   const counts: NoiseCounts = { gefixt: 0, weerlegd: 0, open: 0 };
   let prs = 0;
-  for (const [key, c] of Object.entries(load())) {
+  for (const [key, c] of Object.entries(all)) {
     if (key.slice(0, key.lastIndexOf("#")) !== repoId) continue;
     prs += 1;
     counts.gefixt += c.gefixt;

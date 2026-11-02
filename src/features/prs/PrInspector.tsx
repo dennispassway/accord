@@ -58,6 +58,7 @@ export function PrInspector({
   const {
     status,
     detail,
+    loadedPrKey,
     error,
     retry,
     reply,
@@ -94,15 +95,12 @@ export function PrInspector({
     [status, diffTooLarge, currentDrafts, files],
   );
 
-  // Voedt de "Agent-bevindingen"-sectie in het detailpaneel (ReviewNoise).
   const threads = detail?.reviewThreads;
-  const lastRecorded = useRef<typeof threads>(undefined);
   useEffect(() => {
-    // Na een PR-wissel is het eerste render nog de detail van de vorige PR.
-    if (threads == null || threads === lastRecorded.current) return;
-    lastRecorded.current = threads;
-    recordNoise(pr.repoId, pr.number, countNoise(threads));
-  }, [pr.repoId, pr.number, threads]);
+    if (threads != null && loadedPrKey === prKey) {
+      recordNoise(pr.repoId, pr.number, countNoise(threads));
+    }
+  }, [pr.repoId, pr.number, prKey, loadedPrKey, threads]);
 
   const verdict = latestVerdict(pr);
 
