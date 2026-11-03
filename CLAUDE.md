@@ -28,3 +28,10 @@ losse overdrachten.
 
 Bestandsspecifieke regels staan in `.claude/rules/`, elk met een "Geldt voor"-regel
 bovenaan: loop de map door en lees wat op jouw bestanden slaat voor je ze aanraakt.
+
+## Rust lokaal
+
+`cargo test`/`check` buiten `tauri dev` faalt op de feature-check van `macos-private-api`:
+draai zoals CI met `TAURI_CONFIG='{"app":{"macOSPrivateApi":true}}' cargo test
+--manifest-path src-tauri/Cargo.toml --lib`. In een worktree scheelt
+`CARGO_TARGET_DIR=<hoofdcheckout>/src-tauri/target` een volledige build.
