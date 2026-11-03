@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.15.0](https://github.com/dennispassway/accord/compare/v1.14.0...v1.15.0) (2026-11-03)
+
+
+### Nieuw
+
+* **agents:** deepsec-securityscan vóór elke review ([eb3c0f6](https://github.com/dennispassway/accord/commit/eb3c0f6f9d1a7e37122aca16a6e6707d8fbf3427))
+* **agents:** review-prompts met [bestaand], REVIEW.md en zonder herhaling ([fe4aace](https://github.com/dennispassway/accord/commit/fe4aaceaed57e6b93dd23a8dd1417e19e7160f9d))
+* **agents:** review-rondes die convergeren ([b87cbdc](https://github.com/dennispassway/accord/commit/b87cbdcc527b166d9b9299274561239986aaddf1))
+* **agents:** review-rondes die convergeren ([993162e](https://github.com/dennispassway/accord/commit/993162e905704e46ced75ca7f2a96b80d8c7411f))
+* **prs:** meet de ruis van agent-reviews ([545e24f](https://github.com/dennispassway/accord/commit/545e24fbee9134425bb6f4efab88e3eaf2b0ed5f))
+* **prs:** meet hoeveel agent-bevindingen gefixt, weerlegd of open blijven ([f2bf354](https://github.com/dennispassway/accord/commit/f2bf354cb74aaaf5e13fa30eb764f8cdaeecaa4a))
+* **prs:** risiconiveaus met merge-blokkade tot menselijke review ([2e0a401](https://github.com/dennispassway/accord/commit/2e0a40145f705727deecb96b9c9a5b97bd46ad04))
+* **prs:** risiconiveaus met merge-blokkade tot menselijke review ([cbe55cd](https://github.com/dennispassway/accord/commit/cbe55cd9bc81b0f5853d4c9dc383c140c7ba49d0))
+* **review:** reviewrondes, risicopoort en minder ruis ([9ff98ef](https://github.com/dennispassway/accord/commit/9ff98ef290a8db4ca8d824807b292ac636347c0b))
+
+
+### Opgelost
+
+* **agents:** convergentie binnen de toolrechten en met vertrouwde markers ([9d23b1f](https://github.com/dennispassway/accord/commit/9d23b1f990a2345267b68c5bbb53613621bb2796))
+* **agents:** propagate approval failure to live run status ([7c9ecdc](https://github.com/dennispassway/accord/commit/7c9ecdcce19e116fbc524ae2dbee7030511f83dc))
+* **agents:** review-regels binnen de toolrechten en met één rangorde ([c28a69e](https://github.com/dennispassway/accord/commit/c28a69eab81d6e867360919a9dd44108786b2b3e))
+* **agents:** security-lens volgt de labelregels en een agent-approval laat de run falen ([f4cde78](https://github.com/dennispassway/accord/commit/f4cde78335bdabd02046b00b278e04cc364e3f7e))
+* **prs:** agent-threads via hun openende review herkennen ([3bdb761](https://github.com/dennispassway/accord/commit/3bdb761f9110eb7f852641df69363244f740463b))
+* **prs:** label 'regel aangepast' in plaats van 'gefixt' ([5d7e19d](https://github.com/dennispassway/accord/commit/5d7e19d9889c7094cc57965e2edc5df8684329dd))
+* **review:** reject forged markers from agent-like usernames ([d600b76](https://github.com/dennispassway/accord/commit/d600b76bf218851b4042f58403ac0f22311a3895))
+
 ## [1.14.0](https://github.com/dennispassway/accord/compare/v1.13.0...v1.14.0) (2026-10-26)
 
 
