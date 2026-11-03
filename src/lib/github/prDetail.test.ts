@@ -129,6 +129,8 @@ describe("fetchPrDetail", () => {
         line: 12,
         diffSide: "RIGHT",
         isResolved: false,
+        isOutdated: false,
+        agentReview: null,
         viewerCanReply: true,
         viewerCanResolve: true,
         viewerCanUnresolve: false,
@@ -160,6 +162,66 @@ describe("fetchPrDetail", () => {
     line: 3,
     comments: { nodes: [] },
     ...extra,
+  });
+
+  describe("agent-review per thread", () => {
+    const withOrigin = (reviewBody: string | null | undefined) =>
+      threadNode({
+        origin: {
+          nodes: [
+            {
+              pullRequestReview:
+                reviewBody === undefined ? null : { body: reviewBody },
+            },
+          ],
+        },
+      });
+
+    it("leidt agentReview af uit de marker van de openende review, zonder reviews-lijst", async () => {
+      const detail = await detailWith({
+        reviewThreads: {
+          nodes: [
+            withOrigin("<!-- accord:claude:commentsOnly -->\nNit"),
+            withOrigin("<!-- accord:codex -->\nNit"),
+            withOrigin("Gewone review"),
+          ],
+        },
+      });
+      expect(detail.reviewThreads.map((t) => t.agentReview)).toEqual([
+        "claude",
+        "codex",
+        null,
+      ]);
+    });
+
+    it("geeft null bij een comment zonder review of een ontbrekende origin", async () => {
+      const detail = await detailWith({
+        reviewThreads: {
+          nodes: [
+            withOrigin(undefined),
+            threadNode({ origin: { nodes: [] } }),
+            threadNode({}),
+          ],
+        },
+      });
+      expect(detail.reviewThreads.map((t) => t.agentReview)).toEqual([
+        null,
+        null,
+        null,
+      ]);
+    });
+
+    it("parset isOutdated, met false als default", async () => {
+      const detail = await detailWith({
+        reviewThreads: {
+          nodes: [threadNode({ isOutdated: true }), threadNode({})],
+        },
+      });
+      expect(detail.reviewThreads.map((t) => t.isOutdated)).toEqual([
+        true,
+        false,
+      ]);
+    });
   });
 
   it("parset de PR-beschrijving als ruwe markdown", async () => {

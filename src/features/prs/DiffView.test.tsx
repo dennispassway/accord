@@ -39,6 +39,8 @@ function thread(
     line,
     diffSide,
     isResolved: false,
+    isOutdated: false,
+    agentReview: null,
     viewerCanReply: true,
     viewerCanResolve: true,
     viewerCanUnresolve: true,

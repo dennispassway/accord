@@ -29,9 +29,12 @@ import type { PersonEntry } from "./peopleRows";
 import { peopleRows } from "./peopleRows";
 import { ReviewActions } from "./ReviewActions";
 import { ReviewHistory } from "./ReviewHistory";
+import { ReviewNoise } from "./ReviewNoise";
+import { RiskBadge } from "./RiskBadge";
 import { sizeWord } from "./RowMetrics";
 import type { PrStatusKey } from "./rank";
 import { prStatus } from "./rank";
+import { useRisk } from "./riskContext";
 import type { StackRebaseStatus } from "./StackRail";
 import { StackRail } from "./StackRail";
 
@@ -125,7 +128,12 @@ interface DetailPanelProps {
   clis: AgentClis;
   repoPath: string | undefined;
   run: AgentRun | undefined;
-  onStartRun: (pr: PullRequest, agent: ReviewAgent, mode: AgentMode) => void;
+  onStartRun: (
+    pr: PullRequest,
+    agent: ReviewAgent,
+    mode: AgentMode,
+    forceRound?: boolean,
+  ) => void;
   onCancelRun: (runId: string) => void;
   onRepoLinked: () => Promise<void>;
   settings: Settings;
@@ -183,6 +191,7 @@ export function DetailPanel({
   stackRebaseStatus,
   snoozeUntil,
 }: DetailPanelProps) {
+  const { gateOf } = useRisk();
   if (!pr) {
     return (
       <aside className="detail-panel">
@@ -198,7 +207,12 @@ export function DetailPanel({
 
   const runningHere = run?.status === "running";
   const stackBlocked = (stackInfo?.blockedByPrNumbers.length ?? 0) > 0;
-  const status = prStatus(pr, { agentBezig: runningHere, stackBlocked });
+  const riskGate = gateOf(pr);
+  const status = prStatus(pr, {
+    agentBezig: runningHere,
+    stackBlocked,
+    risk: riskGate,
+  });
 
   const { primaryMode } = settings.review;
 
@@ -244,6 +258,7 @@ export function DetailPanel({
           >
             {status.label}
           </span>
+          <RiskBadge gate={riskGate} />
           {pr.isDraft && (
             <span className="detail-chip detail-chip-draft">
               <ConceptIcon size={9} />
@@ -275,11 +290,14 @@ export function DetailPanel({
         <Checklist
           pr={pr}
           stackInfo={stackInfo}
+          risk={riskGate}
           run={run}
           settings={settings}
           disabledReason={disabledReason}
           onStartRun={onStartRun}
         />
+
+        <ReviewNoise pr={pr} />
 
         <StackRail
           pr={pr}
@@ -416,6 +434,7 @@ export function DetailPanel({
           key={`merge-${pr.id}`}
           pr={pr}
           stackInfo={stackInfo}
+          risk={riskGate}
           onMergePr={onMergePr}
           shortcutsEnabled={shortcutsEnabled}
           variant={reviewRequestedFromMe ? "secondary" : "primary"}

@@ -2,6 +2,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import type { DraftThread, ReviewEvent } from "../../lib/github/review";
+import { countNoise, recordNoise } from "../../lib/reviewNoise";
 import { CommentsView } from "./CommentsView";
 import { type DiffViewMode, loadDiffView, saveDiffView } from "./cockpitPrefs";
 import { DiffView } from "./DiffView";
@@ -57,6 +58,7 @@ export function PrInspector({
   const {
     status,
     detail,
+    loadedPrKey,
     error,
     retry,
     reply,
@@ -92,6 +94,13 @@ export function PrInspector({
         : new Set<string>(),
     [status, diffTooLarge, currentDrafts, files],
   );
+
+  const threads = detail?.reviewThreads;
+  useEffect(() => {
+    if (threads != null && loadedPrKey === prKey) {
+      recordNoise(pr.repoId, pr.number, countNoise(threads));
+    }
+  }, [pr.repoId, pr.number, prKey, loadedPrKey, threads]);
 
   const verdict = latestVerdict(pr);
 

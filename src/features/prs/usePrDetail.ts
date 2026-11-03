@@ -30,11 +30,19 @@ const MOCK_DETAIL_FOUT =
 
 export interface PrDetailState {
   status: "idle" | "loading" | "error" | "ready";
+  /** PR-sleutel waarvoor deze state geldt; null zolang er niets geladen is.
+   * Een render na een PR-wissel kan nog de state van de vorige PR dragen. */
+  prKey: string | null;
   detail: PrDetail | null;
   error: string | null;
 }
 
-const IDLE_STATE: PrDetailState = { status: "idle", detail: null, error: null };
+const IDLE_STATE: PrDetailState = {
+  status: "idle",
+  prKey: null,
+  detail: null,
+  error: null,
+};
 
 /** Mockmodus-uitkomst voor prKey: het QA-foutpad wint altijd, anders een
  * fixture-lookup met fallback voor PR's zonder eigen fixture. */
@@ -45,12 +53,14 @@ export function mockDetailState(
   if (detailFout) {
     return {
       status: "error",
+      prKey,
       detail: null,
       error: "Testfout via ?mock=app&detailfout",
     };
   }
   return {
     status: "ready",
+    prKey,
     detail: MOCK_PR_DETAILS[prKey] ?? MOCK_PR_DETAIL_FALLBACK,
     error: null,
   };
@@ -65,7 +75,7 @@ export function detailFromCache(
   const cached = cache.get(prKey);
   return cached == null
     ? null
-    : { status: "ready", detail: cached, error: null };
+    : { status: "ready", prKey, detail: cached, error: null };
 }
 
 /** Voegt comment toe aan de thread met threadId (elders ongewijzigd). Puur,
@@ -114,11 +124,16 @@ export function applyResolved(
  * toegepast op de laatst bekende detail en er wordt geen fout gemeld. Puur,
  * voor testbaarheid los van de hook. */
 export function stateAfterFailedRefetch(
-  detail: PrDetail | null,
+  prev: PrDetailState,
   applyLocally: (detail: PrDetail) => PrDetail,
 ): PrDetailState | null {
-  if (detail == null) return null;
-  return { status: "ready", detail: applyLocally(detail), error: null };
+  if (prev.detail == null) return null;
+  return {
+    ...prev,
+    status: "ready",
+    detail: applyLocally(prev.detail),
+    error: null,
+  };
 }
 
 /**
@@ -155,7 +170,7 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
     }
 
     let cancelled = false;
-    setState({ status: "loading", detail: null, error: null });
+    setState({ status: "loading", prKey, detail: null, error: null });
 
     void (async () => {
       let token: string | null;
@@ -165,6 +180,7 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
         if (!cancelled) {
           setState({
             status: "error",
+            prKey,
             detail: null,
             error: (error as Error).message,
           });
@@ -175,6 +191,7 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
         if (!cancelled) {
           setState({
             status: "error",
+            prKey,
             detail: null,
             error: "Geen GitHub-token gevonden.",
           });
@@ -192,7 +209,7 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
         // wordt altijd gezet, ook als deze effect-run inmiddels vervangen is.
         cacheRef.current.set(prKey, detail);
         if (cancelled) return;
-        setState({ status: "ready", detail, error: null });
+        setState({ status: "ready", prKey, detail, error: null });
       } catch (error) {
         if (error instanceof AuthError) {
           onAuthErrorRef.current();
@@ -201,6 +218,7 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
         if (!cancelled) {
           setState({
             status: "error",
+            prKey,
             detail: null,
             error: (error as Error).message,
           });
@@ -233,7 +251,7 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
       if (seq !== mutationSeqRef.current) return;
       cacheRef.current.set(prKey, detail);
       if (currentKeyRef.current !== prKey) return;
-      setState({ status: "ready", detail, error: null });
+      setState({ status: "ready", prKey, detail, error: null });
     },
     [prKey, pr.repoId, pr.number],
   );
@@ -274,9 +292,7 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
         await refetchAfterMutation(token, seq);
       } catch {
         if (currentKeyRef.current !== mutatedKey) return;
-        setState(
-          (prev) => stateAfterFailedRefetch(prev.detail, applyLocally) ?? prev,
-        );
+        setState((prev) => stateAfterFailedRefetch(prev, applyLocally) ?? prev);
       }
     },
     [refetchAfterMutation, withReadToken],
@@ -401,6 +417,7 @@ export function usePrDetail(pr: PullRequest, onAuthError: () => void) {
 
   return {
     status: state.status,
+    loadedPrKey: state.prKey,
     detail: state.detail,
     error: state.error,
     files,

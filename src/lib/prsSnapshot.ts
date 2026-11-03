@@ -1,5 +1,6 @@
 import type { PullRequest } from "./github/domain";
 import { MERGE_STATE_STATUSES } from "./github/parse";
+import { MAX_FILES } from "./risk";
 
 /**
  * Bewaart de laatst opgehaalde PR-lijst zodat de app bij een koude start
@@ -29,7 +30,24 @@ function normalizePr(pr: PullRequest): PullRequest {
   const openThreads = typeof rawThreads === "number" ? rawThreads : 0;
   const rawCommits = (pr as Partial<PullRequest>).agentCommitCount;
   const agentCommitCount = typeof rawCommits === "number" ? rawCommits : 0;
-  return { ...pr, mergeStateStatus, openThreads, agentCommitCount };
+  const rawRounds = (pr as Partial<PullRequest>).agentReviewRounds;
+  const agentReviewRounds = typeof rawRounds === "number" ? rawRounds : 0;
+  // Een snapshot van vóór de risicovelden weet niets over de bestanden: dat
+  // geldt als "niet alles bekeken" (hoog), tot de eerste fetch ze invult.
+  const { changedPaths, changedFileCount } = pr as Partial<PullRequest>;
+  const knowsFiles =
+    Array.isArray(changedPaths) && typeof changedFileCount === "number";
+  return {
+    ...pr,
+    mergeStateStatus,
+    openThreads,
+    agentCommitCount,
+    agentReviewRounds,
+    headOid: typeof pr.headOid === "string" ? pr.headOid : "",
+    changedPaths: knowsFiles ? changedPaths : [],
+    changedFileCount: knowsFiles ? changedFileCount : MAX_FILES + 1,
+    humanApprovedHead: pr.humanApprovedHead === true,
+  };
 }
 
 /** Minimale Storage-vorm, zodat tests een in-memory fake kunnen meegeven

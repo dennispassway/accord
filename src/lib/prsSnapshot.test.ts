@@ -7,6 +7,7 @@ import {
   loadPrsSnapshot,
   savePrsSnapshot,
 } from "./prsSnapshot";
+import { DEFAULT_HIGH_RISK_PATTERNS, MAX_FILES, riskTier } from "./risk";
 
 function fakeStorage(): SnapshotStorage {
   const data = new Map<string, string>();
@@ -43,12 +44,17 @@ function pr(): PullRequest {
     comments: 0,
     openThreads: 0,
     reviewers: [],
+    agentReviewRounds: 0,
     agentReviews: [],
     agentCommitCount: 0,
     assignees: [],
     reviewRequestedFromMe: false,
     assignedToMe: false,
     authoredByMe: true,
+    headOid: "",
+    changedPaths: [],
+    changedFileCount: 0,
+    humanApprovedHead: false,
   };
 }
 
@@ -136,6 +142,49 @@ describe("prsSnapshot", () => {
     const snapshot = loadPrsSnapshot(storage);
     expect(snapshot?.prs[0]?.mergeStateStatus).toBe("UNKNOWN");
     expect(snapshot?.prs[0]?.openThreads).toBe(0);
+  });
+
+  it("vult agentReviewRounds aan voor een snapshot van een oudere appversie", () => {
+    const { agentReviewRounds, ...oudeVorm } = pr();
+    storage.setItem(
+      "pr-cockpit.prsSnapshot",
+      JSON.stringify({
+        prs: [oudeVorm, { ...pr(), agentReviewRounds: 2 }],
+        viewerLogin: "dennis",
+        lastUpdated: "2026-08-02T10:00:00.000Z",
+      }),
+    );
+
+    const snapshot = loadPrsSnapshot(storage);
+    expect(snapshot?.prs[0]?.agentReviewRounds).toBe(0);
+    expect(snapshot?.prs[1]?.agentReviewRounds).toBe(2);
+  });
+
+  it("behandelt een snapshot zonder risicovelden als niet-bekeken (hoog) in plaats van te crashen", () => {
+    const {
+      headOid,
+      changedPaths,
+      changedFileCount,
+      humanApprovedHead,
+      ...oud
+    } = pr();
+    storage.setItem(
+      "pr-cockpit.prsSnapshot",
+      JSON.stringify({
+        prs: [oud],
+        viewerLogin: "dennis",
+        lastUpdated: "2026-08-02T10:00:00.000Z",
+      }),
+    );
+
+    const loaded = loadPrsSnapshot(storage)?.prs[0];
+    expect(loaded?.changedPaths).toEqual([]);
+    expect(loaded?.headOid).toBe("");
+    expect(loaded?.humanApprovedHead).toBe(false);
+    expect(loaded?.changedFileCount).toBe(MAX_FILES + 1);
+    expect(
+      riskTier(loaded as PullRequest, DEFAULT_HIGH_RISK_PATTERNS).tier,
+    ).toBe("hoog");
   });
 
   it("laat een geldige mergeStateStatus/openThreads ongemoeid", () => {

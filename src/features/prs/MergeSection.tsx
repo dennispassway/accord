@@ -5,10 +5,12 @@ import type { MergeMethod } from "../../lib/github/merge";
 import { mergeReasons } from "../../lib/github/merge";
 import type { PrStackInfo } from "../../lib/github/stacks";
 import { modKey } from "../../lib/platform";
+import type { RiskGate } from "../../lib/risk";
 import "./detail.css";
 import { CheckIcon, ChevronIcon, MergeIcon } from "./icons";
 import { useRovingMenu } from "./menuNav";
 import { isAnyMenuOverlayOpen } from "./menuOverlay";
+import { useRisk } from "./riskContext";
 
 const STORAGE_KEY = "pr-cockpit.mergeMethod";
 
@@ -16,6 +18,8 @@ const METHOD_LABEL: Record<MergeMethod, string> = {
   SQUASH: "Squash and merge",
   MERGE: "Merge commit",
 };
+
+const OVERRIDE_CONFIRM_TIMEOUT_MS = 4000;
 
 const MENU_METHODS: MergeMethod[] = ["SQUASH", "MERGE"];
 
@@ -37,6 +41,7 @@ function methodNote(pr: PullRequest, method: MergeMethod): string {
 interface MergeSectionProps {
   pr: PullRequest;
   stackInfo: PrStackInfo | undefined;
+  risk: RiskGate;
   onMergePr: (pr: PullRequest, method: MergeMethod) => Promise<void>;
   /** Uit als een sheet of menu open staat: dan mogen M/⌘⏎ niet mergen. */
   shortcutsEnabled: boolean;
@@ -54,10 +59,13 @@ interface MergeSectionProps {
 export function MergeSection({
   pr,
   stackInfo,
+  risk,
   onMergePr,
   shortcutsEnabled,
   variant = "primary",
 }: MergeSectionProps) {
+  const { grantOverride } = useRisk();
+  const [confirmingOverride, setConfirmingOverride] = useState(false);
   const [method, setMethod] = useState<MergeMethod>(loadMethod);
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -73,7 +81,35 @@ export function MergeSection({
     menuOpen,
   );
 
-  const reasons = mergeReasons(pr, stackInfo);
+  const reasons = mergeReasons(pr, stackInfo, risk);
+  // De override haalt alleen de risicoreden weg; rode CI of conflicten blijven blokkeren.
+  const canOverrideRisk =
+    pr.authoredByMe && risk.needsHumanReview && pr.headOid !== "";
+  const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (confirmTimeoutRef.current != null) {
+        clearTimeout(confirmTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  function handleOverrideClick() {
+    if (confirmingOverride) {
+      if (confirmTimeoutRef.current != null) {
+        clearTimeout(confirmTimeoutRef.current);
+      }
+      setConfirmingOverride(false);
+      grantOverride(pr);
+      return;
+    }
+    setConfirmingOverride(true);
+    confirmTimeoutRef.current = setTimeout(
+      () => setConfirmingOverride(false),
+      OVERRIDE_CONFIRM_TIMEOUT_MS,
+    );
+  }
   const canMerge = reasons.length === 0;
 
   const merge = useCallback(() => {
@@ -213,6 +249,22 @@ export function MergeSection({
           <ul className="detail-merge-reasons">
             <li>Mergen kan na de checklist</li>
           </ul>
+          {canOverrideRisk && (
+            <button
+              type="button"
+              className={
+                confirmingOverride
+                  ? "detail-merge-override confirming"
+                  : "detail-merge-override"
+              }
+              title="Alleen voor deze commit; een nieuwe commit vraagt opnieuw"
+              onClick={handleOverrideClick}
+            >
+              {confirmingOverride
+                ? "Klik nogmaals: je hebt dit zelf beoordeeld"
+                : "Zelf beoordeeld, toch mergen"}
+            </button>
+          )}
         </div>
       )}
       {error != null && <p className="detail-merge-error">{error}</p>}

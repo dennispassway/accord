@@ -2,7 +2,15 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { PullRequest } from "../../lib/github/domain";
 import type { AgentMode, ReviewAgent, ReviewMode } from "../agents/crossReview";
 import { availableFixModes } from "../agents/crossReview";
-import { MODE_LABEL, MODE_TITLE } from "./agentModes";
+import {
+  ADVICE_ROUND,
+  ADVICE_TITLE,
+  isAdviceRound,
+  MODE_LABEL,
+  MODE_TITLE,
+  nextReviewRound,
+  showsRound,
+} from "./agentModes";
 import "./contextmenu.css";
 import { useRovingMenu } from "./menuNav";
 import { keyOfPr } from "./PrList";
@@ -24,6 +32,7 @@ interface PrContextMenuProps {
     prs: PullRequest[],
     mode: AgentMode,
     agent: ReviewAgent,
+    forceRound?: boolean,
   ) => void;
   /** Reden(en) waarom de enkelvoudig geselecteerde PR niet mergebaar is; leeg
    * betekent mergen mag. */
@@ -138,6 +147,8 @@ export function PrContextMenu({
       )
     : [];
 
+  const canForce =
+    singlePr != null && nextReviewRound(singlePr) >= ADVICE_ROUND;
   const baseActions: MenuAction[] = [
     {
       key: "open",
@@ -155,11 +166,28 @@ export function PrContextMenu({
           },
         ]
       : []),
-    ...REVIEW_CHOICES.map(({ agent, mode, label }) => ({
-      key: `review-${agent}-${mode}`,
-      label: withCount(label, n),
-      onSelect: () => onStartReview(prs, mode, agent),
-    })),
+    ...REVIEW_CHOICES.map(({ agent, mode, label }) => {
+      // Bij een bulkselectie lopen de rondes uiteen.
+      const advice = singlePr != null && isAdviceRound(singlePr, mode);
+      const base = advice ? `${agentLabel[agent]}: alleen advies` : label;
+      return {
+        key: `review-${agent}-${mode}`,
+        label:
+          singlePr != null && showsRound(singlePr)
+            ? `${base} · ronde ${nextReviewRound(singlePr)}`
+            : withCount(base, n),
+        title: advice ? ADVICE_TITLE : undefined,
+        onSelect: () => onStartReview(prs, mode, agent),
+      };
+    }),
+    ...(canForce
+      ? (["claude", "codex"] as const).map((agent) => ({
+          key: `force-${agent}`,
+          label: `${agentLabel[agent]}: extra ronde forceren`,
+          title: "Start de review met fixes, ook na twee rondes",
+          onSelect: () => onStartReview(prs, "withFixes", agent, true),
+        }))
+      : []),
     ...fixChoices.map(({ agent, mode }) => ({
       key: `fix-${agent}-${mode}`,
       label: `${agentLabel[agent]}: ${MODE_LABEL[mode].charAt(0).toLowerCase()}${MODE_LABEL[mode].slice(1)}`,
@@ -208,7 +236,7 @@ export function PrContextMenu({
   const sepAfter = new Set([
     "open",
     "merge",
-    "review-codex-withFixes",
+    canForce ? "force-codex" : "review-codex-withFixes",
     "stop-review",
   ]);
   const lastFix = fixChoices[fixChoices.length - 1];

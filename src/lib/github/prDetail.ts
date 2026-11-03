@@ -7,6 +7,7 @@
 import type { Author, PrNumber, RepoId } from "./domain";
 import { deriveAuthor } from "./domain";
 import { withNetworkError } from "./networkError";
+import { AGENT_MARKER } from "./parse";
 import {
   AuthError,
   type FetchImpl,
@@ -49,6 +50,11 @@ export interface ReviewThread {
   line: number | null;
   diffSide: DiffSide;
   isResolved: boolean;
+  /** GitHub markeert een thread als outdated zodra de regel is veranderd. */
+  isOutdated: boolean;
+  /** Agent uit de marker van de review waar het eerste comment bij hoort;
+   * null bij een gewone of onbekende review. */
+  agentReview: "claude" | "codex" | null;
   viewerCanReply: boolean;
   viewerCanResolve: boolean;
   viewerCanUnresolve: boolean;
@@ -83,10 +89,12 @@ query PrDetail($owner: String!, $name: String!, $number: Int!) {
           line
           diffSide
           isResolved
+          isOutdated
           viewerCanReply
           viewerCanResolve
           viewerCanUnresolve
           comments(first: 50) { nodes { author { login } bodyText body createdAt } }
+          origin: comments(first: 1) { nodes { pullRequestReview { body } } }
         }
       }
     }
@@ -130,22 +138,33 @@ interface RawThreadNode {
   line?: number | null;
   diffSide?: string | null;
   isResolved?: boolean;
+  isOutdated?: boolean;
   viewerCanReply?: boolean;
   viewerCanResolve?: boolean;
   viewerCanUnresolve?: boolean;
   comments?: { nodes?: unknown };
+  origin?: {
+    nodes?: { pullRequestReview?: { body?: string | null } | null }[];
+  };
 }
 
 function parseThread(node: unknown): ReviewThread | null {
   if (node == null || typeof node !== "object") return null;
   const raw = node as RawThreadNode;
   if (raw.path == null) return null;
+  const reviewBody = raw.origin?.nodes?.[0]?.pullRequestReview?.body;
+  const agent =
+    typeof reviewBody === "string"
+      ? AGENT_MARKER.exec(reviewBody)?.[1]
+      : undefined;
   return {
     id: raw.id ?? "",
     path: raw.path,
     line: raw.line ?? null,
     diffSide: parseDiffSide(raw.diffSide),
     isResolved: raw.isResolved ?? false,
+    isOutdated: raw.isOutdated ?? false,
+    agentReview: agent === "claude" || agent === "codex" ? agent : null,
     viewerCanReply: raw.viewerCanReply ?? false,
     viewerCanResolve: raw.viewerCanResolve ?? false,
     viewerCanUnresolve: raw.viewerCanUnresolve ?? false,

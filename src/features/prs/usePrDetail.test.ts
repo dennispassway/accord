@@ -10,6 +10,7 @@ import {
   applyResolved,
   detailFromCache,
   mockDetailState,
+  type PrDetailState,
   stateAfterFailedRefetch,
 } from "./usePrDetail";
 
@@ -18,6 +19,7 @@ describe("mockDetailState", () => {
     const known = "acme/knowledge-base#167";
     expect(mockDetailState(known, false)).toEqual({
       status: "ready",
+      prKey: known,
       detail: MOCK_PR_DETAILS[known],
       error: null,
     });
@@ -26,6 +28,7 @@ describe("mockDetailState", () => {
   it("valt terug op de fallback-fixture voor een onbekende PR", () => {
     expect(mockDetailState("onbekend/repo#1", false)).toEqual({
       status: "ready",
+      prKey: "onbekend/repo#1",
       detail: MOCK_PR_DETAIL_FALLBACK,
       error: null,
     });
@@ -50,6 +53,7 @@ describe("detailFromCache", () => {
     cache.set("acme/widgets#1", MOCK_PR_DETAIL_FALLBACK);
     expect(detailFromCache(cache, "acme/widgets#1")).toEqual({
       status: "ready",
+      prKey: "acme/widgets#1",
       detail: MOCK_PR_DETAIL_FALLBACK,
       error: null,
     });
@@ -70,6 +74,8 @@ function detail(overrides: Partial<PrDetail> = {}): PrDetail {
         line: 3,
         diffSide: "RIGHT",
         isResolved: false,
+        isOutdated: false,
+        agentReview: null,
         viewerCanReply: true,
         viewerCanResolve: true,
         viewerCanUnresolve: false,
@@ -81,6 +87,8 @@ function detail(overrides: Partial<PrDetail> = {}): PrDetail {
         line: null,
         diffSide: "RIGHT",
         isResolved: true,
+        isOutdated: false,
+        agentReview: null,
         viewerCanReply: false,
         viewerCanResolve: false,
         viewerCanUnresolve: true,
@@ -154,18 +162,29 @@ describe("applyResolved", () => {
 });
 
 describe("stateAfterFailedRefetch", () => {
-  it("past de lokale wijziging toe en meldt geen fout", () => {
-    const result = stateAfterFailedRefetch(detail(), (d) =>
+  const prev = (overrides: Partial<PrDetailState> = {}): PrDetailState => ({
+    status: "ready",
+    prKey: "acme/widgets#1",
+    detail: detail(),
+    error: null,
+    ...overrides,
+  });
+
+  it("past de lokale wijziging toe, meldt geen fout en behoudt de prKey van prev", () => {
+    const result = stateAfterFailedRefetch(prev(), (d) =>
       applyResolved(d, "thread-1", true),
     );
     expect(result).toEqual({
       status: "ready",
+      prKey: "acme/widgets#1",
       detail: applyResolved(detail(), "thread-1", true),
       error: null,
     });
   });
 
   it("geeft null als er nog geen detail is om lokaal bij te werken", () => {
-    expect(stateAfterFailedRefetch(null, (d) => d)).toBeNull();
+    expect(
+      stateAfterFailedRefetch(prev({ detail: null, prKey: null }), (d) => d),
+    ).toBeNull();
   });
 });

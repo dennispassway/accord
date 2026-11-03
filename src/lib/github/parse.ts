@@ -1,3 +1,4 @@
+import { MAX_FILES } from "../risk";
 import {
   type AgentReview,
   type AgentVerdict,
@@ -215,7 +216,7 @@ function parseReviewers(node: Record<string, unknown>): Reviewer[] {
  * bv. `<!-- accord:claude:commentsOnly fixes=nodig verificatie=lokaal -->`;
  * zie parseVerdict.
  */
-const AGENT_MARKER =
+export const AGENT_MARKER =
   /<!--\s*accord:(claude|codex)(?::(commentsOnly|withFixes))?(?:\s+(.*?))?\s*-->/;
 
 /**
@@ -228,6 +229,48 @@ function parseVerdict(attributes: string): AgentVerdict | undefined {
   if (fixes !== "nodig" && fixes !== "geen") return undefined;
   if (verificatie !== "ci" && verificatie !== "lokaal") return undefined;
   return { fixes, verificatie };
+}
+
+const SHA_PATTERN = /^[0-9a-f]{7,40}$/;
+
+/**
+ * Telt de reviews met een Accord-marker (elke agent en mode) en leest de sha
+ * uit de nieuwste ervan. Alleen reviews van de ingelogde gebruiker of van een
+ * botlogin tellen: de body van een vreemde review kan een marker nabootsen.
+ * Heeft de nieuwste geen geldige sha, dan is het resultaat undefined en valt
+ * het bewust niet terug op een oudere: die kan van vóór een force-push zijn.
+ */
+function parseReviewRounds(
+  node: Record<string, unknown>,
+  viewerLogin: string | null | undefined,
+): {
+  agentReviewRounds: number;
+  lastAgentReviewSha?: string;
+} {
+  let rounds = 0;
+  let newest: { submittedAt: string; sha?: string } | undefined;
+  for (const review of nodesOf(node.reviews)) {
+    if (!isRecord(review) || !isNonEmptyString(review.body)) continue;
+    const login = isRecord(review.author) ? review.author.login : undefined;
+    if (!isNonEmptyString(login)) continue;
+    // deriveAuthor herkent ook mensen met "claude"/"codex" in hun naam.
+    // Dat is bruikbaar voor weergave, maar bewijst geen botidentiteit.
+    if (login !== viewerLogin && !login.endsWith("[bot]")) continue;
+    const match = review.body.match(AGENT_MARKER);
+    if (!match) continue;
+    rounds += 1;
+    if (!isNonEmptyString(review.submittedAt)) continue;
+    if (newest && newest.submittedAt > review.submittedAt) continue;
+    const sha = (match[3] ?? "").match(/(?:^|\s)sha=(\S+)/)?.[1];
+    newest = {
+      submittedAt: review.submittedAt,
+      sha: sha && SHA_PATTERN.test(sha) ? sha : undefined,
+    };
+  }
+  return {
+    agentReviewRounds: rounds,
+    ...(newest?.sha && { lastAgentReviewSha: newest.sha }),
+  };
 }
 
 /** Auteur van een review: eerst via login, anders via de verborgen marker. */
@@ -336,7 +379,36 @@ function parseAgentReviews(node: Record<string, unknown>): AgentReview[] {
   );
 }
 
-function parseNode(node: unknown): PullRequest | undefined {
+/**
+ * Een menselijke approval op exact de huidige head. Agent-reviews posten onder
+ * het account van de gebruiker, dus naast de login-check sluit ook de marker
+ * in de body een review uit.
+ */
+function parseHumanApprovedHead(
+  node: Record<string, unknown>,
+  headOid: string,
+): boolean {
+  if (headOid === "") return false;
+  return nodesOf(node.riskApprovals).some((review) => {
+    if (!isRecord(review) || review.state !== "APPROVED") return false;
+    const author = isRecord(review.author) ? review.author : undefined;
+    const login = author?.login;
+    // Een Bot heeft niet altijd "[bot]" in zijn login; alleen een User telt.
+    if (author?.__typename !== "User") return false;
+    if (!isNonEmptyString(login) || deriveAuthor(login).kind === "agent") {
+      return false;
+    }
+    if (typeof review.body === "string" && AGENT_MARKER.test(review.body)) {
+      return false;
+    }
+    return isRecord(review.commit) && review.commit.oid === headOid;
+  });
+}
+
+function parseNode(
+  node: unknown,
+  viewerLogin: string | null | undefined,
+): PullRequest | undefined {
   if (!isRecord(node)) return undefined;
 
   const repository = isRecord(node.repository) ? node.repository : undefined;
@@ -367,6 +439,12 @@ function parseNode(node: unknown): PullRequest | undefined {
     return undefined;
   }
 
+  const headOid = isNonEmptyString(node.headRefOid) ? node.headRefOid : "";
+  const changedPaths = nodesOf(node.files)
+    .filter(isRecord)
+    .map((file) => file.path)
+    .filter(isNonEmptyString);
+
   return {
     id: node.id,
     repoId,
@@ -389,6 +467,7 @@ function parseNode(node: unknown): PullRequest | undefined {
     openThreads: parseOpenThreads(node),
     reviewers: parseReviewers(node),
     agentReviews: parseAgentReviews(node),
+    ...parseReviewRounds(node, viewerLogin),
     agentCommitCount: [...agentCommitCounts(node).values()].reduce(
       (sum, n) => sum + n,
       0,
@@ -397,6 +476,12 @@ function parseNode(node: unknown): PullRequest | undefined {
     reviewRequestedFromMe: false,
     assignedToMe: false,
     authoredByMe: false,
+    headOid,
+    changedPaths,
+    changedFileCount: isFiniteNumber(node.changedFiles)
+      ? node.changedFiles
+      : MAX_FILES + 1,
+    humanApprovedHead: parseHumanApprovedHead(node, headOid),
   };
 }
 
@@ -411,11 +496,14 @@ export function isSearchTruncated(json: unknown): boolean {
 }
 
 /** Defensively parses a single search result's `{ nodes }` shape. */
-export function parseSearchResponse(json: unknown): PullRequest[] {
+export function parseSearchResponse(
+  json: unknown,
+  viewerLogin?: string | null,
+): PullRequest[] {
   if (!isRecord(json) || !Array.isArray(json.nodes)) return [];
   const prs: PullRequest[] = [];
   for (const node of json.nodes) {
-    const pr = parseNode(node);
+    const pr = parseNode(node, viewerLogin);
     if (pr) prs.push(pr);
   }
   return prs;
