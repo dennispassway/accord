@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.15.1](https://github.com/dennispassway/accord/compare/v1.15.0...v1.15.1) (2026-11-12)
+
+
+### Opgelost
+
+* **agents:** fast-forward zonder autostash en met echte repo getest ([a4d5d60](https://github.com/dennispassway/accord/commit/a4d5d60f858694bf3b1990e980ac4630ab54053f))
+* **agents:** lokale checkout bijwerken na een push en geen verwarrende review meer ([c32c2e0](https://github.com/dennispassway/accord/commit/c32c2e00bca7e66fbe44e8f2ab000ee038cd845e))
+* **agents:** lokale checkout van de PR-branch fast-forwarden na een push ([4d12fb0](https://github.com/dennispassway/accord/commit/4d12fb091eef600958dc281b283fac339b662ab2))
+* **agents:** review van een fix-run zegt niet meer dat de commits lokaal staan ([9d5f6da](https://github.com/dennispassway/accord/commit/9d5f6da26ff3c06f48f0123952c89d386cd35e93))
+
 ## [1.15.0](https://github.com/dennispassway/accord/compare/v1.14.0...v1.15.0) (2026-11-03)
 
 
