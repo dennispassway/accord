@@ -1508,7 +1508,8 @@ fn count_local_commits(worktree: &Path, run_ref: &str) -> u32 {
 /// De push die de agent zelf niet meer mag doen. De refspec bouwt de app uit de
 /// PR-data, dus de bestemming staat vast: geen force, geen `+`-refspec, niets wat
 /// een agent kan omleiden. Een niet-fast-forward laat git falen, en dan blijven
-/// de commits en de worktree staan (zie `cleanup_run`).
+/// de commits en de worktree staan (zie `cleanup_run`). Na een geslaagde push
+/// schuiven lokale checkouts van `head_ref` mee (`fast_forward_checkouts`).
 fn push_if_marked(app: &AppHandle, run_id: &str, worktree: &Path, head_ref: &str) -> PushOutcome {
     let (outcome, line) = push_outcome(push_marker(run_id).exists(), head_ref, || {
         run_git(worktree, &["push", "origin", &format!("HEAD:{head_ref}")])
@@ -1543,22 +1544,32 @@ fn checkouts_on_branch(porcelain: &str, head_ref: &str) -> Vec<PathBuf> {
 /// alleen een checkout die strikt achterloopt; eigen commits of lokale
 /// wijzigingen op dezelfde bestanden laten git weigeren, en dat melden we alleen.
 fn fast_forward_checkouts(app: &AppHandle, run_id: &str, worktree: &Path, head_ref: &str) {
-    let (Ok(list), Ok(sha)) = (
-        run_git(worktree, &["worktree", "list", "--porcelain"]),
-        run_git(worktree, &["rev-parse", "HEAD"]),
-    ) else {
-        return;
+    emit_log(app, run_id, fast_forward_lines(worktree, head_ref));
+}
+
+/// Los van tauri om zonder AppHandle te kunnen testen: één logregel per
+/// checkout, of één regel als het opzoeken zelf faalt.
+fn fast_forward_lines(worktree: &Path, head_ref: &str) -> Vec<String> {
+    let lookup = run_git(worktree, &["worktree", "list", "--porcelain"])
+        .and_then(|list| run_git(worktree, &["rev-parse", "HEAD"]).map(|sha| (list, sha)));
+    let (list, sha) = match lookup {
+        Ok(found) => found,
+        Err(error) => return vec![format!("lokale checkouts niet bijgewerkt: {error}")],
     };
-    for checkout in checkouts_on_branch(&list, head_ref) {
-        let line = match run_git(&checkout, &["merge", "--ff-only", sha.trim()]) {
-            Ok(_) => format!("lokale checkout bijgewerkt: {}", checkout.display()),
-            Err(error) => format!(
-                "lokale checkout niet bijgewerkt ({}): {error}",
-                checkout.display()
-            ),
-        };
-        emit_log(app, run_id, vec![line]);
-    }
+    checkouts_on_branch(&list, head_ref)
+        .into_iter()
+        .map(|checkout| {
+            // `--no-autostash`: met `merge.autoStash` in de gebruikersconfig zou git
+            // lokale wijzigingen stashen en met een conflict terugzetten in plaats
+            // van te weigeren.
+            match run_git(&checkout, &["merge", "--ff-only", "--no-autostash", &sha]) {
+                Ok(_) => format!("lokale checkout bijgewerkt: {}", checkout.display()),
+                // Neutraal geformuleerd: een timeout kan git afbreken nadat de merge al
+                // gelukt was (zie `git-fout-classificatie.md`).
+                Err(error) => format!("fast-forward van {} faalde: {error}", checkout.display()),
+            }
+        })
+        .collect()
 }
 
 /// Los van tauri om zonder AppHandle te kunnen testen: mag deze run als
@@ -4061,6 +4072,75 @@ mod tests {
             vec![PathBuf::from("/repo")]
         );
         assert!(checkouts_on_branch(porcelain, "elders").is_empty());
+    }
+
+    #[test]
+    fn fast_forward_moves_a_checkout_that_is_behind_and_spares_local_work() {
+        let fixture = GitSandboxFixture::new();
+        let commit = |dir: &Path, message: &str| {
+            run_git(
+                dir,
+                &[
+                    "-c",
+                    "user.name=Accord test",
+                    "-c",
+                    "user.email=test@example.com",
+                    "commit",
+                    "-a",
+                    "--allow-empty",
+                    "-m",
+                    message,
+                ],
+            )
+            .unwrap();
+        };
+        let add_worktree = |branch: &str| {
+            let path = fixture.root.join(branch);
+            run_git(
+                &fixture.repo,
+                &["worktree", "add", "-b", branch, path.to_str().unwrap()],
+            )
+            .unwrap();
+            path
+        };
+        let read = |dir: &Path| std::fs::read_to_string(dir.join("f")).unwrap();
+        // Autostash zou de vuile checkout stashen, doorschuiven en de stash met
+        // een conflict terugzetten; de fast-forward moet dat zelf uitzetten.
+        run_git(&fixture.repo, &["config", "merge.autoStash", "true"]).unwrap();
+        std::fs::write(fixture.repo.join("f"), "basis").unwrap();
+        run_git(&fixture.repo, &["add", "f"]).unwrap();
+        commit(&fixture.repo, "basis");
+        run_git(&fixture.repo, &["switch", "-c", "behind"]).unwrap();
+        let behind = fixture.repo.clone();
+        let own = add_worktree("own");
+        commit(&own, "eigen werk");
+        let own_head = run_git(&own, &["rev-parse", "HEAD"]).unwrap();
+        let dirty = add_worktree("dirty");
+        std::fs::write(dirty.join("f"), "lokaal").unwrap();
+        let dirty_head = run_git(&dirty, &["rev-parse", "HEAD"]).unwrap();
+        run_git(&fixture.worktree, &["checkout", "--detach", "behind"]).unwrap();
+        std::fs::write(fixture.worktree.join("f"), "fix").unwrap();
+        commit(&fixture.worktree, "fix van de agent");
+        let pushed = run_git(&fixture.worktree, &["rev-parse", "HEAD"]).unwrap();
+
+        let lines = fast_forward_lines(&fixture.worktree, "behind");
+        assert_eq!(
+            lines,
+            vec![format!("lokale checkout bijgewerkt: {}", behind.display())]
+        );
+        assert_eq!(run_git(&behind, &["rev-parse", "HEAD"]).unwrap(), pushed);
+        assert_eq!(read(&behind), "fix");
+
+        for (path, head, branch) in [(&own, &own_head, "own"), (&dirty, &dirty_head, "dirty")] {
+            let lines = fast_forward_lines(&fixture.worktree, branch);
+            assert_eq!(lines.len(), 1);
+            assert!(lines[0].starts_with(&format!("fast-forward van {} faalde", path.display())));
+            assert_eq!(&run_git(path, &["rev-parse", "HEAD"]).unwrap(), head);
+        }
+        assert_eq!(read(&dirty), "lokaal");
+        assert_eq!(run_git(&dirty, &["stash", "list"]).unwrap(), "");
+
+        assert!(fast_forward_lines(&fixture.worktree, "elders").is_empty());
     }
 
     #[test]
