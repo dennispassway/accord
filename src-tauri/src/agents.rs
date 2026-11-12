@@ -865,7 +865,7 @@ fn prompt_for_mode(
     // uit elkaar kunnen lopen.
     let marker_path = push_marker.to_string_lossy();
     let push_tail = format!(
-        "Is alles groen en mogen je commits naar de PR, maak dan als laatste stap het bestand {marker_path} aan (leeg is goed); Accord pusht ze daarna naar {head_ref}. Faalt er iets, ga dan niet op de uitkomst af maar bepaal of jouw wijziging de oorzaak is: draai datzelfde falen opnieuw zonder jouw commits (git stash, of de basisbranch {base_ref} uitchecken in een los pad). Faalt het daar aantoonbaar ook en staat het los van wat je aanraakte, maak het bestand dan wel aan en benoem dat bestaande falen in je PR-comment. Veroorzaak je het falen zelf, kom je er niet uit, of kun je niet bewijzen dat het al bestond, maak dat bestand dan NIET aan: je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom."
+        "Is alles groen en mogen je commits naar de PR, maak dan als laatste stap het bestand {marker_path} aan (leeg is goed); Accord pusht ze daarna naar {head_ref}. Maak je dat bestand aan, dan pusht Accord pas nadat je review, PR-comment of thread-replies geplaatst zijn: schrijf daarin dan niet dat je commits lokaal klaarstaan, dat je niets gepusht hebt of dat Accord nog moet pushen, maar noem de fixes met hun commit-hash. Faalt er iets, ga dan niet op de uitkomst af maar bepaal of jouw wijziging de oorzaak is: draai datzelfde falen opnieuw zonder jouw commits (git stash, of de basisbranch {base_ref} uitchecken in een los pad). Faalt het daar aantoonbaar ook en staat het los van wat je aanraakte, maak het bestand dan wel aan en benoem dat bestaande falen in je PR-comment. Veroorzaak je het falen zelf, kom je er niet uit, of kun je niet bewijzen dat het al bestond, maak dat bestand dan NIET aan: je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom."
     );
     let hand_off = format!(
         "Push zelf niets en gebruik geen git push. Lees vóór je iets draait gh pr checks {pr_number}: staan alle required checks daar groen op de head-sha van deze PR, draai dan alleen de tests die jouw eigen wijziging raakt, sla mutation- en coveragegates over (infection, mutation testing, coverage-drempels) en neem die groene checks als bewijs over in je PR-comment in plaats van de suite over te doen. Is ook maar één required check rood of pending, of zijn er geen checks, dan draai je zelf de volledige tests en de linter. {push_tail}"
@@ -1508,7 +1508,8 @@ fn count_local_commits(worktree: &Path, run_ref: &str) -> u32 {
 /// De push die de agent zelf niet meer mag doen. De refspec bouwt de app uit de
 /// PR-data, dus de bestemming staat vast: geen force, geen `+`-refspec, niets wat
 /// een agent kan omleiden. Een niet-fast-forward laat git falen, en dan blijven
-/// de commits en de worktree staan (zie `cleanup_run`).
+/// de commits en de worktree staan (zie `cleanup_run`). Na een geslaagde push
+/// schuiven lokale checkouts van `head_ref` mee (`fast_forward_checkouts`).
 fn push_if_marked(app: &AppHandle, run_id: &str, worktree: &Path, head_ref: &str) -> PushOutcome {
     let (outcome, line) = push_outcome(push_marker(run_id).exists(), head_ref, || {
         run_git(worktree, &["push", "origin", &format!("HEAD:{head_ref}")])
@@ -1516,7 +1517,59 @@ fn push_if_marked(app: &AppHandle, run_id: &str, worktree: &Path, head_ref: &str
     if let Some(line) = line {
         emit_log(app, run_id, vec![line]);
     }
+    if outcome == PushOutcome::Pushed {
+        fast_forward_checkouts(app, run_id, worktree, head_ref);
+    }
     outcome
+}
+
+/// Uit `git worktree list --porcelain`: de checkouts die `head_ref` als branch
+/// hebben. De run-worktree zelf staat op een detached HEAD en valt er dus buiten.
+fn checkouts_on_branch(porcelain: &str, head_ref: &str) -> Vec<PathBuf> {
+    let wanted = format!("branch refs/heads/{head_ref}");
+    porcelain
+        .split("\n\n")
+        .filter(|block| block.lines().any(|line| line == wanted))
+        .filter_map(|block| {
+            block
+                .lines()
+                .find_map(|line| line.strip_prefix("worktree "))
+        })
+        .map(PathBuf::from)
+        .collect()
+}
+
+/// Accord pusht vanuit zijn eigen worktree, dus een lokale checkout van de
+/// PR-branch blijft achter en lijkt de fixes te missen. `--ff-only` raakt
+/// alleen een checkout die strikt achterloopt; eigen commits of lokale
+/// wijzigingen op dezelfde bestanden laten git weigeren, en dat melden we alleen.
+fn fast_forward_checkouts(app: &AppHandle, run_id: &str, worktree: &Path, head_ref: &str) {
+    emit_log(app, run_id, fast_forward_lines(worktree, head_ref));
+}
+
+/// Los van tauri om zonder AppHandle te kunnen testen: één logregel per
+/// checkout, of één regel als het opzoeken zelf faalt.
+fn fast_forward_lines(worktree: &Path, head_ref: &str) -> Vec<String> {
+    let lookup = run_git(worktree, &["worktree", "list", "--porcelain"])
+        .and_then(|list| run_git(worktree, &["rev-parse", "HEAD"]).map(|sha| (list, sha)));
+    let (list, sha) = match lookup {
+        Ok(found) => found,
+        Err(error) => return vec![format!("lokale checkouts niet bijgewerkt: {error}")],
+    };
+    checkouts_on_branch(&list, head_ref)
+        .into_iter()
+        .map(|checkout| {
+            // `--no-autostash`: met `merge.autoStash` in de gebruikersconfig zou git
+            // lokale wijzigingen stashen en met een conflict terugzetten in plaats
+            // van te weigeren.
+            match run_git(&checkout, &["merge", "--ff-only", "--no-autostash", &sha]) {
+                Ok(_) => format!("lokale checkout bijgewerkt: {}", checkout.display()),
+                // Neutraal geformuleerd: een timeout kan git afbreken nadat de merge al
+                // gelukt was (zie `git-fout-classificatie.md`).
+                Err(error) => format!("fast-forward van {} faalde: {error}", checkout.display()),
+            }
+        })
+        .collect()
 }
 
 /// Los van tauri om zonder AppHandle te kunnen testen: mag deze run als
@@ -3083,19 +3136,20 @@ mod tests {
         }
     }
 
-    /// Lengte plus FNV-1a-64 van de prompt (pr 42, feature/x, main). De fix-modi
-    /// zijn nog byte-identiek aan origin/main (f4da4cd); de distill-waarden zijn
-    /// bewust bijgewerkt voor de REVIEW.md-bestemming. FNV is hier met de hand
+    /// Lengte plus FNV-1a-64 van de prompt (pr 42, feature/x, main). fixComments,
+    /// fixChecks, fixConflicts en distillLearningsInline zijn bewust bijgewerkt voor
+    /// de zin dat het comment niets over de push zegt; beide distill-waarden ook voor
+    /// de REVIEW.md-bestemming. FNV is hier met de hand
     /// uitgeschreven omdat DefaultHasher niet stabiel is tussen Rust-versies. Een
     /// wijziging in een niet-review-prompt moet deze waarden bewust bijwerken.
     #[test]
     fn non_review_prompts_match_their_pinned_hashes() {
         let expected = [
-            ("fixComments", 2800, 0x3a4716f390ae0ab6_u64),
-            ("fixChecks", 2225, 0xc3b665183c3ac6bf),
-            ("fixConflicts", 1873, 0xb327b9c4fb9cfc16),
+            ("fixComments", 3063, 0xa0dea780385d6cef_u64),
+            ("fixChecks", 2488, 0x624d0db5e6a4b452),
+            ("fixConflicts", 2136, 0xeb43d3daeeee2f59),
             ("distillLearnings", 3063, 0xcd3b9b0d997269e2),
-            ("distillLearningsInline", 4054, 0xba833873541f1d50),
+            ("distillLearningsInline", 4317, 0x3c3eee99361e7a1d),
         ];
         for agent in ["claude", "codex"] {
             for (mode, len, hash) in expected {
@@ -3495,6 +3549,36 @@ mod tests {
             );
             assert!(prompt.contains(TEST_MARKER), "mode {mode}");
             assert!(prompt.contains("Push zelf niets"), "mode {mode}");
+        }
+    }
+
+    #[test]
+    /// Het PR-comment staat er al vóór de push: "staan lokaal klaar" klopt daarna
+    /// niet meer en leest op de PR alsof de fixes nooit aankwamen.
+    fn every_push_prompt_keeps_the_push_status_out_of_the_pr_comment() {
+        for mode in [
+            "withFixes",
+            "fixComments",
+            "fixChecks",
+            "fixConflicts",
+            "distillLearningsInline",
+        ] {
+            let prompt = prompt_for_mode("claude", mode, 42, "feature/x", "main").expect("prompt");
+            assert!(prompt.contains(TEST_MARKER), "mode {mode}");
+            // Alleen met marker: zonder marker blijven de commits wél lokaal en
+            // hoort die uitleg juist in het comment.
+            assert!(
+                prompt.contains(
+                    "Maak je dat bestand aan, dan pusht Accord pas nadat je review, PR-comment"
+                ),
+                "mode {mode}"
+            );
+            assert!(
+                prompt.contains(
+                    "je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom"
+                ),
+                "mode {mode}"
+            );
         }
     }
 
@@ -4002,6 +4086,92 @@ mod tests {
             !consulted,
             "na een geslaagde push mag de stale PR-ref niet meer beslissen"
         );
+    }
+
+    #[test]
+    fn finds_every_checkout_of_the_pushed_branch() {
+        let porcelain = "worktree /repo\nHEAD aaa\nbranch refs/heads/main\n\n\
+            worktree /repo/.claude/worktrees/met spatie\nHEAD bbb\nbranch refs/heads/claude/ontvangers\n\n\
+            worktree /tmp/pr-cockpit/run-1\nHEAD ccc\ndetached\n\n\
+            worktree /repo/wt/prefix\nHEAD ddd\nbranch refs/heads/claude/ontvangers-2\n";
+        assert_eq!(
+            checkouts_on_branch(porcelain, "claude/ontvangers"),
+            vec![PathBuf::from("/repo/.claude/worktrees/met spatie")]
+        );
+        assert_eq!(
+            checkouts_on_branch(porcelain, "main"),
+            vec![PathBuf::from("/repo")]
+        );
+        assert!(checkouts_on_branch(porcelain, "elders").is_empty());
+    }
+
+    #[test]
+    fn fast_forward_moves_a_checkout_that_is_behind_and_spares_local_work() {
+        let fixture = GitSandboxFixture::new();
+        let commit = |dir: &Path, message: &str| {
+            run_git(
+                dir,
+                &[
+                    "-c",
+                    "user.name=Accord test",
+                    "-c",
+                    "user.email=test@example.com",
+                    "commit",
+                    "-a",
+                    "--allow-empty",
+                    "-m",
+                    message,
+                ],
+            )
+            .unwrap();
+        };
+        let add_worktree = |branch: &str| {
+            let path = fixture.root.join(branch);
+            run_git(
+                &fixture.repo,
+                &["worktree", "add", "-b", branch, path.to_str().unwrap()],
+            )
+            .unwrap();
+            path
+        };
+        let read = |dir: &Path| std::fs::read_to_string(dir.join("f")).unwrap();
+        // Autostash zou de vuile checkout stashen, doorschuiven en de stash met
+        // een conflict terugzetten; de fast-forward moet dat zelf uitzetten.
+        run_git(&fixture.repo, &["config", "merge.autoStash", "true"]).unwrap();
+        std::fs::write(fixture.repo.join("f"), "basis").unwrap();
+        run_git(&fixture.repo, &["add", "f"]).unwrap();
+        commit(&fixture.repo, "basis");
+        run_git(&fixture.repo, &["switch", "-c", "behind"]).unwrap();
+        let behind = fixture.repo.clone();
+        let own = add_worktree("own");
+        commit(&own, "eigen werk");
+        let own_head = run_git(&own, &["rev-parse", "HEAD"]).unwrap();
+        let dirty = add_worktree("dirty");
+        std::fs::write(dirty.join("f"), "lokaal").unwrap();
+        let dirty_head = run_git(&dirty, &["rev-parse", "HEAD"]).unwrap();
+        run_git(&fixture.worktree, &["checkout", "--detach", "behind"]).unwrap();
+        std::fs::write(fixture.worktree.join("f"), "fix").unwrap();
+        commit(&fixture.worktree, "fix van de agent");
+        let pushed = run_git(&fixture.worktree, &["rev-parse", "HEAD"]).unwrap();
+
+        let lines = fast_forward_lines(&fixture.worktree, "behind");
+        assert_eq!(
+            lines,
+            vec![format!("lokale checkout bijgewerkt: {}", behind.display())]
+        );
+        assert_eq!(run_git(&behind, &["rev-parse", "HEAD"]).unwrap(), pushed);
+        assert_eq!(read(&behind), "fix");
+
+        for (path, head, branch) in [(&own, &own_head, "own"), (&dirty, &dirty_head, "dirty")] {
+            let lines = fast_forward_lines(&fixture.worktree, branch);
+            assert_eq!(lines.len(), 1);
+            assert!(lines[0].starts_with(&format!("fast-forward van {} faalde", path.display())));
+            assert_eq!(&run_git(path, &["rev-parse", "HEAD"]).unwrap(), head);
+        }
+        assert_eq!(read(&dirty), "lokaal");
+        assert_eq!(run_git(&dirty, &["stash", "list"]).unwrap(), "");
+
+        assert!(fast_forward_lines(&fixture.worktree, "elders").is_empty());
     }
 
     #[test]
