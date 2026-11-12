@@ -865,7 +865,7 @@ fn prompt_for_mode(
     // uit elkaar kunnen lopen.
     let marker_path = push_marker.to_string_lossy();
     let push_tail = format!(
-        "Is alles groen en mogen je commits naar de PR, maak dan als laatste stap het bestand {marker_path} aan (leeg is goed); Accord pusht ze daarna naar {head_ref}. Faalt er iets, ga dan niet op de uitkomst af maar bepaal of jouw wijziging de oorzaak is: draai datzelfde falen opnieuw zonder jouw commits (git stash, of de basisbranch {base_ref} uitchecken in een los pad). Faalt het daar aantoonbaar ook en staat het los van wat je aanraakte, maak het bestand dan wel aan en benoem dat bestaande falen in je PR-comment. Veroorzaak je het falen zelf, kom je er niet uit, of kun je niet bewijzen dat het al bestond, maak dat bestand dan NIET aan: je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom."
+        "Is alles groen en mogen je commits naar de PR, maak dan als laatste stap het bestand {marker_path} aan (leeg is goed); Accord pusht ze daarna naar {head_ref}. Maak je dat bestand aan, dan pusht Accord pas nadat je review, PR-comment of thread-replies geplaatst zijn: schrijf daarin dan niet dat je commits lokaal klaarstaan, dat je niets gepusht hebt of dat Accord nog moet pushen, maar noem de fixes met hun commit-hash. Faalt er iets, ga dan niet op de uitkomst af maar bepaal of jouw wijziging de oorzaak is: draai datzelfde falen opnieuw zonder jouw commits (git stash, of de basisbranch {base_ref} uitchecken in een los pad). Faalt het daar aantoonbaar ook en staat het los van wat je aanraakte, maak het bestand dan wel aan en benoem dat bestaande falen in je PR-comment. Veroorzaak je het falen zelf, kom je er niet uit, of kun je niet bewijzen dat het al bestond, maak dat bestand dan NIET aan: je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom."
     );
     let hand_off = format!(
         "Push zelf niets en gebruik geen git push. Lees vóór je iets draait gh pr checks {pr_number}: staan alle required checks daar groen op de head-sha van deze PR, draai dan alleen de tests die jouw eigen wijziging raakt, sla mutation- en coveragegates over (infection, mutation testing, coverage-drempels) en neem die groene checks als bewijs over in je PR-comment in plaats van de suite over te doen. Is ook maar één required check rood of pending, of zijn er geen checks, dan draai je zelf de volledige tests en de linter. {push_tail}"
@@ -3136,19 +3136,20 @@ mod tests {
         }
     }
 
-    /// Lengte plus FNV-1a-64 van de prompt (pr 42, feature/x, main). De fix-modi
-    /// zijn nog byte-identiek aan origin/main (f4da4cd); de distill-waarden zijn
-    /// bewust bijgewerkt voor de REVIEW.md-bestemming. FNV is hier met de hand
+    /// Lengte plus FNV-1a-64 van de prompt (pr 42, feature/x, main). fixComments,
+    /// fixChecks, fixConflicts en distillLearningsInline zijn bewust bijgewerkt voor
+    /// de zin dat het comment niets over de push zegt; beide distill-waarden ook voor
+    /// de REVIEW.md-bestemming. FNV is hier met de hand
     /// uitgeschreven omdat DefaultHasher niet stabiel is tussen Rust-versies. Een
     /// wijziging in een niet-review-prompt moet deze waarden bewust bijwerken.
     #[test]
     fn non_review_prompts_match_their_pinned_hashes() {
         let expected = [
-            ("fixComments", 2800, 0x3a4716f390ae0ab6_u64),
-            ("fixChecks", 2225, 0xc3b665183c3ac6bf),
-            ("fixConflicts", 1873, 0xb327b9c4fb9cfc16),
+            ("fixComments", 3063, 0xa0dea780385d6cef_u64),
+            ("fixChecks", 2488, 0x624d0db5e6a4b452),
+            ("fixConflicts", 2136, 0xeb43d3daeeee2f59),
             ("distillLearnings", 3063, 0xcd3b9b0d997269e2),
-            ("distillLearningsInline", 4054, 0xba833873541f1d50),
+            ("distillLearningsInline", 4317, 0x3c3eee99361e7a1d),
         ];
         for agent in ["claude", "codex"] {
             for (mode, len, hash) in expected {
@@ -3548,6 +3549,36 @@ mod tests {
             );
             assert!(prompt.contains(TEST_MARKER), "mode {mode}");
             assert!(prompt.contains("Push zelf niets"), "mode {mode}");
+        }
+    }
+
+    #[test]
+    /// Het PR-comment staat er al vóór de push: "staan lokaal klaar" klopt daarna
+    /// niet meer en leest op de PR alsof de fixes nooit aankwamen.
+    fn every_push_prompt_keeps_the_push_status_out_of_the_pr_comment() {
+        for mode in [
+            "withFixes",
+            "fixComments",
+            "fixChecks",
+            "fixConflicts",
+            "distillLearningsInline",
+        ] {
+            let prompt = prompt_for_mode("claude", mode, 42, "feature/x", "main").expect("prompt");
+            assert!(prompt.contains(TEST_MARKER), "mode {mode}");
+            // Alleen met marker: zonder marker blijven de commits wél lokaal en
+            // hoort die uitleg juist in het comment.
+            assert!(
+                prompt.contains(
+                    "Maak je dat bestand aan, dan pusht Accord pas nadat je review, PR-comment"
+                ),
+                "mode {mode}"
+            );
+            assert!(
+                prompt.contains(
+                    "je commits blijven dan lokaal staan en jij legt in één PR-comment uit waarom"
+                ),
+                "mode {mode}"
+            );
         }
     }
 
