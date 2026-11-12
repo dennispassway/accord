@@ -1516,7 +1516,49 @@ fn push_if_marked(app: &AppHandle, run_id: &str, worktree: &Path, head_ref: &str
     if let Some(line) = line {
         emit_log(app, run_id, vec![line]);
     }
+    if outcome == PushOutcome::Pushed {
+        fast_forward_checkouts(app, run_id, worktree, head_ref);
+    }
     outcome
+}
+
+/// Uit `git worktree list --porcelain`: de checkouts die `head_ref` als branch
+/// hebben. De run-worktree zelf staat op een detached HEAD en valt er dus buiten.
+fn checkouts_on_branch(porcelain: &str, head_ref: &str) -> Vec<PathBuf> {
+    let wanted = format!("branch refs/heads/{head_ref}");
+    porcelain
+        .split("\n\n")
+        .filter(|block| block.lines().any(|line| line == wanted))
+        .filter_map(|block| {
+            block
+                .lines()
+                .find_map(|line| line.strip_prefix("worktree "))
+        })
+        .map(PathBuf::from)
+        .collect()
+}
+
+/// Accord pusht vanuit zijn eigen worktree, dus een lokale checkout van de
+/// PR-branch blijft achter en lijkt de fixes te missen. `--ff-only` raakt
+/// alleen een checkout die strikt achterloopt; eigen commits of lokale
+/// wijzigingen op dezelfde bestanden laten git weigeren, en dat melden we alleen.
+fn fast_forward_checkouts(app: &AppHandle, run_id: &str, worktree: &Path, head_ref: &str) {
+    let (Ok(list), Ok(sha)) = (
+        run_git(worktree, &["worktree", "list", "--porcelain"]),
+        run_git(worktree, &["rev-parse", "HEAD"]),
+    ) else {
+        return;
+    };
+    for checkout in checkouts_on_branch(&list, head_ref) {
+        let line = match run_git(&checkout, &["merge", "--ff-only", sha.trim()]) {
+            Ok(_) => format!("lokale checkout bijgewerkt: {}", checkout.display()),
+            Err(error) => format!(
+                "lokale checkout niet bijgewerkt ({}): {error}",
+                checkout.display()
+            ),
+        };
+        emit_log(app, run_id, vec![line]);
+    }
 }
 
 /// Los van tauri om zonder AppHandle te kunnen testen: mag deze run als
@@ -4002,6 +4044,23 @@ mod tests {
             !consulted,
             "na een geslaagde push mag de stale PR-ref niet meer beslissen"
         );
+    }
+
+    #[test]
+    fn finds_every_checkout_of_the_pushed_branch() {
+        let porcelain = "worktree /repo\nHEAD aaa\nbranch refs/heads/main\n\n\
+            worktree /repo/.claude/worktrees/met spatie\nHEAD bbb\nbranch refs/heads/claude/ontvangers\n\n\
+            worktree /tmp/pr-cockpit/run-1\nHEAD ccc\ndetached\n\n\
+            worktree /repo/wt/prefix\nHEAD ddd\nbranch refs/heads/claude/ontvangers-2\n";
+        assert_eq!(
+            checkouts_on_branch(porcelain, "claude/ontvangers"),
+            vec![PathBuf::from("/repo/.claude/worktrees/met spatie")]
+        );
+        assert_eq!(
+            checkouts_on_branch(porcelain, "main"),
+            vec![PathBuf::from("/repo")]
+        );
+        assert!(checkouts_on_branch(porcelain, "elders").is_empty());
     }
 
     #[test]
